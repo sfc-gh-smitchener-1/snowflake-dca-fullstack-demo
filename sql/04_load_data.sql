@@ -96,11 +96,11 @@ $$
         
         // Process each file
         for (var i = 0; i < files.length; i++) {
-            var fullStagePath = files[i];
+            var listedPath = files[i];
             
-            // fullStagePath from LIST is like: @"RAW_DEV"."STAGING"."DATA_STAGE"/sap_s4hana/KNA1.csv
-            // Extract just the filename
-            var pathParts = fullStagePath.split('/');
+            // LIST returns paths like: data_stage/sap_s4hana/KNA1.csv
+            // We need to extract folder/filename and build proper stage reference
+            var pathParts = listedPath.split('/');
             var fileNameWithExt = pathParts[pathParts.length - 1];
             
             // Extract table name by removing extension(s)
@@ -109,8 +109,12 @@ $$
                 .replace(/\.(csv|json|parquet)$/i, '')
                 .toUpperCase();
             
+            // Build proper stage path: @DATABASE.SCHEMA.STAGE/folder/file
+            var stagePath = folder + '/' + fileNameWithExt;
+            var fullStagePath = '@RAW_DEV.STAGING.DATA_STAGE/' + stagePath;
+            
             try {
-                // Infer schema - use the full stage path directly from LIST
+                // Infer schema
                 var inferSql = `
                     SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') 
                            WITHIN GROUP (ORDER BY ORDER_ID) AS COL_DEFS
@@ -159,9 +163,8 @@ $$
                 createStmt.execute();
                 
                 // Load data (using COPY format with SKIP_HEADER=1, FORCE=TRUE to reload)
-                // Use the full stage path directly from LIST
                 var copySql = `COPY INTO ${fullTableName} 
-                               FROM '${fullStagePath}'
+                               FROM ${fullStagePath}
                                FILE_FORMAT = ${copyFormatName}
                                ON_ERROR = CONTINUE
                                FORCE = TRUE`;
