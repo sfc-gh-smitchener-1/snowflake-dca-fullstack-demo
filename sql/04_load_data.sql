@@ -79,26 +79,13 @@ LIST @RAW_DEV.STAGING.DATA_STAGE;
 -- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('FHIR', 'OBSERVATION', 'JSON', 'fhir_r4/Observation.json');
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- STEP 4 Alternative: Bulk load all tables for a source system (Method B)
+-- NOTE: For bulk loading, call INFER_AND_CREATE_TABLE for each table.
+-- Example workflow for SAP:
+--   CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
+--   CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'MARA', 'CSV', 'sap_s4hana/MARA.csv');
+--   CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'VBAK', 'CSV', 'sap_s4hana/VBAK.csv');
+--   ... repeat for each table
 -- ─────────────────────────────────────────────────────────────────────────────
-
--- Load all SAP tables at once
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SAP', 'CSV');
-
--- Load all Salesforce objects
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SALESFORCE', 'CSV');
-
--- Load all Oracle EBS tables
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('ORACLE', 'CSV');
-
--- Load all FHIR resources
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('FHIR', 'JSON');
-
--- Load all Workday reports
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('WORKDAY', 'CSV');
-
--- Load all ServiceNow tables
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SERVICENOW', 'CSV');
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- STEP 5: Apply governance tags to loaded tables
