@@ -1,9 +1,7 @@
 # Snowflake DCA Demo - Git Ignore
 
-# Generated Data
-data/*.csv
-data/*.json
-data/*.parquet
+# Generated Data - ignore all data files and subdirectories
+data/
 !data/.gitkeep
 
 # Python

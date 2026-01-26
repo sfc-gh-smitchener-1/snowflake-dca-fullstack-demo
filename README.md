@@ -48,27 +48,27 @@ Whether you operate in a **single Snowflake account** or across **multiple accou
 │                     People-First, Contract-Driven                           │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                           PEOPLE LAYER                              │   │
-│  │  Data Producers (Teams) │ Data Stewards │ Analysts │ AI Agents      │   │
-│  │                                                                     │   │
-│  │  Each team has AUTONOMY to manage their data domain                 │   │
-│  └──────────────────────────────────┬──────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                           PEOPLE LAYER                              │    │
+│  │  Data Producers (Teams) │ Data Stewards │ Analysts │ AI Agents      │    │
+│  │                                                                     │    │
+│  │  Each team has AUTONOMY to manage their data domain                 │    │
+│  └──────────────────────────────────┬──────────────────────────────────┘    │
 │                                     │                                       │
 │                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                        CONTRACT LAYER                               │   │
-│  │                                                                     │   │
-│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐  │   │
-│  │   │   Schema    │ │   Quality   │ │     SLA     │ │ Governance  │  │   │
-│  │   │  Contract   │ │  Contract   │ │  Contract   │ │  Contract   │  │   │
-│  │   └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘  │   │
-│  │                                                                     │   │
-│  │   Contracts are the TRUST BOUNDARY between producers and consumers  │   │
-│  └──────────────────────────────────┬──────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                        CONTRACT LAYER                               │    │
+│  │                                                                     │    │
+│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │    │
+│  │   │   Schema    │ │   Quality   │ │     SLA     │ │ Governance  │   │    │
+│  │   │  Contract   │ │  Contract   │ │  Contract   │ │  Contract   │   │    │
+│  │   └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │    │
+│  │                                                                     │    │
+│  │   Contracts are the TRUST BOUNDARY between producers and consumers  │    │
+│  └──────────────────────────────────┬──────────────────────────────────┘    │
 │                                     │                                       │
 │                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                          DATA LAYER                                 │   │
 │  │                                                                     │   │
 │  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)    │   │
