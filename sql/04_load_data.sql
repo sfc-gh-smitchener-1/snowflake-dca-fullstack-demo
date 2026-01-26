@@ -160,11 +160,10 @@ $$
                 var createStmt = snowflake.createStatement({sqlText: createSql});
                 createStmt.execute();
                 
-                // Load data
+                // Load data (columns already in correct order from INFER_SCHEMA)
                 var copySql = `COPY INTO ${fullTableName} 
                                FROM @RAW_DEV.STAGING.DATA_STAGE/${stagePath}
                                FILE_FORMAT = ${fileFormatName}
-                               MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
                                ON_ERROR = CONTINUE`;
                 var copyStmt = snowflake.createStatement({sqlText: copySql});
                 copyStmt.execute();
