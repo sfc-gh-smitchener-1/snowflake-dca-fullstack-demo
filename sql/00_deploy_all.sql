@@ -39,7 +39,7 @@ SELECT
 -- STEP 1: INITIAL SETUP
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 1: Running 01_setup.sql - Roles, warehouses, databases, tags...';
+-- 'Step 1: Running 01_setup.sql - Roles, warehouses, databases, tags...';
 
 -- If running from Git repository:
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/01_setup.sql;
@@ -50,7 +50,7 @@ SELECT
 -- STEP 2: RAW LAYER
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 2: Running 03_raw_layer.sql - RAW tables with SCD Type 2...';
+-- 'Step 2: Running 03_raw_layer.sql - RAW tables with SCD Type 2...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/03_raw_layer.sql;
 
@@ -58,7 +58,7 @@ SELECT
 -- STEP 3: LOAD DATA
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 3: Running 04_load_data.sql - Loading synthetic data...';
+-- 'Step 3: Running 04_load_data.sql - Loading synthetic data...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/04_load_data.sql;
 
@@ -66,7 +66,7 @@ SELECT
 -- STEP 4: CURATED LAYER
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 4: Running 05_curated_layer.sql - Dynamic Tables...';
+-- 'Step 4: Running 05_curated_layer.sql - Dynamic Tables...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/05_curated_layer.sql;
 
@@ -74,7 +74,7 @@ SELECT
 -- STEP 5: SEMANTIC LAYER
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 5: Running 06_semantic_layer.sql - Semantic Views...';
+-- 'Step 5: Running 06_semantic_layer.sql - Semantic Views...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/06_semantic_layer.sql;
 
@@ -82,7 +82,7 @@ SELECT
 -- STEP 6: GOVERNANCE POLICIES
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 6: Running 07_governance.sql - Masking and row access...';
+-- 'Step 6: Running 07_governance.sql - Masking and row access...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/07_governance.sql;
 
@@ -90,7 +90,7 @@ SELECT
 -- STEP 7: MARKETPLACE
 -- ═══════════════════════════════════════════════════════════════════════════
 
-!PRINT 'Step 7: Running 10_marketplace.sql - Data products...';
+-- 'Step 7: Running 10_marketplace.sql - Data products...';
 
 -- EXECUTE IMMEDIATE FROM @dca_demo_repo/branches/main/sql/10_marketplace.sql;
 
