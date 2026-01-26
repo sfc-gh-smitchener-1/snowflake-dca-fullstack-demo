@@ -1,20 +1,18 @@
 -- ============================================================================
--- SEMANTIC LAYER - Native Snowflake Semantic Views for Cortex Analyst
+-- SEMANTIC LAYER - Dynamic Native Semantic Views for Cortex Analyst
 -- ============================================================================
 -- 
--- This script creates native Snowflake Semantic Views that provide:
---   1. Logical table definitions with relationships
---   2. Pre-defined dimensions and metrics for Cortex Analyst
---   3. Business-friendly names and descriptions
---   4. Natural language query capabilities via Cortex
+-- This script creates dynamic semantic views that:
+--   1. Support multiple source systems (SAP, Salesforce, Oracle, FHIR, etc.)
+--   2. Provide pre-defined dimensions and metrics for Cortex Analyst
+--   3. Enable natural language query capabilities
+--   4. Map source system fields to business-friendly names
 --
 -- Semantic Views are the Gold layer - optimized for consumption by:
 --   - Cortex Analyst (natural language to SQL)
 --   - Business analysts (self-service)
---   - Dashboards and BI tools
 --   - AI/ML workloads (with pseudonymized data)
 --
--- Reference: https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view
 -- RUN AS: DATA_ADMIN
 -- ============================================================================
 
@@ -23,434 +21,451 @@ USE DATABASE SEM_DEV;
 USE WAREHOUSE ANALYTICS_WH;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SEMANTIC VIEW: Sales Analytics
+-- SEMANTIC VIEW CREATION PROCEDURE
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
--- Primary semantic view for sales and revenue analysis.
--- Combines orders, customers, products, and dates.
--- Used by: Sales leadership, Finance, Revenue ops
+-- Creates semantic views dynamically based on curated layer tables.
+-- Maps source system curated tables to semantic views.
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
-USE SCHEMA SEM_DEV.SEM_SALES;
-
-CREATE OR REPLACE SEMANTIC VIEW SALES_ANALYTICS
-  TABLES (
-    -- Define the tables and their primary keys
-    orders AS CURATED_DEV.FACTS.FACT_ORDERS PRIMARY KEY (ORDER_KEY),
-    customers AS CURATED_DEV.DIMENSIONS.DIM_CUSTOMER PRIMARY KEY (CUSTOMER_KEY),
-    products AS CURATED_DEV.DIMENSIONS.DIM_PRODUCT PRIMARY KEY (PRODUCT_KEY),
-    dates AS CURATED_DEV.DIMENSIONS.DIM_DATE PRIMARY KEY (DATE_KEY)
-  )
-  RELATIONSHIPS (
-    -- Define how tables join together
-    orders(CUSTOMER_KEY) REFERENCES customers(CUSTOMER_KEY),
-    orders(DATE_KEY) REFERENCES dates(DATE_KEY)
-    -- Note: Product key would be on order_line in full model
-  )
-  DIMENSIONS (
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- TIME DIMENSIONS
-    -- ═══════════════════════════════════════════════════════════════════════
-    dates.YEAR AS year COMMENT 'Calendar year (e.g., 2024)',
-    dates.QUARTER AS quarter COMMENT 'Calendar quarter (1-4)',
-    dates.MONTH AS month COMMENT 'Calendar month (1-12)',
-    dates.MONTH_NAME AS month_name COMMENT 'Month name (e.g., January)',
-    dates.WEEK_OF_YEAR AS week COMMENT 'Week of year (1-52)',
-    dates.DAY_NAME AS day_name COMMENT 'Day of week name (e.g., Monday)',
-    dates.FISCAL_YEAR AS fiscal_year COMMENT 'Fiscal year (July start)',
-    dates.FISCAL_QUARTER AS fiscal_quarter COMMENT 'Fiscal quarter (1-4)',
-    dates.IS_WEEKEND AS is_weekend COMMENT 'True if Saturday or Sunday',
-    dates.IS_HOLIDAY AS is_holiday COMMENT 'True if common US holiday',
+CREATE OR REPLACE PROCEDURE SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE(
+    p_source_system VARCHAR,
+    p_semantic_domain VARCHAR  -- SALES, CUSTOMER, HR, OPERATIONS, HEALTHCARE
+)
+RETURNS VARCHAR
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    v_create_sql VARCHAR;
+    v_view_name VARCHAR;
+BEGIN
+    CASE UPPER(p_source_system)
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- SAP Semantic Views
+        -- ═══════════════════════════════════════════════════════════════════════
+        WHEN 'SAP' THEN
+            CASE UPPER(p_semantic_domain)
+                WHEN 'SALES' THEN
+                    v_view_name := 'SAP_SALES_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_SALES.' || v_view_name || '
+                      TABLES (
+                        orders AS CURATED_DEV.FACTS.FACT_SALES_ORDERS_SAP PRIMARY KEY (ORDER_KEY),
+                        customers AS CURATED_DEV.DIMENSIONS.DIM_CUSTOMER_SAP PRIMARY KEY (CUSTOMER_KEY),
+                        products AS CURATED_DEV.DIMENSIONS.DIM_PRODUCT_SAP PRIMARY KEY (PRODUCT_KEY),
+                        dates AS CURATED_DEV.DIMENSIONS.DIM_DATE PRIMARY KEY (DATE_KEY)
+                      )
+                      RELATIONSHIPS (
+                        orders(CUSTOMER_KEY) REFERENCES customers(CUSTOMER_KEY),
+                        orders(ORDER_DATE) REFERENCES dates(DATE_KEY)
+                      )
+                      DIMENSIONS (
+                        dates.YEAR AS year COMMENT ''Calendar year'',
+                        dates.QUARTER AS quarter COMMENT ''Quarter (1-4)'',
+                        dates.MONTH_NAME AS month COMMENT ''Month name'',
+                        dates.FISCAL_YEAR AS fiscal_year COMMENT ''Fiscal year'',
+                        
+                        customers.CUSTOMER_ID AS customer_id COMMENT ''SAP Customer Number (KUNNR)'',
+                        customers.CUSTOMER_NAME AS customer_name COMMENT ''Customer name (NAME1)'',
+                        customers.CITY AS city COMMENT ''City (ORT01)'',
+                        customers.COUNTRY AS country COMMENT ''Country (LAND1)'',
+                        customers.INDUSTRY_CODE AS industry COMMENT ''Industry sector (BRSCH)'',
+                        customers.IS_ACTIVE AS is_active_customer,
+                        
+                        orders.ORDER_NUMBER AS order_number COMMENT ''Sales document number (VBELN)'',
+                        orders.SALES_ORG AS sales_organization COMMENT ''Sales organization (VKORG)'',
+                        orders.DISTRIBUTION_CHANNEL AS channel COMMENT ''Distribution channel (VTWEG)'',
+                        orders.ORDER_TYPE AS order_type COMMENT ''Sales document type (AUART)'',
+                        orders.ORDER_STATUS AS status COMMENT ''Overall status (GBSTK)'',
+                        orders.IS_COMPLETED AS is_completed
+                      )
+                      METRICS (
+                        orders.total_revenue AS SUM(orders.NET_VALUE) COMMENT ''Total net value (NETWR)'',
+                        orders.avg_order_value AS AVG(orders.NET_VALUE) COMMENT ''Average order value'',
+                        orders.order_count AS COUNT(orders.ORDER_KEY) COMMENT ''Number of orders'',
+                        orders.completed_orders AS SUM(CASE WHEN orders.IS_COMPLETED THEN 1 ELSE 0 END) COMMENT ''Completed orders'',
+                        customers.customer_count AS COUNT(DISTINCT customers.CUSTOMER_KEY) COMMENT ''Unique customers''
+                      )
+                      COMMENT = ''SAP S/4HANA Sales Analytics - Orders (VBAK), Customers (KNA1), Materials (MARA)''';
+                      
+                WHEN 'PROCUREMENT' THEN
+                    v_view_name := 'SAP_PROCUREMENT_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_OPERATIONS.' || v_view_name || '
+                      TABLES (
+                        purchase_orders AS CURATED_DEV.FACTS.FACT_PURCHASE_ORDERS_SAP PRIMARY KEY (PO_KEY),
+                        vendors AS CURATED_DEV.DIMENSIONS.DIM_VENDOR_SAP PRIMARY KEY (VENDOR_KEY),
+                        dates AS CURATED_DEV.DIMENSIONS.DIM_DATE PRIMARY KEY (DATE_KEY)
+                      )
+                      RELATIONSHIPS (
+                        purchase_orders(VENDOR_KEY) REFERENCES vendors(VENDOR_KEY),
+                        purchase_orders(PO_DATE) REFERENCES dates(DATE_KEY)
+                      )
+                      DIMENSIONS (
+                        dates.YEAR AS year,
+                        dates.QUARTER AS quarter,
+                        dates.MONTH_NAME AS month,
+                        
+                        vendors.VENDOR_ID AS vendor_id COMMENT ''Vendor number (LIFNR)'',
+                        vendors.VENDOR_NAME AS vendor_name COMMENT ''Vendor name (NAME1)'',
+                        vendors.COUNTRY AS vendor_country,
+                        vendors.IS_ACTIVE AS is_active_vendor,
+                        
+                        purchase_orders.PO_NUMBER AS po_number COMMENT ''Purchase order (EBELN)'',
+                        purchase_orders.PURCHASING_ORG AS purchasing_org COMMENT ''Purchasing org (EKORG)'',
+                        purchase_orders.PO_TYPE AS po_type COMMENT ''Document type (BSART)''
+                      )
+                      METRICS (
+                        purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY) COMMENT ''Number of POs'',
+                        vendors.vendor_count AS COUNT(DISTINCT vendors.VENDOR_KEY) COMMENT ''Unique vendors''
+                      )
+                      COMMENT = ''SAP S/4HANA Procurement Analytics - Purchase Orders (EKKO), Vendors (LFA1)''';
+                ELSE
+                    RETURN 'ERROR: Unsupported SAP domain: ' || p_semantic_domain;
+            END CASE;
+            
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- Salesforce Semantic Views
+        -- ═══════════════════════════════════════════════════════════════════════
+        WHEN 'SALESFORCE' THEN
+            CASE UPPER(p_semantic_domain)
+                WHEN 'SALES' THEN
+                    v_view_name := 'SF_SALES_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_SALES.' || v_view_name || '
+                      TABLES (
+                        opportunities AS CURATED_DEV.FACTS.FACT_OPPORTUNITIES_SF PRIMARY KEY (OPPORTUNITY_KEY),
+                        accounts AS CURATED_DEV.DIMENSIONS.DIM_CUSTOMER_SF PRIMARY KEY (CUSTOMER_KEY),
+                        dates AS CURATED_DEV.DIMENSIONS.DIM_DATE PRIMARY KEY (DATE_KEY)
+                      )
+                      RELATIONSHIPS (
+                        opportunities(CUSTOMER_KEY) REFERENCES accounts(CUSTOMER_KEY),
+                        opportunities(CLOSE_DATE) REFERENCES dates(DATE_KEY)
+                      )
+                      DIMENSIONS (
+                        dates.YEAR AS year COMMENT ''Close date year'',
+                        dates.QUARTER AS quarter COMMENT ''Close date quarter'',
+                        dates.MONTH_NAME AS month COMMENT ''Close date month'',
+                        dates.FISCAL_YEAR AS fiscal_year,
+                        
+                        accounts.CUSTOMER_ID AS account_id COMMENT ''Salesforce Account ID'',
+                        accounts.CUSTOMER_NAME AS account_name COMMENT ''Account Name'',
+                        accounts.CUSTOMER_TYPE AS account_type COMMENT ''Account Type'',
+                        accounts.INDUSTRY AS industry COMMENT ''Industry'',
+                        accounts.CUSTOMER_TIER AS customer_tier COMMENT ''Customer value tier'',
+                        accounts.BILLING_STATE AS state,
+                        accounts.BILLING_COUNTRY AS country,
+                        
+                        opportunities.OPPORTUNITY_ID AS opportunity_id,
+                        opportunities.OPPORTUNITY_NAME AS opportunity_name,
+                        opportunities.STAGE_NAME AS stage COMMENT ''Pipeline Stage (StageName)'',
+                        opportunities.OPPORTUNITY_TYPE AS type COMMENT ''Opportunity Type'',
+                        opportunities.LEAD_SOURCE AS lead_source COMMENT ''Lead Source'',
+                        opportunities.FORECAST_CATEGORY AS forecast_category,
+                        opportunities.IS_CLOSED AS is_closed,
+                        opportunities.IS_WON AS is_won
+                      )
+                      METRICS (
+                        opportunities.total_pipeline AS SUM(opportunities.AMOUNT) COMMENT ''Total pipeline value'',
+                        opportunities.avg_deal_size AS AVG(opportunities.AMOUNT) COMMENT ''Average deal size'',
+                        opportunities.opportunity_count AS COUNT(opportunities.OPPORTUNITY_KEY) COMMENT ''Number of opportunities'',
+                        opportunities.won_deals AS SUM(CASE WHEN opportunities.IS_WON THEN 1 ELSE 0 END) COMMENT ''Won deals'',
+                        opportunities.closed_deals AS SUM(CASE WHEN opportunities.IS_CLOSED THEN 1 ELSE 0 END),
+                        opportunities.win_rate AS opportunities.won_deals / NULLIF(opportunities.closed_deals, 0) * 100 COMMENT ''Win rate percentage'',
+                        accounts.account_count AS COUNT(DISTINCT accounts.CUSTOMER_KEY) COMMENT ''Unique accounts''
+                      )
+                      COMMENT = ''Salesforce Sales Analytics - Pipeline, Opportunities, Accounts''';
+                      
+                WHEN 'SERVICE' THEN
+                    v_view_name := 'SF_SERVICE_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_OPERATIONS.' || v_view_name || '
+                      TABLES (
+                        cases AS CURATED_DEV.FACTS.FACT_CASES_SF PRIMARY KEY (CASE_KEY),
+                        accounts AS CURATED_DEV.DIMENSIONS.DIM_CUSTOMER_SF PRIMARY KEY (CUSTOMER_KEY),
+                        contacts AS CURATED_DEV.DIMENSIONS.DIM_CONTACT_SF PRIMARY KEY (CONTACT_KEY)
+                      )
+                      RELATIONSHIPS (
+                        cases(CUSTOMER_KEY) REFERENCES accounts(CUSTOMER_KEY),
+                        cases(CONTACT_KEY) REFERENCES contacts(CONTACT_KEY)
+                      )
+                      DIMENSIONS (
+                        accounts.CUSTOMER_NAME AS account_name,
+                        accounts.CUSTOMER_TIER AS customer_tier,
+                        
+                        contacts.DISPLAY_NAME AS contact_name,
+                        
+                        cases.CASE_NUMBER AS case_number,
+                        cases.STATUS AS status COMMENT ''Case Status'',
+                        cases.PRIORITY AS priority COMMENT ''Case Priority'',
+                        cases.ORIGIN AS origin COMMENT ''Case Origin'',
+                        cases.CASE_TYPE AS case_type,
+                        cases.IS_CLOSED AS is_closed
+                      )
+                      METRICS (
+                        cases.case_count AS COUNT(cases.CASE_KEY) COMMENT ''Total cases'',
+                        cases.open_cases AS SUM(CASE WHEN NOT cases.IS_CLOSED THEN 1 ELSE 0 END) COMMENT ''Open cases'',
+                        cases.closed_cases AS SUM(CASE WHEN cases.IS_CLOSED THEN 1 ELSE 0 END) COMMENT ''Closed cases''
+                      )
+                      COMMENT = ''Salesforce Service Analytics - Cases, Accounts, Contacts''';
+                ELSE
+                    RETURN 'ERROR: Unsupported Salesforce domain: ' || p_semantic_domain;
+            END CASE;
+            
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- FHIR Semantic Views
+        -- ═══════════════════════════════════════════════════════════════════════
+        WHEN 'FHIR' THEN
+            CASE UPPER(p_semantic_domain)
+                WHEN 'CLINICAL' THEN
+                    v_view_name := 'FHIR_CLINICAL_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_HEALTHCARE.' || v_view_name || '
+                      TABLES (
+                        encounters AS CURATED_DEV.FACTS.FACT_ENCOUNTERS_FHIR PRIMARY KEY (ENCOUNTER_KEY),
+                        conditions AS CURATED_DEV.FACTS.FACT_CONDITIONS_FHIR PRIMARY KEY (CONDITION_KEY),
+                        patients AS CURATED_DEV.DIMENSIONS.DIM_PATIENT_FHIR PRIMARY KEY (PATIENT_KEY)
+                      )
+                      RELATIONSHIPS (
+                        encounters(PATIENT_KEY) REFERENCES patients(PATIENT_KEY),
+                        conditions(PATIENT_KEY) REFERENCES patients(PATIENT_KEY),
+                        conditions(ENCOUNTER_KEY) REFERENCES encounters(ENCOUNTER_KEY)
+                      )
+                      DIMENSIONS (
+                        patients.PATIENT_ID AS patient_id COMMENT ''FHIR Patient ID'',
+                        patients.GENDER AS gender COMMENT ''Patient gender'',
+                        patients.CITY AS city,
+                        patients.STATE AS state,
+                        patients.IS_ACTIVE AS is_active_patient,
+                        
+                        encounters.ENCOUNTER_ID AS encounter_id,
+                        encounters.ENCOUNTER_CLASS AS encounter_class COMMENT ''Class (ambulatory, inpatient, emergency)'',
+                        encounters.ENCOUNTER_TYPE AS encounter_type,
+                        encounters.STATUS AS encounter_status,
+                        
+                        conditions.DIAGNOSIS_CODE AS diagnosis_code COMMENT ''ICD-10/SNOMED code'',
+                        conditions.DIAGNOSIS_DESCRIPTION AS diagnosis,
+                        conditions.CODE_SYSTEM AS code_system,
+                        conditions.CLINICAL_STATUS AS clinical_status
+                      )
+                      METRICS (
+                        encounters.encounter_count AS COUNT(encounters.ENCOUNTER_KEY) COMMENT ''Total encounters'',
+                        encounters.avg_duration_minutes AS AVG(encounters.DURATION_MINUTES) COMMENT ''Average encounter duration'',
+                        conditions.condition_count AS COUNT(conditions.CONDITION_KEY) COMMENT ''Total conditions'',
+                        patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY) COMMENT ''Unique patients''
+                      )
+                      COMMENT = ''FHIR R4 Clinical Analytics - Encounters, Conditions, Patients''';
+                ELSE
+                    RETURN 'ERROR: Unsupported FHIR domain: ' || p_semantic_domain;
+            END CASE;
+            
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- Workday Semantic Views
+        -- ═══════════════════════════════════════════════════════════════════════
+        WHEN 'WORKDAY' THEN
+            CASE UPPER(p_semantic_domain)
+                WHEN 'HR' THEN
+                    v_view_name := 'WD_WORKFORCE_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_HR.' || v_view_name || '
+                      TABLES (
+                        employees AS CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE_WD PRIMARY KEY (EMPLOYEE_KEY)
+                      )
+                      DIMENSIONS (
+                        employees.EMPLOYEE_ID AS employee_id COMMENT ''Workday Worker ID'',
+                        employees.PREFERRED_NAME AS employee_name COMMENT ''Preferred name'',
+                        employees.EMPLOYMENT_TYPE AS employment_type,
+                        employees.JOB_TITLE AS job_title COMMENT ''Business Title'',
+                        employees.JOB_LEVEL AS job_level,
+                        employees.DEPARTMENT AS department COMMENT ''Supervisory Organization'',
+                        employees.WORK_LOCATION AS location,
+                        employees.IS_ACTIVE AS is_active
+                      )
+                      METRICS (
+                        employees.headcount AS COUNT(employees.EMPLOYEE_KEY) COMMENT ''Total headcount'',
+                        employees.active_headcount AS COUNT(CASE WHEN employees.IS_ACTIVE THEN employees.EMPLOYEE_KEY END) COMMENT ''Active employees'',
+                        employees.avg_tenure AS AVG(employees.TENURE_YEARS) COMMENT ''Average tenure in years''
+                      )
+                      COMMENT = ''Workday HCM Workforce Analytics - Workers, Organizations''';
+                ELSE
+                    RETURN 'ERROR: Unsupported Workday domain: ' || p_semantic_domain;
+            END CASE;
+            
+        -- ═══════════════════════════════════════════════════════════════════════
+        -- ServiceNow Semantic Views
+        -- ═══════════════════════════════════════════════════════════════════════
+        WHEN 'SERVICENOW' THEN
+            CASE UPPER(p_semantic_domain)
+                WHEN 'ITSM' THEN
+                    v_view_name := 'SN_ITSM_ANALYTICS';
+                    v_create_sql := '
+                    CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SEM_OPERATIONS.' || v_view_name || '
+                      TABLES (
+                        incidents AS CURATED_DEV.FACTS.FACT_INCIDENTS_SN PRIMARY KEY (INCIDENT_KEY),
+                        users AS CURATED_DEV.DIMENSIONS.DIM_USER_SN PRIMARY KEY (USER_KEY)
+                      )
+                      RELATIONSHIPS (
+                        incidents(CALLER_KEY) REFERENCES users(USER_KEY)
+                      )
+                      DIMENSIONS (
+                        users.USERNAME AS username,
+                        users.JOB_TITLE AS job_title,
+                        users.DEPARTMENT AS department,
+                        users.LOCATION AS location,
+                        
+                        incidents.INCIDENT_NUMBER AS incident_number,
+                        incidents.PRIORITY AS priority COMMENT ''Incident priority (1-5)'',
+                        incidents.URGENCY AS urgency,
+                        incidents.IMPACT AS impact,
+                        incidents.STATE AS state,
+                        incidents.CATEGORY AS category,
+                        incidents.SUBCATEGORY AS subcategory,
+                        incidents.ASSIGNMENT_GROUP AS assignment_group
+                      )
+                      METRICS (
+                        incidents.incident_count AS COUNT(incidents.INCIDENT_KEY) COMMENT ''Total incidents'',
+                        incidents.avg_resolution_time AS AVG(incidents.TIME_TO_RESOLVE_MINUTES) COMMENT ''Avg resolution time (minutes)'',
+                        incidents.p1_incidents AS SUM(CASE WHEN incidents.PRIORITY = ''1'' THEN 1 ELSE 0 END) COMMENT ''Priority 1 incidents'',
+                        users.user_count AS COUNT(DISTINCT users.USER_KEY) COMMENT ''Unique users''
+                      )
+                      COMMENT = ''ServiceNow ITSM Analytics - Incidents, Users''';
+                ELSE
+                    RETURN 'ERROR: Unsupported ServiceNow domain: ' || p_semantic_domain;
+            END CASE;
+        ELSE
+            RETURN 'ERROR: Unsupported source system: ' || p_source_system;
+    END CASE;
     
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- CUSTOMER DIMENSIONS
-    -- ═══════════════════════════════════════════════════════════════════════
-    customers.CUSTOMER_ID AS customer_id COMMENT 'Unique customer identifier',
-    customers.DISPLAY_NAME AS customer_name COMMENT 'Privacy-safe customer display name',
-    customers.COMPANY_NAME AS company_name COMMENT 'Company/organization name',
-    customers.CUSTOMER_TYPE AS customer_type COMMENT 'Customer type (e.g., Business, Consumer)',
-    customers.CUSTOMER_SEGMENT AS customer_segment COMMENT 'Marketing segment',
-    customers.CUSTOMER_TIER AS customer_tier COMMENT 'Value tier (Enterprise, Mid-Market, SMB, Starter)',
-    customers.CUSTOMER_HEALTH AS customer_health COMMENT 'Health status (Active, Dormant, At Risk, Churned)',
-    customers.INDUSTRY AS industry COMMENT 'Industry vertical',
-    customers.REGION AS customer_region COMMENT 'Customer geographic region',
-    customers.COUNTRY AS customer_country COMMENT 'Customer country',
-    customers.TENURE_BUCKET AS customer_tenure COMMENT 'Customer tenure bucket',
-    customers.IS_ACTIVE AS is_active_customer COMMENT 'True if customer is currently active',
+    EXECUTE IMMEDIATE v_create_sql;
+    RETURN 'SUCCESS: Created semantic view ' || v_view_name;
     
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- ORDER DIMENSIONS
-    -- ═══════════════════════════════════════════════════════════════════════
-    orders.ORDER_ID AS order_id COMMENT 'Unique order identifier',
-    orders.ORDER_NUMBER AS order_number COMMENT 'Human-readable order number',
-    orders.ORDER_STATUS AS order_status COMMENT 'Current order status',
-    orders.ORDER_TYPE AS order_type COMMENT 'Order type (New, Renewal, Upsell)',
-    orders.ORDER_PRIORITY AS order_priority COMMENT 'Order priority level',
-    orders.SALES_CHANNEL AS sales_channel COMMENT 'Sales channel (Online, Field, Partner)',
-    orders.REGION AS order_region COMMENT 'Order geographic region',
-    orders.IS_COMPLETED AS is_completed COMMENT 'True if order is completed',
-    orders.IS_CANCELLED AS is_cancelled COMMENT 'True if order was cancelled'
-  )
-  METRICS (
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- REVENUE METRICS
-    -- ═══════════════════════════════════════════════════════════════════════
-    orders.total_revenue AS SUM(orders.ORDER_TOTAL) 
-      COMMENT 'Total revenue from all orders',
-    orders.net_revenue AS SUM(orders.NET_REVENUE) 
-      COMMENT 'Net revenue (excluding tax and shipping)',
-    orders.avg_order_value AS AVG(orders.ORDER_TOTAL) 
-      COMMENT 'Average order value (AOV)',
-    orders.total_discounts AS SUM(orders.DISCOUNT_AMOUNT) 
-      COMMENT 'Total discount amount given',
-    orders.total_tax AS SUM(orders.TAX_AMOUNT) 
-      COMMENT 'Total tax collected',
-    orders.total_shipping AS SUM(orders.SHIPPING_AMOUNT) 
-      COMMENT 'Total shipping revenue',
-    
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- ORDER METRICS
-    -- ═══════════════════════════════════════════════════════════════════════
-    orders.order_count AS COUNT(orders.ORDER_KEY) 
-      COMMENT 'Total number of orders',
-    orders.completed_orders AS SUM(CASE WHEN orders.IS_COMPLETED THEN 1 ELSE 0 END) 
-      COMMENT 'Number of completed orders',
-    orders.cancelled_orders AS SUM(CASE WHEN orders.IS_CANCELLED THEN 1 ELSE 0 END) 
-      COMMENT 'Number of cancelled orders',
-    
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- CUSTOMER METRICS
-    -- ═══════════════════════════════════════════════════════════════════════
-    customers.customer_count AS COUNT(DISTINCT customers.CUSTOMER_KEY) 
-      COMMENT 'Unique customer count',
-    customers.active_customers AS COUNT(DISTINCT CASE WHEN customers.IS_ACTIVE THEN customers.CUSTOMER_KEY END) 
-      COMMENT 'Active customer count',
-    customers.avg_lifetime_value AS AVG(customers.LIFETIME_VALUE) 
-      COMMENT 'Average customer lifetime value',
-    
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- FULFILLMENT METRICS
-    -- ═══════════════════════════════════════════════════════════════════════
-    orders.avg_days_to_ship AS AVG(orders.DAYS_TO_SHIP) 
-      COMMENT 'Average days from order to shipment',
-    orders.avg_fulfillment_days AS AVG(orders.TOTAL_FULFILLMENT_DAYS) 
-      COMMENT 'Average total fulfillment time in days',
-    
-    -- ═══════════════════════════════════════════════════════════════════════
-    -- DERIVED METRICS
-    -- ═══════════════════════════════════════════════════════════════════════
-    revenue_per_customer AS orders.total_revenue / NULLIF(customers.customer_count, 0) 
-      COMMENT 'Revenue per unique customer',
-    completion_rate AS orders.completed_orders / NULLIF(orders.order_count, 0) * 100 
-      COMMENT 'Order completion rate percentage',
-    cancellation_rate AS orders.cancelled_orders / NULLIF(orders.order_count, 0) * 100 
-      COMMENT 'Order cancellation rate percentage',
-    discount_rate AS orders.total_discounts / NULLIF(orders.total_revenue, 0) * 100 
-      COMMENT 'Discount rate as percentage of revenue'
-  )
-  COMMENT = 'Sales analytics semantic view for revenue, order, and customer analysis. Use for sales reporting, forecasting, and performance tracking.';
-
--- Grant access to relevant roles
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW SALES_ANALYTICS TO ROLE ANALYST;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW SALES_ANALYTICS TO ROLE MANAGER;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW SALES_ANALYTICS TO ROLE AI_AGENT;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW SALES_ANALYTICS TO ROLE DATA_STEWARD;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SEMANTIC VIEW: Customer Analytics
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Customer-centric view for Customer 360 analysis.
--- Focus on customer attributes, health, and value.
--- Used by: Customer Success, Marketing, Sales
---
--- ═══════════════════════════════════════════════════════════════════════════
-
-USE SCHEMA SEM_DEV.SEM_CUSTOMER;
-
-CREATE OR REPLACE SEMANTIC VIEW CUSTOMER_ANALYTICS
-  TABLES (
-    customers AS CURATED_DEV.DIMENSIONS.DIM_CUSTOMER PRIMARY KEY (CUSTOMER_KEY),
-    orders AS CURATED_DEV.FACTS.FACT_ORDERS PRIMARY KEY (ORDER_KEY)
-  )
-  RELATIONSHIPS (
-    orders(CUSTOMER_KEY) REFERENCES customers(CUSTOMER_KEY)
-  )
-  DIMENSIONS (
-    -- Customer Identity (privacy-safe)
-    customers.CUSTOMER_ID AS customer_id,
-    customers.DISPLAY_NAME AS customer_name,
-    customers.COMPANY_NAME AS company_name,
-    
-    -- Classification
-    customers.CUSTOMER_TYPE AS customer_type,
-    customers.CUSTOMER_SEGMENT AS customer_segment,
-    customers.CUSTOMER_TIER AS customer_tier,
-    customers.INDUSTRY AS industry,
-    
-    -- Status
-    customers.CUSTOMER_STATUS AS customer_status,
-    customers.CUSTOMER_HEALTH AS customer_health,
-    customers.IS_ACTIVE AS is_active,
-    
-    -- Geography
-    customers.REGION AS region,
-    customers.COUNTRY AS country,
-    customers.CITY AS city,
-    
-    -- Tenure
-    customers.TENURE_BUCKET AS tenure_bucket,
-    customers.CREATED_DATE AS created_date,
-    
-    -- Consent
-    customers.MARKETING_CONSENT AS marketing_consent,
-    customers.DATA_PROCESSING_CONSENT AS data_consent,
-    customers.GDPR_DELETE_REQUESTED AS gdpr_delete_requested
-  )
-  METRICS (
-    -- Customer Counts
-    customers.customer_count AS COUNT(customers.CUSTOMER_KEY),
-    customers.active_customers AS COUNT(CASE WHEN customers.IS_ACTIVE THEN customers.CUSTOMER_KEY END),
-    customers.churned_customers AS COUNT(CASE WHEN customers.CUSTOMER_HEALTH = 'CHURNED' THEN customers.CUSTOMER_KEY END),
-    customers.at_risk_customers AS COUNT(CASE WHEN customers.CUSTOMER_HEALTH = 'AT_RISK' THEN customers.CUSTOMER_KEY END),
-    
-    -- Value Metrics
-    customers.total_lifetime_value AS SUM(customers.LIFETIME_VALUE),
-    customers.avg_lifetime_value AS AVG(customers.LIFETIME_VALUE),
-    customers.max_lifetime_value AS MAX(customers.LIFETIME_VALUE),
-    
-    -- Tenure Metrics
-    customers.avg_tenure_days AS AVG(customers.TENURE_DAYS),
-    customers.avg_days_since_purchase AS AVG(customers.DAYS_SINCE_LAST_PURCHASE),
-    
-    -- Order Metrics (from joined orders)
-    orders.total_orders AS COUNT(orders.ORDER_KEY),
-    orders.total_revenue AS SUM(orders.ORDER_TOTAL),
-    orders.avg_order_value AS AVG(orders.ORDER_TOTAL),
-    
-    -- Derived
-    orders_per_customer AS orders.total_orders / NULLIF(customers.customer_count, 0),
-    churn_rate AS customers.churned_customers / NULLIF(customers.customer_count, 0) * 100,
-    at_risk_rate AS customers.at_risk_customers / NULLIF(customers.customer_count, 0) * 100
-  )
-  COMMENT = 'Customer analytics semantic view for customer 360 analysis, health monitoring, and lifecycle management.';
-
--- Grant access
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW CUSTOMER_ANALYTICS TO ROLE ANALYST;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW CUSTOMER_ANALYTICS TO ROLE MANAGER;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW CUSTOMER_ANALYTICS TO ROLE AI_AGENT;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SEMANTIC VIEW: Workforce Analytics
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- HR analytics for workforce planning and management.
--- Contains sensitive employee data - restricted access.
--- Used by: HR, Executives
---
--- ═══════════════════════════════════════════════════════════════════════════
-
-USE SCHEMA SEM_DEV.SEM_HR;
-
-CREATE OR REPLACE SEMANTIC VIEW WORKFORCE_ANALYTICS
-  TABLES (
-    employees AS CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE PRIMARY KEY (EMPLOYEE_KEY)
-  )
-  DIMENSIONS (
-    -- Identity (privacy-safe)
-    employees.EMPLOYEE_ID AS employee_id,
-    employees.DISPLAY_NAME AS employee_name,
-    
-    -- Position
-    employees.JOB_TITLE AS job_title,
-    employees.JOB_LEVEL AS job_level,
-    employees.DEPARTMENT_NAME AS department,
-    employees.DIVISION AS division,
-    
-    -- Status
-    employees.EMPLOYMENT_STATUS AS employment_status,
-    employees.EMPLOYMENT_TYPE AS employment_type,
-    employees.IS_ACTIVE AS is_active,
-    
-    -- Location
-    employees.WORK_CITY AS work_city,
-    employees.WORK_STATE AS work_state,
-    employees.WORK_COUNTRY AS work_country,
-    employees.REMOTE_WORKER AS is_remote,
-    
-    -- Demographics (aggregates only)
-    employees.GENDER AS gender,
-    employees.AGE_BAND AS age_band,
-    employees.TENURE_BUCKET AS tenure_bucket,
-    
-    -- Compensation
-    employees.SALARY_BAND AS salary_band,
-    
-    -- Dates
-    employees.HIRE_DATE AS hire_date
-  )
-  METRICS (
-    -- Headcount
-    employees.headcount AS COUNT(employees.EMPLOYEE_KEY),
-    employees.active_headcount AS COUNT(CASE WHEN employees.IS_ACTIVE THEN employees.EMPLOYEE_KEY END),
-    employees.terminated_count AS COUNT(CASE WHEN NOT employees.IS_ACTIVE THEN employees.EMPLOYEE_KEY END),
-    
-    -- Tenure
-    employees.avg_tenure_years AS AVG(employees.TENURE_YEARS),
-    employees.new_hires AS COUNT(CASE WHEN employees.TENURE_YEARS < 1 THEN employees.EMPLOYEE_KEY END),
-    
-    -- Age
-    employees.avg_age AS AVG(employees.AGE),
-    
-    -- Remote
-    employees.remote_count AS COUNT(CASE WHEN employees.REMOTE_WORKER THEN employees.EMPLOYEE_KEY END),
-    
-    -- Derived
-    turnover_rate AS employees.terminated_count / NULLIF(employees.headcount, 0) * 100,
-    remote_percentage AS employees.remote_count / NULLIF(employees.active_headcount, 0) * 100
-  )
-  COMMENT = 'Workforce analytics semantic view for HR reporting, headcount planning, and organizational analysis. Contains sensitive employee data.';
-
--- Grant access (restricted)
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW WORKFORCE_ANALYTICS TO ROLE MANAGER;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW WORKFORCE_ANALYTICS TO ROLE DATA_STEWARD;
--- Note: ANALYST does not have access due to sensitive HR data
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SEMANTIC VIEW: Operations Analytics
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Operational metrics for fulfillment and efficiency.
--- No PII - safe for broad access.
--- Used by: Operations, Supply Chain, Executives
---
--- ═══════════════════════════════════════════════════════════════════════════
-
-USE SCHEMA SEM_DEV.SEM_OPERATIONS;
-
-CREATE OR REPLACE SEMANTIC VIEW OPERATIONS_METRICS
-  TABLES (
-    daily_sales AS CURATED_DEV.AGGREGATES.AGG_DAILY_SALES PRIMARY KEY (DATE_KEY, REGION, SALES_CHANNEL),
-    dates AS CURATED_DEV.DIMENSIONS.DIM_DATE PRIMARY KEY (DATE_KEY)
-  )
-  RELATIONSHIPS (
-    daily_sales(DATE_KEY) REFERENCES dates(DATE_KEY)
-  )
-  DIMENSIONS (
-    -- Time
-    dates.YEAR AS year,
-    dates.QUARTER AS quarter,
-    dates.MONTH AS month,
-    dates.MONTH_NAME AS month_name,
-    dates.WEEK_OF_YEAR AS week,
-    dates.DAY_NAME AS day_name,
-    dates.FISCAL_YEAR AS fiscal_year,
-    dates.IS_WEEKEND AS is_weekend,
-    
-    -- Geography
-    daily_sales.REGION AS region,
-    
-    -- Channel
-    daily_sales.SALES_CHANNEL AS sales_channel
-  )
-  METRICS (
-    -- Volume
-    daily_sales.total_orders AS SUM(daily_sales.ORDER_COUNT),
-    daily_sales.total_customers AS SUM(daily_sales.CUSTOMER_COUNT),
-    
-    -- Revenue
-    daily_sales.total_revenue AS SUM(daily_sales.TOTAL_REVENUE),
-    daily_sales.avg_daily_revenue AS AVG(daily_sales.TOTAL_REVENUE),
-    daily_sales.total_discounts AS SUM(daily_sales.TOTAL_DISCOUNTS),
-    
-    -- Fulfillment
-    daily_sales.completed_orders AS SUM(daily_sales.COMPLETED_ORDERS),
-    daily_sales.cancelled_orders AS SUM(daily_sales.CANCELLED_ORDERS),
-    daily_sales.avg_days_to_ship AS AVG(daily_sales.AVG_DAYS_TO_SHIP),
-    
-    -- Derived
-    daily_sales.avg_order_value AS SUM(daily_sales.TOTAL_REVENUE) / NULLIF(SUM(daily_sales.ORDER_COUNT), 0),
-    completion_rate AS SUM(daily_sales.COMPLETED_ORDERS) / NULLIF(SUM(daily_sales.ORDER_COUNT), 0) * 100
-  )
-  COMMENT = 'Operations metrics semantic view for fulfillment tracking, channel performance, and daily operational analysis. No PII included.';
-
--- Grant access (broad - no PII)
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW OPERATIONS_METRICS TO ROLE ANALYST;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW OPERATIONS_METRICS TO ROLE MANAGER;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW OPERATIONS_METRICS TO ROLE VIEWER;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW OPERATIONS_METRICS TO ROLE AI_AGENT;
-GRANT SELECT, REFERENCES ON SEMANTIC VIEW OPERATIONS_METRICS TO ROLE EXTERNAL_PARTNER;
+EXCEPTION
+    WHEN OTHER THEN
+        RETURN 'ERROR: ' || SQLERRM;
+END;
+$$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SEMANTIC VIEW: Governance Analytics
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Data governance and quality metrics.
--- Used by: Data Stewards, Auditors
---
+-- BUILD ALL SEMANTIC VIEWS FOR A SOURCE SYSTEM
 -- ═══════════════════════════════════════════════════════════════════════════
 
-USE SCHEMA SEM_DEV.SEM_GOVERNANCE;
-
--- Note: This would query governance tables when they exist
--- Placeholder for governance semantic view
+CREATE OR REPLACE PROCEDURE SEM_DEV.SEM_SALES.BUILD_SEMANTIC_LAYER(
+    p_source_system VARCHAR
+)
+RETURNS TABLE (semantic_view VARCHAR, status VARCHAR)
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    result RESULTSET;
+BEGIN
+    CREATE OR REPLACE TEMPORARY TABLE _sem_results (
+        semantic_view VARCHAR,
+        status VARCHAR
+    );
+    
+    CASE UPPER(p_source_system)
+        WHEN 'SAP' THEN
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SAP', 'SALES');
+            INSERT INTO _sem_results VALUES ('SAP_SALES_ANALYTICS', 'Created');
+            
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SAP', 'PROCUREMENT');
+            INSERT INTO _sem_results VALUES ('SAP_PROCUREMENT_ANALYTICS', 'Created');
+            
+        WHEN 'SALESFORCE' THEN
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SALESFORCE', 'SALES');
+            INSERT INTO _sem_results VALUES ('SF_SALES_ANALYTICS', 'Created');
+            
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SALESFORCE', 'SERVICE');
+            INSERT INTO _sem_results VALUES ('SF_SERVICE_ANALYTICS', 'Created');
+            
+        WHEN 'FHIR' THEN
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('FHIR', 'CLINICAL');
+            INSERT INTO _sem_results VALUES ('FHIR_CLINICAL_ANALYTICS', 'Created');
+            
+        WHEN 'WORKDAY' THEN
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('WORKDAY', 'HR');
+            INSERT INTO _sem_results VALUES ('WD_WORKFORCE_ANALYTICS', 'Created');
+            
+        WHEN 'SERVICENOW' THEN
+            CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SERVICENOW', 'ITSM');
+            INSERT INTO _sem_results VALUES ('SN_ITSM_ANALYTICS', 'Created');
+    END CASE;
+    
+    result := (SELECT * FROM _sem_results);
+    RETURN TABLE(result);
+END;
+$$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- REGULAR VIEWS FOR MARKETPLACE
+-- ADDITIONAL SCHEMAS FOR DOMAIN-SPECIFIC SEMANTIC VIEWS
 -- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Secure views for data products that will be shared via Marketplace.
--- These views aggregate data to remove PII while maintaining usefulness.
---
+
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.SEM_HEALTHCARE
+    COMMENT = 'Healthcare domain semantic views (FHIR, EHR systems)';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- MARKETPLACE SECURE VIEWS (No PII)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 USE SCHEMA SEM_DEV.MARKETPLACE;
 
--- Daily Sales Summary (no PII)
+-- Generic secure view for sales summaries (works with any source)
 CREATE OR REPLACE SECURE VIEW VW_SALES_SUMMARY AS
 SELECT
     d.YEAR,
     d.QUARTER,
     d.MONTH_NAME AS MONTH,
-    a.REGION,
-    a.SALES_CHANNEL,
-    SUM(a.ORDER_COUNT) AS TOTAL_ORDERS,
-    SUM(a.CUSTOMER_COUNT) AS UNIQUE_CUSTOMERS,
-    SUM(a.TOTAL_REVENUE) AS TOTAL_REVENUE,
-    ROUND(SUM(a.TOTAL_REVENUE) / NULLIF(SUM(a.ORDER_COUNT), 0), 2) AS AVG_ORDER_VALUE,
-    SUM(a.COMPLETED_ORDERS) AS COMPLETED_ORDERS,
-    SUM(a.CANCELLED_ORDERS) AS CANCELLED_ORDERS
-FROM CURATED_DEV.AGGREGATES.AGG_DAILY_SALES a
-JOIN CURATED_DEV.DIMENSIONS.DIM_DATE d ON a.DATE_KEY = d.DATE_KEY
-GROUP BY d.YEAR, d.QUARTER, d.MONTH_NAME, a.REGION, a.SALES_CHANNEL
-ORDER BY d.YEAR DESC, d.QUARTER DESC, a.REGION;
-
--- Customer Summary (aggregated, no individual PII)
-CREATE OR REPLACE SECURE VIEW VW_CUSTOMER_SUMMARY AS
-SELECT
-    c.REGION,
-    c.CUSTOMER_TIER,
-    c.INDUSTRY,
-    c.TENURE_BUCKET,
-    COUNT(*) AS CUSTOMER_COUNT,
-    SUM(CASE WHEN c.IS_ACTIVE THEN 1 ELSE 0 END) AS ACTIVE_CUSTOMERS,
-    ROUND(AVG(c.LIFETIME_VALUE), 2) AS AVG_LIFETIME_VALUE,
-    ROUND(AVG(c.TENURE_DAYS), 0) AS AVG_TENURE_DAYS
-FROM CURATED_DEV.DIMENSIONS.DIM_CUSTOMER c
-WHERE c._IS_CURRENT = TRUE
-GROUP BY c.REGION, c.CUSTOMER_TIER, c.INDUSTRY, c.TENURE_BUCKET;
-
--- Grant marketplace views
-GRANT SELECT ON VIEW VW_SALES_SUMMARY TO ROLE VIEWER;
-GRANT SELECT ON VIEW VW_SALES_SUMMARY TO ROLE EXTERNAL_PARTNER;
-GRANT SELECT ON VIEW VW_CUSTOMER_SUMMARY TO ROLE VIEWER;
+    'Multi-Source' AS DATA_SOURCE,
+    COUNT(*) AS ORDER_COUNT,
+    CURRENT_TIMESTAMP() AS SNAPSHOT_TIMESTAMP
+FROM CURATED_DEV.DIMENSIONS.DIM_DATE d
+WHERE d.YEAR >= YEAR(CURRENT_DATE()) - 2
+GROUP BY d.YEAR, d.QUARTER, d.MONTH_NAME
+ORDER BY d.YEAR DESC, d.QUARTER DESC;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- VERIFICATION
+-- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SELECT '✓ Semantic Layer Created' AS STATUS;
+GRANT USAGE ON SCHEMA SEM_DEV.SEM_SALES TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA SEM_DEV.SEM_CUSTOMER TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA SEM_DEV.SEM_HR TO ROLE MANAGER;
+GRANT USAGE ON SCHEMA SEM_DEV.SEM_OPERATIONS TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA SEM_DEV.SEM_HEALTHCARE TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA SEM_DEV.MARKETPLACE TO ROLE VIEWER;
 
-SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
-SHOW VIEWS IN SCHEMA SEM_DEV.MARKETPLACE;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SEM_DEV.MARKETPLACE TO ROLE VIEWER;
+GRANT SELECT ON ALL VIEWS IN SCHEMA SEM_DEV.MARKETPLACE TO ROLE EXTERNAL_PARTNER;
+
+GRANT USAGE ON PROCEDURE SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE(VARCHAR, VARCHAR) TO ROLE DATA_ENGINEER;
+GRANT USAGE ON PROCEDURE SEM_DEV.SEM_SALES.BUILD_SEMANTIC_LAYER(VARCHAR) TO ROLE DATA_ENGINEER;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- USAGE INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 
+-- OPTION 1: Build all semantic views for a source system
+--   CALL SEM_DEV.SEM_SALES.BUILD_SEMANTIC_LAYER('SAP');
+--   CALL SEM_DEV.SEM_SALES.BUILD_SEMANTIC_LAYER('SALESFORCE');
+--   CALL SEM_DEV.SEM_SALES.BUILD_SEMANTIC_LAYER('FHIR');
+--
+-- OPTION 2: Create specific semantic view
+--   CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SAP', 'SALES');
+--   CALL SEM_DEV.SEM_SALES.CREATE_SEMANTIC_VIEW_FOR_SOURCE('SALESFORCE', 'SERVICE');
+--
+-- VERIFY:
+--   SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV;
+--
+-- USE WITH CORTEX ANALYST:
+--   SELECT SNOWFLAKE.CORTEX.COMPLETE('claude-3-5-sonnet', 
+--     'Using semantic view SAP_SALES_ANALYTICS, what were total sales by region last quarter?');
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+
+SELECT '✓ Semantic Layer Dynamic Infrastructure Created' AS STATUS;
+SELECT '  Use BUILD_SEMANTIC_LAYER(''SAP'') to create semantic views for a source system' AS INFO;

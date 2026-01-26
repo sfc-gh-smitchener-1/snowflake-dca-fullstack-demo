@@ -1,18 +1,18 @@
 -- ============================================================================
--- SNOWFLAKE HORIZON - GOVERNANCE POLICIES
+-- SNOWFLAKE HORIZON - DYNAMIC GOVERNANCE POLICIES
 -- ============================================================================
 -- 
--- This script creates comprehensive governance controls:
---   1. Masking policies for PII protection (column-level)
---   2. Row access policies for data filtering (row-level)
---   3. Policy application to tables and columns
---   4. Compliance framework support (GDPR, HIPAA, FERPA, CCPA)
+-- This script creates dynamic governance controls that:
+--   1. Support multiple source systems (SAP, Salesforce, FHIR, Workday, etc.)
+--   2. Apply masking based on source system field patterns
+--   3. Automatically detect and tag PII columns
+--   4. Enable compliance for GDPR, HIPAA, CCPA
 --
 -- Defense in Depth Strategy:
---   - Layer 1: Role-based access (RBAC) - handled by grants
---   - Layer 2: Column masking - hide/transform sensitive data
---   - Layer 3: Row access - filter rows based on context
---   - Layer 4: Audit trail - log all access (built-in)
+--   - Layer 1: Role-based access (RBAC)
+--   - Layer 2: Column masking (PII protection)
+--   - Layer 3: Row access (geographic/department filtering)
+--   - Layer 4: Audit trail (built-in)
 --
 -- RUN AS: DATA_ADMIN
 -- ============================================================================
@@ -25,437 +25,340 @@ USE SCHEMA GOVERNANCE.POLICIES;
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PART 1: MASKING POLICIES
 -- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Masking policies define how data appears based on the querying role.
--- Each policy can have multiple tiers of visibility.
---
--- Masking Levels:
---   - FULL: Unmasked data (privileged roles only)
---   - PARTIAL: Partially revealed (e.g., last 4 digits)
---   - MASKED: Completely hidden or replaced
---   - NULL: Return NULL instead of data
---
--- ═══════════════════════════════════════════════════════════════════════════
 
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_SSN: Social Security Number / National ID
--- ─────────────────────────────────────────────────────────────────────────────
--- Highly sensitive - minimal exposure
--- FULL: DATA_ADMIN, PII_VIEWER
--- PARTIAL: MANAGER (last 4 digits)
--- MASKED: Everyone else
-
-CREATE OR REPLACE MASKING POLICY MASK_SSN AS (val STRING)
-RETURNS STRING ->
-    CASE
-        -- Full access for privileged roles
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
-        -- Partial for managers (last 4 digits)
-        WHEN CURRENT_ROLE() IN ('MANAGER') THEN 'XXX-XX-' || RIGHT(val, 4)
-        -- Masked for everyone else
-        ELSE '***-**-****'
-    END;
-
-COMMENT ON MASKING POLICY MASK_SSN IS 'Masks SSN/National ID. Full access: DATA_ADMIN, PII_VIEWER. Partial: MANAGER. Masked: all others.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_DOB: Date of Birth
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: DATA_ADMIN, PII_VIEWER
--- YEAR_ONLY: MANAGER, ANALYST (for age calculations)
--- NULL: AI_AGENT, VIEWER
-
-CREATE OR REPLACE MASKING POLICY MASK_DOB AS (val DATE)
-RETURNS DATE ->
-    CASE
-        -- Full access
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
-        -- Year only (for age bands)
-        WHEN CURRENT_ROLE() IN ('MANAGER', 'ANALYST') THEN DATE_TRUNC('YEAR', val)
-        -- NULL for AI and restricted roles
-        ELSE NULL
-    END;
-
-COMMENT ON MASKING POLICY MASK_DOB IS 'Masks date of birth. Full: privileged roles. Year only: business roles. NULL: AI and external.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_EMAIL: Email Address
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: DATA_ADMIN, PII_VIEWER, MANAGER
--- PARTIAL: ANALYST (first 2 chars + domain)
--- MASKED: AI_AGENT, VIEWER
-
-CREATE OR REPLACE MASKING POLICY MASK_EMAIL AS (val STRING)
-RETURNS STRING ->
-    CASE
-        -- Full access
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ACCOUNTADMIN') THEN val
-        -- Partial (preserve domain for analytics)
-        WHEN CURRENT_ROLE() IN ('ANALYST', 'DATA_STEWARD') THEN 
-            CONCAT(LEFT(val, 2), '***@', SPLIT_PART(val, '@', 2))
-        -- Masked
-        ELSE '[EMAIL REDACTED]'
-    END;
-
-COMMENT ON MASKING POLICY MASK_EMAIL IS 'Masks email addresses. Preserves domain for analytics roles.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_PHONE: Phone Number
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: DATA_ADMIN, PII_VIEWER, MANAGER
--- PARTIAL: ANALYST (last 4 digits)
--- MASKED: Everyone else
-
-CREATE OR REPLACE MASKING POLICY MASK_PHONE AS (val STRING)
-RETURNS STRING ->
-    CASE
-        -- Full access
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ACCOUNTADMIN') THEN val
-        -- Partial (last 4 for verification)
-        WHEN CURRENT_ROLE() IN ('ANALYST') THEN 
-            'XXX-XXX-' || RIGHT(REGEXP_REPLACE(val, '[^0-9]', ''), 4)
-        -- Masked
-        ELSE '[PHONE REDACTED]'
-    END;
-
-COMMENT ON MASKING POLICY MASK_PHONE IS 'Masks phone numbers. Last 4 digits for verification by analysts.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_ADDRESS: Physical Address
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: DATA_ADMIN, PII_VIEWER
--- CITY_ONLY: MANAGER, ANALYST (for geographic analysis)
--- MASKED: Everyone else
-
-CREATE OR REPLACE MASKING POLICY MASK_ADDRESS AS (val STRING)
-RETURNS STRING ->
-    CASE
-        -- Full access
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
-        -- City/region level (allow geographic analysis)
-        WHEN CURRENT_ROLE() IN ('MANAGER', 'ANALYST') THEN '[Address in ' || 
-            COALESCE(REGEXP_SUBSTR(val, '[A-Za-z]+,? [A-Z]{2}'), 'Region') || ']'
-        -- Masked
-        ELSE '[ADDRESS REDACTED]'
-    END;
-
-COMMENT ON MASKING POLICY MASK_ADDRESS IS 'Masks physical addresses. Geographic region preserved for analysis.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_NAME: Person Name (First/Last)
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: Most business roles (names often needed)
--- INITIALS: AI_AGENT
--- MASKED: EXTERNAL_PARTNER
-
+-- Standard masking policy for names (works across all source systems)
 CREATE OR REPLACE MASKING POLICY MASK_NAME AS (val STRING)
 RETURNS STRING ->
     CASE
-        -- Full access for internal roles
         WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ANALYST', 
                                 'DATA_STEWARD', 'DATA_ENGINEER', 'ACCOUNTADMIN') THEN val
-        -- Initials for AI
         WHEN CURRENT_ROLE() = 'AI_AGENT' THEN LEFT(val, 1) || '.'
-        -- Masked for external
         ELSE '[NAME REDACTED]'
     END;
 
-COMMENT ON MASKING POLICY MASK_NAME IS 'Masks person names. Full for internal, initials for AI, masked for external.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_SALARY: Compensation Data
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: DATA_ADMIN, PII_VIEWER
--- ROUNDED: MANAGER (nearest $10K for budgeting)
--- NULL: Everyone else
-
-CREATE OR REPLACE MASKING POLICY MASK_SALARY AS (val NUMBER)
-RETURNS NUMBER ->
+-- Email masking
+CREATE OR REPLACE MASKING POLICY MASK_EMAIL AS (val STRING)
+RETURNS STRING ->
     CASE
-        -- Full access
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('ANALYST', 'DATA_STEWARD') THEN 
+            CONCAT(LEFT(val, 2), '***@', SPLIT_PART(val, '@', 2))
+        ELSE '[EMAIL REDACTED]'
+    END;
+
+-- Phone masking
+CREATE OR REPLACE MASKING POLICY MASK_PHONE AS (val STRING)
+RETURNS STRING ->
+    CASE
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('ANALYST') THEN 
+            'XXX-XXX-' || RIGHT(REGEXP_REPLACE(val, '[^0-9]', ''), 4)
+        ELSE '[PHONE REDACTED]'
+    END;
+
+-- Address masking
+CREATE OR REPLACE MASKING POLICY MASK_ADDRESS AS (val STRING)
+RETURNS STRING ->
+    CASE
         WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
-        -- Rounded for managers (budget planning)
-        WHEN CURRENT_ROLE() IN ('MANAGER') THEN ROUND(val, -4)
-        -- NULL for others
+        WHEN CURRENT_ROLE() IN ('MANAGER', 'ANALYST') THEN '[Address in Region]'
+        ELSE '[ADDRESS REDACTED]'
+    END;
+
+-- SSN/National ID masking
+CREATE OR REPLACE MASKING POLICY MASK_SSN AS (val STRING)
+RETURNS STRING ->
+    CASE
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('MANAGER') THEN 'XXX-XX-' || RIGHT(val, 4)
+        ELSE '***-**-****'
+    END;
+
+-- Date of Birth masking
+CREATE OR REPLACE MASKING POLICY MASK_DOB AS (val DATE)
+RETURNS DATE ->
+    CASE
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('MANAGER', 'ANALYST') THEN DATE_TRUNC('YEAR', val)
         ELSE NULL
     END;
 
-COMMENT ON MASKING POLICY MASK_SALARY IS 'Masks salary data. Rounded for managers, hidden for others.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_CREDIT_CARD: Payment Card Data (PCI-DSS)
--- ─────────────────────────────────────────────────────────────────────────────
--- FULL: Never (PCI compliance)
--- PARTIAL: DATA_ADMIN only (last 4)
--- MASKED: Everyone
-
-CREATE OR REPLACE MASKING POLICY MASK_CREDIT_CARD AS (val STRING)
-RETURNS STRING ->
+-- Salary/Compensation masking
+CREATE OR REPLACE MASKING POLICY MASK_SALARY AS (val NUMBER)
+RETURNS NUMBER ->
     CASE
-        -- Even admins only see last 4 (PCI compliance)
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'ACCOUNTADMIN') THEN 
-            'XXXX-XXXX-XXXX-' || RIGHT(REGEXP_REPLACE(val, '[^0-9]', ''), 4)
-        -- Everyone else sees fully masked
-        ELSE 'XXXX-XXXX-XXXX-XXXX'
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('MANAGER') THEN ROUND(val, -4)
+        ELSE NULL
     END;
 
-COMMENT ON MASKING POLICY MASK_CREDIT_CARD IS 'PCI-DSS compliant credit card masking. No role sees full card number.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- MASK_CUSTOMER_ID: Customer Identifier
--- ─────────────────────────────────────────────────────────────────────────────
--- Used for AI workloads - returns hash instead of actual ID
-
-CREATE OR REPLACE MASKING POLICY MASK_CUSTOMER_ID AS (val STRING)
+-- Healthcare ID masking (HIPAA)
+CREATE OR REPLACE MASKING POLICY MASK_PATIENT_ID AS (val STRING)
 RETURNS STRING ->
     CASE
-        -- Full access for internal
-        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'MANAGER', 'ANALYST',
-                                'DATA_STEWARD', 'DATA_ENGINEER', 'ACCOUNTADMIN') THEN val
-        -- Pseudonymized for AI
-        WHEN CURRENT_ROLE() = 'AI_AGENT' THEN SHA2(val, 256)
-        -- Masked for external
-        ELSE '[ID REDACTED]'
+        WHEN CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN') THEN val
+        WHEN CURRENT_ROLE() IN ('MANAGER', 'ANALYST') THEN SHA2(val, 256)
+        ELSE '[PHI REDACTED]'
     END;
-
-COMMENT ON MASKING POLICY MASK_CUSTOMER_ID IS 'Masks customer IDs. Pseudonymized (hashed) for AI workloads.';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 2: ROW ACCESS POLICIES
+-- PART 2: SOURCE SYSTEM PII FIELD MAPPING
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
--- Row access policies filter which rows a user can see.
--- They complement column masking for comprehensive data protection.
---
--- Common patterns:
---   - Geographic filtering (region-based access)
---   - Hierarchical filtering (department/team)
---   - Attribute filtering (sensitivity level)
+-- Maps source system field names to appropriate masking policies
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- ─────────────────────────────────────────────────────────────────────────────
--- ROW_ACCESS_BY_REGION: Geographic data filtering
--- ─────────────────────────────────────────────────────────────────────────────
--- Controls access based on data region (GDPR compliance)
--- EU data only visible to EU-authorized roles
+CREATE TABLE IF NOT EXISTS GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING (
+    SOURCE_SYSTEM           VARCHAR(50) NOT NULL,
+    SOURCE_TABLE            VARCHAR(100) NOT NULL,
+    COLUMN_NAME             VARCHAR(100) NOT NULL,
+    PII_TYPE                VARCHAR(50) NOT NULL,  -- NAME, EMAIL, PHONE, ADDRESS, SSN, DOB, SALARY, PATIENT_ID
+    MASKING_POLICY          VARCHAR(100) NOT NULL,
+    COMPLIANCE_FRAMEWORKS   ARRAY,
+    CREATED_AT              TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    CONSTRAINT pk_pii_mapping PRIMARY KEY (SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME)
+)
+COMMENT = 'Maps source system fields to PII types and masking policies';
 
+-- Insert PII mappings for SAP
+INSERT INTO GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING 
+(SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME, PII_TYPE, MASKING_POLICY, COMPLIANCE_FRAMEWORKS) VALUES
+-- KNA1 (Customer Master)
+('SAP', 'KNA1', 'NAME1', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'KNA1', 'NAME2', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'KNA1', 'STRAS', 'ADDRESS', 'MASK_ADDRESS', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'KNA1', 'TELF1', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'KNA1', 'SMTP_ADDR', 'EMAIL', 'MASK_EMAIL', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'KNA1', 'STCEG', 'SSN', 'MASK_SSN', ARRAY_CONSTRUCT('GDPR')),
+-- PA0002 (HR Personal Data)
+('SAP', 'PA0002', 'VORNA', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR')),
+('SAP', 'PA0002', 'NACHN', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR')),
+('SAP', 'PA0002', 'GBDAT', 'DOB', 'MASK_DOB', ARRAY_CONSTRUCT('GDPR')),
+-- LFA1 (Vendor Master)
+('SAP', 'LFA1', 'NAME1', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'LFA1', 'STRAS', 'ADDRESS', 'MASK_ADDRESS', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SAP', 'LFA1', 'TELF1', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('GDPR', 'CCPA'));
+
+-- Insert PII mappings for Salesforce
+INSERT INTO GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING 
+(SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME, PII_TYPE, MASKING_POLICY, COMPLIANCE_FRAMEWORKS) VALUES
+-- Account
+('SALESFORCE', 'ACCOUNT', 'Name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('CCPA')),
+('SALESFORCE', 'ACCOUNT', 'Phone', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('CCPA')),
+('SALESFORCE', 'ACCOUNT', 'BillingStreet', 'ADDRESS', 'MASK_ADDRESS', ARRAY_CONSTRUCT('CCPA')),
+-- Contact
+('SALESFORCE', 'CONTACT', 'FirstName', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'CONTACT', 'LastName', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'CONTACT', 'Email', 'EMAIL', 'MASK_EMAIL', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'CONTACT', 'Phone', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'CONTACT', 'MailingStreet', 'ADDRESS', 'MASK_ADDRESS', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+-- Lead
+('SALESFORCE', 'LEAD', 'FirstName', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'LEAD', 'LastName', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SALESFORCE', 'LEAD', 'Email', 'EMAIL', 'MASK_EMAIL', ARRAY_CONSTRUCT('GDPR', 'CCPA'));
+
+-- Insert PII mappings for FHIR
+INSERT INTO GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING 
+(SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME, PII_TYPE, MASKING_POLICY, COMPLIANCE_FRAMEWORKS) VALUES
+-- Patient
+('FHIR', 'PATIENT', 'id', 'PATIENT_ID', 'MASK_PATIENT_ID', ARRAY_CONSTRUCT('HIPAA')),
+('FHIR', 'PATIENT', 'name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('HIPAA', 'GDPR')),
+('FHIR', 'PATIENT', 'birthDate', 'DOB', 'MASK_DOB', ARRAY_CONSTRUCT('HIPAA', 'GDPR')),
+('FHIR', 'PATIENT', 'telecom', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('HIPAA')),
+('FHIR', 'PATIENT', 'address', 'ADDRESS', 'MASK_ADDRESS', ARRAY_CONSTRUCT('HIPAA')),
+-- Practitioner
+('FHIR', 'PRACTITIONER', 'id', 'PATIENT_ID', 'MASK_PATIENT_ID', ARRAY_CONSTRUCT('HIPAA')),
+('FHIR', 'PRACTITIONER', 'name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('HIPAA'));
+
+-- Insert PII mappings for Workday
+INSERT INTO GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING 
+(SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME, PII_TYPE, MASKING_POLICY, COMPLIANCE_FRAMEWORKS) VALUES
+('WORKDAY', 'WORKERS', 'Legal_First_Name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR')),
+('WORKDAY', 'WORKERS', 'Legal_Last_Name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR')),
+('WORKDAY', 'WORKERS', 'Primary_Work_Email', 'EMAIL', 'MASK_EMAIL', ARRAY_CONSTRUCT('GDPR')),
+('WORKDAY', 'WORKERS', 'Date_of_Birth', 'DOB', 'MASK_DOB', ARRAY_CONSTRUCT('GDPR')),
+('WORKDAY', 'COMPENSATION', 'Total_Base_Pay', 'SALARY', 'MASK_SALARY', ARRAY_CONSTRUCT('GDPR'));
+
+-- Insert PII mappings for ServiceNow
+INSERT INTO GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING 
+(SOURCE_SYSTEM, SOURCE_TABLE, COLUMN_NAME, PII_TYPE, MASKING_POLICY, COMPLIANCE_FRAMEWORKS) VALUES
+('SERVICENOW', 'SYS_USER', 'first_name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SERVICENOW', 'SYS_USER', 'last_name', 'NAME', 'MASK_NAME', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SERVICENOW', 'SYS_USER', 'email', 'EMAIL', 'MASK_EMAIL', ARRAY_CONSTRUCT('GDPR', 'CCPA')),
+('SERVICENOW', 'SYS_USER', 'phone', 'PHONE', 'MASK_PHONE', ARRAY_CONSTRUCT('GDPR', 'CCPA'));
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 3: DYNAMIC MASKING APPLICATION PROCEDURE
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE PROCEDURE GOVERNANCE.POLICIES.APPLY_MASKING_FOR_SOURCE_SYSTEM(
+    p_source_system VARCHAR,
+    p_database VARCHAR,          -- RAW_DEV or CURATED_DEV
+    p_table_name VARCHAR
+)
+RETURNS TABLE (column_name VARCHAR, policy_applied VARCHAR, status VARCHAR)
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    v_full_table VARCHAR;
+    v_schema VARCHAR;
+    v_apply_sql VARCHAR;
+    result RESULTSET;
+BEGIN
+    -- Determine schema based on source system
+    v_schema := UPPER(p_source_system);
+    v_full_table := UPPER(p_database) || '.' || v_schema || '.' || UPPER(p_table_name);
+    
+    CREATE OR REPLACE TEMPORARY TABLE _masking_results (
+        column_name VARCHAR,
+        policy_applied VARCHAR,
+        status VARCHAR
+    );
+    
+    -- Loop through PII mappings for this source/table
+    FOR mapping IN (
+        SELECT COLUMN_NAME, MASKING_POLICY
+        FROM GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING
+        WHERE UPPER(SOURCE_SYSTEM) = UPPER(p_source_system)
+          AND UPPER(SOURCE_TABLE) = UPPER(p_table_name)
+    )
+    DO
+        BEGIN
+            v_apply_sql := 'ALTER TABLE ' || v_full_table || 
+                          ' MODIFY COLUMN "' || mapping.COLUMN_NAME || 
+                          '" SET MASKING POLICY GOVERNANCE.POLICIES.' || mapping.MASKING_POLICY;
+            
+            EXECUTE IMMEDIATE v_apply_sql;
+            INSERT INTO _masking_results VALUES (mapping.COLUMN_NAME, mapping.MASKING_POLICY, 'SUCCESS');
+        EXCEPTION
+            WHEN OTHER THEN
+                INSERT INTO _masking_results VALUES (mapping.COLUMN_NAME, mapping.MASKING_POLICY, 'ERROR: ' || SQLERRM);
+        END;
+    END FOR;
+    
+    result := (SELECT * FROM _masking_results);
+    RETURN TABLE(result);
+END;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 4: APPLY MASKING TO ALL TABLES FOR A SOURCE SYSTEM
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE PROCEDURE GOVERNANCE.POLICIES.APPLY_ALL_MASKING_FOR_SOURCE(
+    p_source_system VARCHAR
+)
+RETURNS TABLE (table_name VARCHAR, columns_masked NUMBER, status VARCHAR)
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+$$
+DECLARE
+    result RESULTSET;
+BEGIN
+    CREATE OR REPLACE TEMPORARY TABLE _all_masking_results (
+        table_name VARCHAR,
+        columns_masked NUMBER,
+        status VARCHAR
+    );
+    
+    -- Get distinct tables for this source system
+    FOR tbl IN (
+        SELECT DISTINCT SOURCE_TABLE
+        FROM GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING
+        WHERE UPPER(SOURCE_SYSTEM) = UPPER(p_source_system)
+    )
+    DO
+        BEGIN
+            CALL GOVERNANCE.POLICIES.APPLY_MASKING_FOR_SOURCE_SYSTEM(p_source_system, 'RAW_DEV', tbl.SOURCE_TABLE);
+            
+            LET col_count NUMBER;
+            SELECT COUNT(*) INTO col_count
+            FROM GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING
+            WHERE UPPER(SOURCE_SYSTEM) = UPPER(p_source_system)
+              AND UPPER(SOURCE_TABLE) = UPPER(tbl.SOURCE_TABLE);
+            
+            INSERT INTO _all_masking_results VALUES (tbl.SOURCE_TABLE, col_count, 'SUCCESS');
+        EXCEPTION
+            WHEN OTHER THEN
+                INSERT INTO _all_masking_results VALUES (tbl.SOURCE_TABLE, 0, 'ERROR: ' || SQLERRM);
+        END;
+    END FOR;
+    
+    result := (SELECT * FROM _all_masking_results);
+    RETURN TABLE(result);
+END;
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 5: ROW ACCESS POLICIES
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Region-based access (GDPR compliance)
 CREATE OR REPLACE ROW ACCESS POLICY ROW_ACCESS_BY_REGION
 AS (data_region STRING)
 RETURNS BOOLEAN ->
-    -- Full access roles see all
     CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN', 'DATA_STEWARD')
-    -- Or region matches user's authorized regions
-    OR (
-        data_region IS NULL  -- Allow NULL regions
-    )
-    OR (
-        data_region NOT IN ('EU', 'UK')  -- Non-EU data accessible to all
-    )
-    -- EU/UK data requires specific authorization (simplified - would use mapping table)
-    OR (
-        data_region IN ('EU', 'UK') 
-        AND CURRENT_ROLE() NOT IN ('EXTERNAL_PARTNER')  -- Block external from EU data
-    );
+    OR data_region IS NULL
+    OR data_region NOT IN ('EU', 'UK', 'EMEA')
+    OR (data_region IN ('EU', 'UK', 'EMEA') AND CURRENT_ROLE() NOT IN ('EXTERNAL_PARTNER'));
 
-COMMENT ON ROW ACCESS POLICY ROW_ACCESS_BY_REGION IS 'GDPR-compliant region filtering. Restricts EU/UK data access.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- ROW_ACCESS_BY_CLASSIFICATION: Sensitivity-based filtering
--- ─────────────────────────────────────────────────────────────────────────────
--- Filters rows based on data classification level
-
-CREATE OR REPLACE ROW ACCESS POLICY ROW_ACCESS_BY_CLASSIFICATION
-AS (classification STRING)
-RETURNS BOOLEAN ->
-    -- Full access roles
-    CURRENT_ROLE() IN ('DATA_ADMIN', 'PII_VIEWER', 'ACCOUNTADMIN')
-    -- Or classification level matches role capability
-    OR (
-        classification = 'PUBLIC'  -- Everyone can see PUBLIC
-    )
-    OR (
-        classification = 'INTERNAL' 
-        AND CURRENT_ROLE() NOT IN ('EXTERNAL_PARTNER')
-    )
-    OR (
-        classification = 'CONFIDENTIAL'
-        AND CURRENT_ROLE() IN ('MANAGER', 'ANALYST', 'DATA_STEWARD', 'DATA_ENGINEER')
-    );
-    -- RESTRICTED only visible to full access roles (handled by first condition)
-
-COMMENT ON ROW ACCESS POLICY ROW_ACCESS_BY_CLASSIFICATION IS 'Filters rows by data classification level.';
-
--- ─────────────────────────────────────────────────────────────────────────────
--- ROW_ACCESS_ACTIVE_ONLY: Filter to active records
--- ─────────────────────────────────────────────────────────────────────────────
--- Some roles should only see active/current records
-
+-- Active records only for business users
 CREATE OR REPLACE ROW ACCESS POLICY ROW_ACCESS_ACTIVE_ONLY
 AS (is_current BOOLEAN)
 RETURNS BOOLEAN ->
-    -- Full access roles see all (including historical)
     CURRENT_ROLE() IN ('DATA_ADMIN', 'DATA_ENGINEER', 'DATA_STEWARD', 'ACCOUNTADMIN')
-    -- Everyone else sees current records only
     OR is_current = TRUE;
 
-COMMENT ON ROW ACCESS POLICY ROW_ACCESS_ACTIVE_ONLY IS 'Restricts non-admin roles to current records only.';
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 6: COMPLIANCE REPORTING VIEW
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW GOVERNANCE.POLICIES.VW_PII_COMPLIANCE_SUMMARY AS
+SELECT 
+    SOURCE_SYSTEM,
+    SOURCE_TABLE,
+    COUNT(*) AS PII_COLUMNS,
+    ARRAY_AGG(DISTINCT PII_TYPE) AS PII_TYPES,
+    LISTAGG(DISTINCT f.value::VARCHAR, ', ') WITHIN GROUP (ORDER BY f.value) AS COMPLIANCE_FRAMEWORKS
+FROM GOVERNANCE.POLICIES.SOURCE_SYSTEM_PII_MAPPING m,
+     LATERAL FLATTEN(input => m.COMPLIANCE_FRAMEWORKS) f
+GROUP BY SOURCE_SYSTEM, SOURCE_TABLE
+ORDER BY SOURCE_SYSTEM, SOURCE_TABLE;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 3: ROLE-BASED ACCESS MAPPING TABLE
+-- GRANTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+GRANT USAGE ON SCHEMA GOVERNANCE.POLICIES TO ROLE DATA_STEWARD;
+GRANT SELECT ON ALL TABLES IN SCHEMA GOVERNANCE.POLICIES TO ROLE DATA_STEWARD;
+GRANT SELECT ON ALL VIEWS IN SCHEMA GOVERNANCE.POLICIES TO ROLE DATA_STEWARD;
+GRANT USAGE ON PROCEDURE GOVERNANCE.POLICIES.APPLY_MASKING_FOR_SOURCE_SYSTEM(VARCHAR, VARCHAR, VARCHAR) TO ROLE DATA_STEWARD;
+GRANT USAGE ON PROCEDURE GOVERNANCE.POLICIES.APPLY_ALL_MASKING_FOR_SOURCE(VARCHAR) TO ROLE DATA_STEWARD;
+
+GRANT USAGE ON SCHEMA GOVERNANCE.POLICIES TO ROLE AUDITOR;
+GRANT SELECT ON ALL TABLES IN SCHEMA GOVERNANCE.POLICIES TO ROLE AUDITOR;
+GRANT SELECT ON ALL VIEWS IN SCHEMA GOVERNANCE.POLICIES TO ROLE AUDITOR;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- USAGE INSTRUCTIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
--- For complex scenarios, policies can reference mapping tables.
--- This allows dynamic policy management without DDL changes.
+-- OPTION 1: Apply masking to all tables for a source system
+--   CALL GOVERNANCE.POLICIES.APPLY_ALL_MASKING_FOR_SOURCE('SAP');
+--   CALL GOVERNANCE.POLICIES.APPLY_ALL_MASKING_FOR_SOURCE('SALESFORCE');
+--   CALL GOVERNANCE.POLICIES.APPLY_ALL_MASKING_FOR_SOURCE('FHIR');
+--
+-- OPTION 2: Apply masking to specific table
+--   CALL GOVERNANCE.POLICIES.APPLY_MASKING_FOR_SOURCE_SYSTEM('SAP', 'RAW_DEV', 'KNA1');
+--
+-- VIEW COMPLIANCE:
+--   SELECT * FROM GOVERNANCE.POLICIES.VW_PII_COMPLIANCE_SUMMARY;
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
-USE SCHEMA GOVERNANCE.POLICIES;
-
--- Role to Region mapping (for geographic access control)
-CREATE TABLE IF NOT EXISTS ROLE_REGION_ACCESS (
-    ROLE_NAME           VARCHAR(100) NOT NULL,
-    REGION              VARCHAR(50) NOT NULL,
-    ACCESS_LEVEL        VARCHAR(20) DEFAULT 'READ',  -- READ, WRITE, ADMIN
-    EFFECTIVE_FROM      DATE DEFAULT CURRENT_DATE(),
-    EFFECTIVE_TO        DATE DEFAULT '9999-12-31',
-    CONSTRAINT pk_role_region PRIMARY KEY (ROLE_NAME, REGION)
-)
-COMMENT = 'Maps roles to authorized geographic regions for row-level filtering.';
-
--- Insert default mappings
-INSERT INTO ROLE_REGION_ACCESS (ROLE_NAME, REGION, ACCESS_LEVEL) VALUES
-    ('DATA_ADMIN', 'GLOBAL', 'ADMIN'),
-    ('DATA_STEWARD', 'GLOBAL', 'READ'),
-    ('MANAGER', 'US', 'READ'),
-    ('MANAGER', 'EU', 'READ'),
-    ('ANALYST', 'US', 'READ'),
-    ('EXTERNAL_PARTNER', 'US', 'READ');
-
--- Role to Department mapping (for hierarchical access control)
-CREATE TABLE IF NOT EXISTS ROLE_DEPARTMENT_ACCESS (
-    ROLE_NAME           VARCHAR(100) NOT NULL,
-    DEPARTMENT_ID       VARCHAR(50) NOT NULL,
-    ACCESS_LEVEL        VARCHAR(20) DEFAULT 'READ',
-    EFFECTIVE_FROM      DATE DEFAULT CURRENT_DATE(),
-    EFFECTIVE_TO        DATE DEFAULT '9999-12-31',
-    CONSTRAINT pk_role_dept PRIMARY KEY (ROLE_NAME, DEPARTMENT_ID)
-)
-COMMENT = 'Maps roles to authorized departments for row-level filtering.';
-
--- ═══════════════════════════════════════════════════════════════════════════
--- PART 4: APPLY POLICIES TO TABLES
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Apply masking policies to specific columns.
--- Policies are enforced at query time.
---
--- ═══════════════════════════════════════════════════════════════════════════
-
--- -----------------------------------------------------------------------------
--- CUSTOMER_RAW - Apply masking policies
--- -----------------------------------------------------------------------------
-
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN FIRST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN LAST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN EMAIL SET MASKING POLICY GOVERNANCE.POLICIES.MASK_EMAIL;
-    
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN PHONE SET MASKING POLICY GOVERNANCE.POLICIES.MASK_PHONE;
-    
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN ADDRESS_LINE1 SET MASKING POLICY GOVERNANCE.POLICIES.MASK_ADDRESS;
-
-ALTER TABLE RAW_DEV.CRM.CUSTOMER_RAW 
-    MODIFY COLUMN CUSTOMER_ID SET MASKING POLICY GOVERNANCE.POLICIES.MASK_CUSTOMER_ID;
-
--- -----------------------------------------------------------------------------
--- EMPLOYEE_RAW - Apply masking policies (more restrictive)
--- -----------------------------------------------------------------------------
-
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN SSN SET MASKING POLICY GOVERNANCE.POLICIES.MASK_SSN;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN DATE_OF_BIRTH SET MASKING POLICY GOVERNANCE.POLICIES.MASK_DOB;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN FIRST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN LAST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN EMAIL SET MASKING POLICY GOVERNANCE.POLICIES.MASK_EMAIL;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN PHONE_MOBILE SET MASKING POLICY GOVERNANCE.POLICIES.MASK_PHONE;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN HOME_ADDRESS_LINE1 SET MASKING POLICY GOVERNANCE.POLICIES.MASK_ADDRESS;
-    
-ALTER TABLE RAW_DEV.HR.EMPLOYEE_RAW 
-    MODIFY COLUMN BASE_SALARY SET MASKING POLICY GOVERNANCE.POLICIES.MASK_SALARY;
-
--- -----------------------------------------------------------------------------
--- DIM_CUSTOMER (CURATED) - Apply masking policies
--- -----------------------------------------------------------------------------
-
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_CUSTOMER 
-    MODIFY COLUMN FIRST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_CUSTOMER 
-    MODIFY COLUMN LAST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_CUSTOMER 
-    MODIFY COLUMN EMAIL SET MASKING POLICY GOVERNANCE.POLICIES.MASK_EMAIL;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_CUSTOMER 
-    MODIFY COLUMN PHONE SET MASKING POLICY GOVERNANCE.POLICIES.MASK_PHONE;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_CUSTOMER 
-    MODIFY COLUMN ADDRESS_LINE1 SET MASKING POLICY GOVERNANCE.POLICIES.MASK_ADDRESS;
-
--- -----------------------------------------------------------------------------
--- DIM_EMPLOYEE (CURATED) - Apply masking policies
--- -----------------------------------------------------------------------------
-
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN SSN SET MASKING POLICY GOVERNANCE.POLICIES.MASK_SSN;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN DATE_OF_BIRTH SET MASKING POLICY GOVERNANCE.POLICIES.MASK_DOB;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN FIRST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN LAST_NAME SET MASKING POLICY GOVERNANCE.POLICIES.MASK_NAME;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN EMAIL SET MASKING POLICY GOVERNANCE.POLICIES.MASK_EMAIL;
-    
-ALTER DYNAMIC TABLE CURATED_DEV.DIMENSIONS.DIM_EMPLOYEE 
-    MODIFY COLUMN BASE_SALARY SET MASKING POLICY GOVERNANCE.POLICIES.MASK_SALARY;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- VERIFICATION
--- ═══════════════════════════════════════════════════════════════════════════
-
-SELECT '✓ Governance Policies Created and Applied' AS STATUS;
-
--- Show masking policies
+SELECT '✓ Governance Policies Created' AS STATUS;
 SHOW MASKING POLICIES IN SCHEMA GOVERNANCE.POLICIES;
-
--- Show row access policies
-SHOW ROW ACCESS POLICIES IN SCHEMA GOVERNANCE.POLICIES;
-
--- Verify policy application
-SELECT * FROM TABLE(INFORMATION_SCHEMA.POLICY_REFERENCES(
-    POLICY_NAME => 'GOVERNANCE.POLICIES.MASK_EMAIL'
-));

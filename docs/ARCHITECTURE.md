@@ -224,7 +224,8 @@ Each team owns their data domain and operates independently. They:
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │                         SOURCE SYSTEMS                              │   │
-│  │   Oracle │ SAP │ Salesforce │ ServiceNow │ APIs │ Files            │   │
+│  │   SAP S/4HANA │ Oracle EBS │ Salesforce │ Workday │ ServiceNow     │   │
+│  │   FHIR R4     │ Custom ERP │ APIs       │ Files   │ Streaming      │   │
 │  └────────────────────────────────┬────────────────────────────────────┘   │
 │                                   │                                         │
 │                                   ▼                                         │

@@ -69,35 +69,35 @@ Whether you operate in a **single Snowflake account** or across **multiple accou
 │                                     │                                       │
 │                                     ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                          DATA LAYER                                 │   │
-│  │                                                                     │   │
-│  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)    │   │
-│  │   SCD Type 2           Dynamic Tables           Semantic Views      │   │
-│  │   Team-owned           Contract-validated       Consumer-ready      │   │
-│  │                                                                     │   │
-│  │   Data flows ONLY when contracts are satisfied                      │   │
-│  └──────────────────────────────────┬──────────────────────────────────┘   │
+│  │                          DATA LAYER                                 │    │
+│  │                                                                     │    │
+│  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)     │    │
+│  │   SCD Type 2           Dynamic Tables           Semantic Views      │    │
+│  │   Team-owned           Contract-validated       Consumer-ready      │    │
+│  │                                                                     │    │
+│  │   Data flows ONLY when contracts are satisfied                      │    │
+│  └──────────────────────────────────┬──────────────────────────────────┘    │
 │                                     │                                       │
 │                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                       GOVERNANCE LAYER                              │   │
-│  │                                                                     │   │
-│  │   Tags │ Masking │ Row Access │ Compliance │ Audit                  │   │
-│  │                                                                     │   │
-│  │   Governance protects at EVERY boundary, including contracts        │   │
-│  └──────────────────────────────────┬──────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                       GOVERNANCE LAYER                              │    │
+│  │                                                                     │    │
+│  │   Tags │ Masking │ Row Access │ Compliance │ Audit                  │    │
+│  │                                                                     │    │
+│  │   Governance protects at EVERY boundary, including contracts        │    │
+│  └──────────────────────────────────┬──────────────────────────────────┘    │
 │                                     │                                       │
 │                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                       CONSUMPTION LAYER                             │   │
-│  │                                                                     │   │
-│  │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐  │   │
-│  │   │  CORTEX ANALYST │ │   MARKETPLACE   │ │  CROSS-ACCOUNT     │  │   │
-│  │   │  Natural Lang.  │ │  Data Products  │ │   SHARING          │  │   │
-│  │   └─────────────────┘ └─────────────────┘ └─────────────────────┘  │   │
-│  │                                                                     │   │
-│  │   Consumers trust data because contracts guarantee quality          │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │                       CONSUMPTION LAYER                             │    │
+│  │                                                                     │    │
+│  │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐   │    │
+│  │   │  CORTEX ANALYST │ │   MARKETPLACE   │ │  CROSS-ACCOUNT     │    │    │
+│  │   │  Natural Lang.  │ │  Data Products  │ │   SHARING          │    │    │
+│  │   └─────────────────┘ └─────────────────┘ └─────────────────────┘   │    │
+│  │                                                                     │    │
+│  │   Consumers trust data because contracts guarantee quality          │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -122,9 +122,9 @@ For organizations with multiple Snowflake accounts (regional, business unit, or 
 ┌───────────────────────────────────────────────────────────────────────┐
 │                    CORPORATE DATA ACCOUNT (Consumer)                  │
 │                                                                       │
-│   Inbound Shares → Contract Validation → Curated → Semantic → Apps   │
+│   Inbound Shares → Contract Validation → Curated → Semantic → Apps    │
 │                                                                       │
-│   Only contract-compliant data is accepted and integrated            │
+│   Only contract-compliant data is accepted and integrated             │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -170,8 +170,8 @@ Producer Data  →  Schema Check  →  Quality Rules  →  SLA Check  →  Gover
 -- Run each script in sequence
 @sql/01_setup.sql              -- Roles, warehouses, databases, tags
 @sql/02_git_integration.sql    -- Git repository connection
-@sql/03_raw_layer.sql          -- RAW tables with SCD Type 2
-@sql/04_load_data.sql          -- Load synthetic or source data
+@sql/03_raw_layer.sql          -- Dynamic RAW layer infrastructure
+@sql/04_load_data.sql          -- Load source system data (auto-infer schema)
 @sql/05_curated_layer.sql      -- Dynamic Tables
 @sql/06_semantic_layer.sql     -- Native Semantic Views
 @sql/07_governance.sql         -- Horizon masking & row access
@@ -180,13 +180,52 @@ Producer Data  →  Schema Check  →  Quality Rules  →  SLA Check  →  Gover
 @sql/10_marketplace.sql        -- Data products
 ```
 
+### Load Source System Data
+
+After generating data, upload to Snowflake and use dynamic schema inference:
+
+```sql
+-- Upload files to stage (SnowSQL)
+PUT file:///path/to/data/sap_s4hana/*.csv @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/ AUTO_COMPRESS=TRUE;
+
+-- Auto-create tables with inferred schema
+CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
+
+-- Or load all tables for a source system at once
+CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SAP', 'CSV');
+```
+
 ### Generate Test Data
+
+The data generator produces **source system-specific** synthetic data that mirrors real enterprise systems:
 
 ```bash
 cd tools
 pip install -r requirements.txt
-python data_generator.py --output ../data --quick
+
+# SAP S/4HANA (KNA1, MARA, VBAK, VBAP, PA0001, PA0002, LFA1, EKKO, BKPF)
+python data_generator.py --system sap --domain all --output ../data
+
+# Salesforce (Account, Contact, Opportunity, Case, Lead, Product2, Campaign, Task)
+python data_generator.py --system salesforce --domain all --output ../data
+
+# Oracle EBS (HZ_PARTIES, OE_ORDER_*, AP_*, RA_*, GL_JE_LINES, HR_*, MTL_*)
+python data_generator.py --system oracle --domain all --output ../data
+
+# FHIR R4 (Patient, Practitioner, Encounter, Condition, Observation, Claim)
+python data_generator.py --system fhir --domain all --output ../data
+
+# Workday HCM (Workers, Organizations, Compensation, Time_Off, Benefits)
+python data_generator.py --system workday --domain hcm --output ../data
+
+# ServiceNow (incident, change_request, problem, cmdb_ci, sc_request, kb_knowledge)
+python data_generator.py --system servicenow --domain itsm --output ../data
+
+# Quick test (1/10th size)
+python data_generator.py --system sap --domain all --quick --output ../data
 ```
+
+See [DATA_GENERATION.md](docs/DATA_GENERATION.md) for full documentation.
 
 ## Repository Structure
 
@@ -219,11 +258,20 @@ snowflake-dca-fullstack-demo/
 │   └── app.py                             # Demo app with Cortex & governance
 │
 ├── tools/                                 # Python Utilities
-│   ├── data_generator.py                  # Pluggable synthetic data generator
+│   ├── data_generator.py                  # Source system-aware data generator
 │   ├── requirements.txt                   # Python dependencies
 │   └── __init__.py
 │
-└── data/                                  # Generated data (gitignored)
+├── data/                                  # Generated data (gitignored)
+│   ├── sap_s4hana/                        # SAP ECC/S4HANA tables
+│   ├── salesforce/                        # Salesforce objects
+│   ├── oracle_ebs/                        # Oracle EBS tables
+│   ├── fhir_r4/                           # HL7 FHIR resources
+│   ├── workday/                           # Workday HCM reports
+│   └── servicenow/                        # ServiceNow tables
+│
+└── docs/
+    └── DATA_GENERATION.md                 # Source system documentation
 ```
 
 ## Compliance Framework
@@ -264,7 +312,7 @@ snowflake-dca-fullstack-demo/
           │          │            │            │          │
           │          └──────┬─────┴──────┬─────┘          │
           │                 │            │                │
-          └─────────►   VIEWER     EXTERNAL_PARTNER ◄────┘
+          └─────────►   VIEWER     EXTERNAL_PARTNER  ◄────┘
                             │
                         AI_AGENT
 ```
@@ -272,6 +320,7 @@ snowflake-dca-fullstack-demo/
 ## Documentation
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — People-first, contract-driven design
+- [DATA_GENERATION.md](docs/DATA_GENERATION.md) — Source system data generation (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)
 - [GOVERNANCE.md](docs/GOVERNANCE.md) — Compliance framework details
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
 - [SAMPLE_QUESTIONS.md](docs/SAMPLE_QUESTIONS.md) — Cortex Analyst examples

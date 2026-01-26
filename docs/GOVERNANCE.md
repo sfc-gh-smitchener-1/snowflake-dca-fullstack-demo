@@ -205,12 +205,33 @@ WHERE ARRAY_CONTAINS('PII_TYPE=SENSITIVE'::VARIANT,
 ORDER BY query_start_time DESC;
 ```
 
+## Source System Governance Mapping
+
+Each source system has different field naming conventions. The data generator automatically adds governance metadata:
+
+| Source System | PII Fields | Sensitive Fields | Governance Tags |
+|--------------|------------|------------------|-----------------|
+| **SAP S/4HANA** | NAME1, STRAS, TELF1, SMTP_ADDR | STCEG (VAT) | _SOURCE_SYSTEM, _SOURCE_TABLE |
+| **Salesforce** | Email, Phone, BillingStreet | AnnualRevenue | _SOURCE_SYSTEM, _SOURCE_TABLE |
+| **Oracle EBS** | PARTY_NAME, ADDRESS1, EMAIL_ADDRESS | NATIONAL_IDENTIFIER | _SOURCE_SYSTEM, _SOURCE_TABLE |
+| **FHIR R4** | name.family, telecom, address, identifier | birthDate, SSN | _SOURCE_SYSTEM, _SOURCE_TABLE |
+| **Workday** | Legal_First_Name, Email_Work, National_ID | Annual_Salary | _SOURCE_SYSTEM, _SOURCE_TABLE |
+| **ServiceNow** | first_name, last_name, email, phone | N/A | _SOURCE_SYSTEM, _SOURCE_TABLE |
+
+All generated records include:
+- `_SOURCE_SYSTEM`: Origin system identifier (SAP_S4HANA, SALESFORCE, etc.)
+- `_SOURCE_TABLE`: Original table/object name (KNA1, Account, Patient, etc.)
+- `_ROW_HASH`: SHA-256 hash for SCD Type 2 change detection
+- `_LOADED_AT`: Ingestion timestamp
+- `_IS_CURRENT`, `_VALID_FROM`, `_VALID_TO`: SCD Type 2 tracking
+
 ## Best Practices
 
 1. **Tag Everything**
    - Apply tags at column level, not just table level
    - Use consistent tag values across the organization
    - Review tag coverage regularly
+   - Map source system fields to governance tags during ingestion
 
 2. **Least Privilege**
    - Start with minimal access
@@ -226,6 +247,11 @@ ORDER BY query_start_time DESC;
    - Quarterly access reviews
    - Annual policy reviews
    - Continuous monitoring for anomalies
+
+5. **Source System Awareness**
+   - Understand PII locations in each source system
+   - Apply masking policies based on `_SOURCE_TABLE` metadata
+   - Track lineage from source to consumption layer
 
 ## References
 

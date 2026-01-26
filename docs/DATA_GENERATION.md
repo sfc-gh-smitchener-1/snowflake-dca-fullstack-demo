@@ -333,34 +333,67 @@ Optional:
 
 ## Loading into Snowflake
 
+The RAW layer uses **dynamic schema inference** to automatically create tables from your generated data files. No need to define table schemas manually!
+
 ### 1. Upload to Stage
 
 ```bash
-# Upload all generated data
-snowsql -q "PUT file://data/*/*.csv @RAW_DEV.STAGING.DATA_STAGE/ auto_compress=true"
+# Using SnowSQL - upload all files
+PUT file:///path/to/data/sap_s4hana/*.csv @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/ AUTO_COMPRESS=TRUE;
+PUT file:///path/to/data/salesforce/*.csv @RAW_DEV.STAGING.DATA_STAGE/salesforce/ AUTO_COMPRESS=TRUE;
+PUT file:///path/to/data/fhir_r4/*.json @RAW_DEV.STAGING.DATA_STAGE/fhir_r4/ AUTO_COMPRESS=TRUE;
+
+# Or upload via Snowsight: Data > Databases > RAW_DEV > Stages > DATA_STAGE > Upload
 ```
 
-### 2. Create Source-Specific Schemas
+### 2. Dynamic Table Creation (Recommended)
+
+Use the `INFER_AND_CREATE_TABLE` procedure to automatically detect schema and create tables:
 
 ```sql
--- Create schemas for each source system
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.SAP;
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.SALESFORCE;
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.ORACLE;
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.FHIR;
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.WORKDAY;
-CREATE SCHEMA IF NOT EXISTS RAW_DEV.SERVICENOW;
+-- Load individual table with auto-inferred schema
+CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
+CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SALESFORCE', 'ACCOUNT', 'CSV', 'salesforce/Account.csv');
+CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('FHIR', 'PATIENT', 'JSON', 'fhir_r4/Patient.json');
+
+-- Or load ALL tables for a source system at once
+CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SAP', 'CSV');
+CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SALESFORCE', 'CSV');
+CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('FHIR', 'JSON');
 ```
 
-### 3. Load with COPY INTO
+### 3. Apply Governance Tags
 
 ```sql
--- Example: Load SAP KNA1
-COPY INTO RAW_DEV.SAP.KNA1
-FROM @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/KNA1.csv
-FILE_FORMAT = (TYPE = 'CSV' SKIP_HEADER = 1 FIELD_OPTIONALLY_ENCLOSED_BY = '"')
-ON_ERROR = 'CONTINUE';
+-- Apply source system-specific tags
+CALL RAW_DEV.STAGING.APPLY_SOURCE_SYSTEM_TAGS('SAP', 'KNA1');
+CALL RAW_DEV.STAGING.APPLY_SOURCE_SYSTEM_TAGS('FHIR', 'PATIENT');
 ```
+
+### 4. Verify Loaded Tables
+
+```sql
+-- List files in stage
+LIST @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/;
+
+-- Check loaded tables
+SHOW TABLES IN SCHEMA RAW_DEV.SAP;
+SELECT COUNT(*) FROM RAW_DEV.SAP.KNA1;
+SELECT * FROM RAW_DEV.SAP.KNA1 LIMIT 5;
+```
+
+### Source System Schemas
+
+Tables are automatically created in source-specific schemas:
+
+| Source System | Schema | Example Tables |
+|--------------|--------|----------------|
+| SAP S/4HANA | `RAW_DEV.SAP` | KNA1, MARA, VBAK, VBAP |
+| Salesforce | `RAW_DEV.SALESFORCE` | ACCOUNT, OPPORTUNITY, CASE |
+| Oracle EBS | `RAW_DEV.ORACLE` | HZ_PARTIES, OE_ORDER_HEADERS_ALL |
+| FHIR R4 | `RAW_DEV.FHIR` | PATIENT, ENCOUNTER, CONDITION |
+| Workday | `RAW_DEV.WORKDAY` | WORKERS, COMPENSATION |
+| ServiceNow | `RAW_DEV.SERVICENOW` | INCIDENT, CHANGE_REQUEST |
 
 ---
 

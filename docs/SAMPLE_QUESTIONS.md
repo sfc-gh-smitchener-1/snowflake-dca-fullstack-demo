@@ -153,6 +153,53 @@ If Cortex doesn't understand a question:
 - Break complex questions into simpler parts
 - Check that you're using the correct semantic view
 
+## Source System-Specific Questions
+
+When using data from specific source systems, try these context-aware questions:
+
+### SAP S/4HANA
+- "Show me customer sales by VKORG (sales organization)"
+- "What is total NETWR (net value) by month?"
+- "List materials by MTART (material type)"
+- "How many purchase orders by vendor LIFNR?"
+
+### Salesforce
+- "What is opportunity Amount by StageName?"
+- "Show Cases by Status and Priority"
+- "How many Leads converted this quarter?"
+- "Campaign performance by Type"
+
+### Oracle EBS
+- "Show order totals by FLOW_STATUS_CODE"
+- "What is AP invoice volume by vendor?"
+- "AR aging by customer PARTY_ID"
+- "GL journal entries by period"
+
+### FHIR R4 Healthcare
+- "Patient encounters by class (ambulatory, inpatient, emergency)"
+- "Condition frequency by ICD-10 code"
+- "Observation trends for vital signs"
+- "Claims by type (institutional, professional, pharmacy)"
+
+### Workday HCM
+- "Headcount by Supervisory_Organization_Name"
+- "Compensation by Job_Level"
+- "Time off requests by type"
+- "Benefits enrollment by plan"
+
+### ServiceNow
+- "Incidents by priority and category"
+- "Change requests by risk level"
+- "CMDB configuration items by class"
+- "Knowledge article views by category"
+
 ---
 
-*These questions are designed for the demo semantic views. Actual results depend on the synthetic data generated.*
+*These questions are designed for the demo semantic views. Actual results depend on the source system and domain used when generating synthetic data.*
+
+**Generating source-specific data:**
+```bash
+python data_generator.py --system sap --domain all --output ../data
+python data_generator.py --system salesforce --domain sales --output ../data
+python data_generator.py --system fhir --domain clinical --output ../data
+```

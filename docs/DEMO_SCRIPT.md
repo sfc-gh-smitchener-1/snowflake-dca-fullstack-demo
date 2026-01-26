@@ -8,7 +8,12 @@ This guide provides a structured 15-minute demonstration of the Snowflake Data C
 
 Before the demo:
 1. Deploy all SQL scripts (01-10)
-2. Load sample data (Option B in-Snowflake is fastest)
+2. Generate and load source system data:
+   ```bash
+   cd tools
+   python data_generator.py --system sap --domain all --output ../data
+   # Or: --system salesforce, oracle, fhir, workday, servicenow
+   ```
 3. Ensure Streamlit app is deployed
 4. Have Snowsight open and logged in
 
@@ -182,10 +187,23 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 ## Common Questions
 
 **Q: How hard is it to add a new source system?**
-> "Just add a new RAW table following our SCD Type 2 pattern. The pluggable data generator can simulate any source system."
+> "Our data generator already supports SAP, Salesforce, Oracle EBS, FHIR, Workday, and ServiceNow out of the box. Just run:
+> ```bash
+> python data_generator.py --system sap --domain all --output ../data
+> ```
+> Each generates authentic tables matching real system schemas - SAP KNA1/VBAK, Salesforce Account/Opportunity, Oracle HZ_PARTIES, FHIR Patient/Encounter, etc."
+
+**Q: What source systems does the demo support?**
+> "Six enterprise systems:
+> - **SAP S/4HANA**: KNA1, MARA, VBAK, VBAP, PA0001, PA0002, LFA1, EKKO, BKPF
+> - **Salesforce**: Account, Contact, Opportunity, Case, Lead, Product2, Campaign, Task
+> - **Oracle EBS**: HZ_PARTIES, OE_ORDER_*, AP_INVOICES, RA_CUSTOMER_TRX, GL_JE_LINES, HR_ALL_PEOPLE
+> - **FHIR R4**: Patient, Practitioner, Encounter, Condition, Observation, MedicationRequest, Claim
+> - **Workday**: Workers, Organizations, Compensation, Time_Off, Benefit_Elections
+> - **ServiceNow**: incident, change_request, problem, cmdb_ci, sc_request, kb_knowledge"
 
 **Q: What about performance at scale?**
-> "Dynamic Tables use Snowflake's micro-partitioning and automatic optimization. We've tested with millions of records with no issues."
+> "Dynamic Tables use Snowflake's micro-partitioning and automatic optimization. Use `--scale 10` to generate 10x data for load testing."
 
 **Q: How do we handle GDPR data residency?**
 > "Each column can be tagged with RESIDENCY_REGION. Row access policies filter EU data from unauthorized roles."
