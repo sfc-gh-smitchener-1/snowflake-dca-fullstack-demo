@@ -86,174 +86,173 @@ CREATE SCHEMA IF NOT EXISTS RAW_DEV.SERVICENOW
     COMMENT = 'ServiceNow ITSM source data (incident, change_request, etc.)';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- DYNAMIC TABLE CREATION PROCEDURE
+-- DYNAMIC TABLE CREATION PROCEDURE (JavaScript)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
 -- This procedure:
---   1. Scans the stage for files matching a source system pattern
---   2. Uses INFER_SCHEMA to detect columns
---   3. Creates tables dynamically with proper data types
---   4. Loads the data
+--   1. Uses INFER_SCHEMA to detect columns from staged files
+--   2. Creates tables dynamically with proper data types
+--   3. Loads the data using COPY INTO
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE RAW_DEV.STAGING.INFER_AND_CREATE_TABLE(
-    p_source_system VARCHAR,
-    p_table_name VARCHAR,
-    p_file_format VARCHAR,
-    p_stage_path VARCHAR
+    P_SOURCE_SYSTEM VARCHAR,
+    P_TABLE_NAME VARCHAR,
+    P_FILE_FORMAT VARCHAR,
+    P_STAGE_PATH VARCHAR
 )
 RETURNS VARCHAR
-LANGUAGE SQL
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_schema_name VARCHAR;
-    v_full_table_name VARCHAR;
-    v_file_format_name VARCHAR;
-    v_column_defs VARCHAR;
-    v_create_sql VARCHAR;
-    v_copy_sql VARCHAR;
-    v_result VARCHAR;
-    v_row_count NUMBER;
-BEGIN
-    v_schema_name := 'RAW_DEV.' || UPPER(p_source_system);
-    v_full_table_name := v_schema_name || '.' || UPPER(p_table_name);
-    v_file_format_name := 'RAW_DEV.STAGING.' || UPPER(p_file_format) || '_FORMAT';
+    var schemaName = 'RAW_DEV.' + P_SOURCE_SYSTEM.toUpperCase();
+    var fullTableName = schemaName + '.' + P_TABLE_NAME.toUpperCase();
+    var fileFormatName = 'RAW_DEV.STAGING.' + P_FILE_FORMAT.toUpperCase() + '_FORMAT';
     
-    -- Generate column definitions from INFER_SCHEMA
-    SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') WITHIN GROUP (ORDER BY ORDER_ID)
-    INTO v_column_defs
-    FROM TABLE(
-        INFER_SCHEMA(
-            LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/' || :p_stage_path,
-            FILE_FORMAT => :v_file_format_name,
-            MAX_RECORDS_PER_FILE => 1000
-        )
-    );
-    
-    IF (v_column_defs IS NULL OR v_column_defs = '') THEN
-        RETURN 'ERROR: Could not infer schema from ' || p_stage_path;
-    END IF;
-    
-    v_create_sql := 'CREATE OR REPLACE TABLE ' || v_full_table_name || ' (' || v_column_defs || ')';
-    v_create_sql := v_create_sql || ' COMMENT = ''Auto-generated from ' || p_stage_path || '''';
-    
-    EXECUTE IMMEDIATE v_create_sql;
-    
-    v_copy_sql := 'COPY INTO ' || v_full_table_name || 
-                  ' FROM @RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path ||
-                  ' FILE_FORMAT = ' || v_file_format_name ||
-                  ' MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE' ||
-                  ' ON_ERROR = CONTINUE';
-    
-    EXECUTE IMMEDIATE v_copy_sql;
-    
-    SELECT COUNT(*) INTO v_row_count FROM IDENTIFIER(v_full_table_name);
-    
-    RETURN 'SUCCESS: Created ' || v_full_table_name || ' with ' || v_row_count::VARCHAR || ' rows';
-    
-EXCEPTION
-    WHEN OTHER THEN
-        RETURN 'ERROR: ' || SQLERRM;
-END;
+    try {
+        // Step 1: Infer schema from the staged file
+        var inferSql = `
+            SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') 
+                   WITHIN GROUP (ORDER BY ORDER_ID) AS COL_DEFS
+            FROM TABLE(
+                INFER_SCHEMA(
+                    LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/${P_STAGE_PATH}',
+                    FILE_FORMAT => '${fileFormatName}',
+                    MAX_RECORDS_PER_FILE => 1000
+                )
+            )
+        `;
+        
+        var inferStmt = snowflake.createStatement({sqlText: inferSql});
+        var inferResult = inferStmt.execute();
+        
+        if (!inferResult.next()) {
+            return 'ERROR: Could not infer schema from ' + P_STAGE_PATH;
+        }
+        
+        var columnDefs = inferResult.getColumnValue(1);
+        
+        if (!columnDefs || columnDefs.trim() === '') {
+            return 'ERROR: No columns inferred from ' + P_STAGE_PATH;
+        }
+        
+        // Step 2: Create the table
+        var createSql = `CREATE OR REPLACE TABLE ${fullTableName} (${columnDefs}) 
+                         COMMENT = 'Auto-generated from ${P_STAGE_PATH}'`;
+        
+        var createStmt = snowflake.createStatement({sqlText: createSql});
+        createStmt.execute();
+        
+        // Step 3: Load data
+        var copySql = `COPY INTO ${fullTableName} 
+                       FROM @RAW_DEV.STAGING.DATA_STAGE/${P_STAGE_PATH}
+                       FILE_FORMAT = ${fileFormatName}
+                       MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
+                       ON_ERROR = CONTINUE`;
+        
+        var copyStmt = snowflake.createStatement({sqlText: copySql});
+        copyStmt.execute();
+        
+        // Step 4: Get row count
+        var countSql = `SELECT COUNT(*) FROM ${fullTableName}`;
+        var countStmt = snowflake.createStatement({sqlText: countSql});
+        var countResult = countStmt.execute();
+        countResult.next();
+        var rowCount = countResult.getColumnValue(1);
+        
+        return 'SUCCESS: Created ' + fullTableName + ' with ' + rowCount + ' rows';
+        
+    } catch (err) {
+        return 'ERROR: ' + err.message;
+    }
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- HELPER: LIST AVAILABLE SOURCE SYSTEM FILES
+-- HELPER: LIST AVAILABLE SOURCE SYSTEM FILES (JavaScript)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE RAW_DEV.STAGING.LIST_SOURCE_FILES(
-    p_source_system VARCHAR
+    P_SOURCE_SYSTEM VARCHAR
 )
-RETURNS TABLE (file_name VARCHAR, file_size NUMBER, last_modified TIMESTAMP_NTZ)
-LANGUAGE SQL
+RETURNS VARCHAR
+LANGUAGE JAVASCRIPT
 AS
 $$
-DECLARE
-    v_stage_folder VARCHAR;
-    res RESULTSET;
-BEGIN
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN v_stage_folder := 'sap_s4hana';
-        WHEN 'SALESFORCE' THEN v_stage_folder := 'salesforce';
-        WHEN 'ORACLE' THEN v_stage_folder := 'oracle_ebs';
-        WHEN 'FHIR' THEN v_stage_folder := 'fhir_r4';
-        WHEN 'WORKDAY' THEN v_stage_folder := 'workday';
-        WHEN 'SERVICENOW' THEN v_stage_folder := 'servicenow';
-        ELSE v_stage_folder := LOWER(p_source_system);
-    END CASE;
+    var folderMap = {
+        'SAP': 'sap_s4hana',
+        'SALESFORCE': 'salesforce',
+        'ORACLE': 'oracle_ebs',
+        'FHIR': 'fhir_r4',
+        'WORKDAY': 'workday',
+        'SERVICENOW': 'servicenow'
+    };
     
-    res := (
-        SELECT 
-            "name" AS file_name,
-            "size" AS file_size,
-            "last_modified" AS last_modified
-        FROM DIRECTORY(@RAW_DEV.STAGING.DATA_STAGE)
-        WHERE "name" LIKE v_stage_folder || '/%'
-        ORDER BY "name"
-    );
-    RETURN TABLE(res);
-END;
+    var folder = folderMap[P_SOURCE_SYSTEM.toUpperCase()] || P_SOURCE_SYSTEM.toLowerCase();
+    
+    try {
+        var listSql = `LIST @RAW_DEV.STAGING.DATA_STAGE/${folder}/`;
+        var stmt = snowflake.createStatement({sqlText: listSql});
+        var result = stmt.execute();
+        
+        var files = [];
+        while (result.next()) {
+            files.push(result.getColumnValue(1));
+        }
+        
+        if (files.length === 0) {
+            return 'No files found in ' + folder + '/';
+        }
+        
+        return 'Files in ' + folder + '/:\n' + files.join('\n');
+        
+    } catch (err) {
+        return 'ERROR: ' + err.message;
+    }
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- GOVERNANCE TAG APPLICATION (Applied after table creation)
+-- GOVERNANCE TAG APPLICATION (JavaScript)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE RAW_DEV.STAGING.APPLY_SOURCE_SYSTEM_TAGS(
-    p_source_system VARCHAR,
-    p_table_name VARCHAR
+    P_SOURCE_SYSTEM VARCHAR,
+    P_TABLE_NAME VARCHAR
 )
 RETURNS VARCHAR
-LANGUAGE SQL
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_full_table_name VARCHAR;
-    v_data_domain VARCHAR;
-    v_classification VARCHAR;
-BEGIN
-    v_full_table_name := 'RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(p_table_name);
+    var fullTableName = 'RAW_DEV.' + P_SOURCE_SYSTEM.toUpperCase() + '.' + P_TABLE_NAME.toUpperCase();
     
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN 
-            v_data_domain := 'ERP';
-            v_classification := 'CONFIDENTIAL';
-        WHEN 'SALESFORCE' THEN 
-            v_data_domain := 'CRM';
-            v_classification := 'CONFIDENTIAL';
-        WHEN 'ORACLE' THEN 
-            v_data_domain := 'ERP';
-            v_classification := 'CONFIDENTIAL';
-        WHEN 'FHIR' THEN 
-            v_data_domain := 'HEALTHCARE';
-            v_classification := 'RESTRICTED';
-        WHEN 'WORKDAY' THEN 
-            v_data_domain := 'HCM';
-            v_classification := 'RESTRICTED';
-        WHEN 'SERVICENOW' THEN 
-            v_data_domain := 'ITSM';
-            v_classification := 'INTERNAL';
-        ELSE
-            v_data_domain := 'OTHER';
-            v_classification := 'INTERNAL';
-    END CASE;
+    var domainMap = {
+        'SAP': {domain: 'ERP', classification: 'CONFIDENTIAL'},
+        'SALESFORCE': {domain: 'CRM', classification: 'CONFIDENTIAL'},
+        'ORACLE': {domain: 'ERP', classification: 'CONFIDENTIAL'},
+        'FHIR': {domain: 'HEALTHCARE', classification: 'RESTRICTED'},
+        'WORKDAY': {domain: 'HCM', classification: 'RESTRICTED'},
+        'SERVICENOW': {domain: 'ITSM', classification: 'INTERNAL'}
+    };
     
-    EXECUTE IMMEDIATE 'ALTER TABLE ' || v_full_table_name || ' SET TAG ' ||
-        'GOVERNANCE.TAGS.DATA_CLASSIFICATION = ''' || v_classification || ''', ' ||
-        'GOVERNANCE.TAGS.DATA_DOMAIN = ''' || v_data_domain || ''', ' ||
-        'GOVERNANCE.TAGS.DATA_QUALITY_TIER = ''BRONZE'', ' ||
-        'GOVERNANCE.TAGS.SOURCE_SYSTEM = ''' || UPPER(p_source_system) || '''';
+    var config = domainMap[P_SOURCE_SYSTEM.toUpperCase()] || {domain: 'OTHER', classification: 'INTERNAL'};
     
-    RETURN 'SUCCESS: Applied tags to ' || v_full_table_name;
-    
-EXCEPTION
-    WHEN OTHER THEN
-        RETURN 'WARNING: Could not apply tags - ' || SQLERRM;
-END;
+    try {
+        var tagSql = `ALTER TABLE ${fullTableName} SET TAG 
+            GOVERNANCE.TAGS.DATA_CLASSIFICATION = '${config.classification}',
+            GOVERNANCE.TAGS.DATA_DOMAIN = '${config.domain}',
+            GOVERNANCE.TAGS.DATA_QUALITY_TIER = 'BRONZE',
+            GOVERNANCE.TAGS.SOURCE_SYSTEM = '${P_SOURCE_SYSTEM.toUpperCase()}'`;
+        
+        var stmt = snowflake.createStatement({sqlText: tagSql});
+        stmt.execute();
+        
+        return 'SUCCESS: Applied tags to ' + fullTableName;
+        
+    } catch (err) {
+        return 'WARNING: Could not apply tags - ' + err.message;
+    }
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -447,6 +446,4 @@ COMMENT = 'FHIR Patient template';
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SELECT '✓ RAW Layer Dynamic Schema Infrastructure Created' AS STATUS;
-SELECT '  Source System Schemas: SAP, SALESFORCE, ORACLE, FHIR, WORKDAY, SERVICENOW' AS INFO;
-SELECT '  Use INFER_AND_CREATE_TABLE() to create tables from staged files' AS INFO;
+SELECT '03_raw_layer.sql completed successfully' AS STATUS;
