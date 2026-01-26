@@ -60,9 +60,9 @@ $$
     var folder = folderMap[sourceSystem] || P_SOURCE_SYSTEM.toLowerCase();
     var fileFormat = P_FILE_FORMAT.toUpperCase();
     var fileExtension = fileFormat === 'JSON' ? '.json' : '.csv';
-    // Use separate formats: INFER format has PARSE_HEADER=TRUE, COPY format has SKIP_HEADER=1
+    // Use INFER format (PARSE_HEADER=TRUE) for both INFER_SCHEMA and COPY with MATCH_BY_COLUMN_NAME
     var inferFormatName = fileFormat === 'CSV' ? 'RAW_DEV.STAGING.CSV_INFER_FORMAT' : 'RAW_DEV.STAGING.' + fileFormat + '_FORMAT';
-    var copyFormatName = 'RAW_DEV.STAGING.' + fileFormat + '_FORMAT';
+    var copyFormatName = inferFormatName;  // Use same format for COPY to enable MATCH_BY_COLUMN_NAME
     var schemaName = 'RAW_DEV.' + sourceSystem;
     
     try {
@@ -162,10 +162,11 @@ $$
                 var createStmt = snowflake.createStatement({sqlText: createSql});
                 createStmt.execute();
                 
-                // Load data (using COPY format with SKIP_HEADER=1, FORCE=TRUE to reload)
+                // Load data using PARSE_HEADER format with MATCH_BY_COLUMN_NAME
                 var copySql = `COPY INTO ${fullTableName} 
                                FROM ${fullStagePath}
                                FILE_FORMAT = ${copyFormatName}
+                               MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
                                ON_ERROR = CONTINUE
                                FORCE = TRUE`;
                 var copyStmt = snowflake.createStatement({sqlText: copySql});
