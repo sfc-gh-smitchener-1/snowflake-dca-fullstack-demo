@@ -235,13 +235,14 @@ AS
 $$
     var fullTableName = 'RAW_DEV.' + P_SOURCE_SYSTEM.toUpperCase() + '.' + P_TABLE_NAME.toUpperCase();
     
+    // DATA_DOMAIN allowed values: CUSTOMER, EMPLOYEE, PRODUCT, ORDER, FINANCE, OPERATIONS, MARKETING, HR
     var domainMap = {
-        'SAP': {domain: 'ERP', classification: 'CONFIDENTIAL'},
-        'SALESFORCE': {domain: 'CRM', classification: 'CONFIDENTIAL'},
-        'ORACLE': {domain: 'ERP', classification: 'CONFIDENTIAL'},
-        'FHIR': {domain: 'HEALTHCARE', classification: 'RESTRICTED'},
-        'WORKDAY': {domain: 'HCM', classification: 'RESTRICTED'},
-        'SERVICENOW': {domain: 'ITSM', classification: 'INTERNAL'}
+        'SAP': {domain: 'OPERATIONS', classification: 'CONFIDENTIAL'},
+        'SALESFORCE': {domain: 'CUSTOMER', classification: 'CONFIDENTIAL'},
+        'ORACLE': {domain: 'FINANCE', classification: 'CONFIDENTIAL'},
+        'FHIR': {domain: 'CUSTOMER', classification: 'RESTRICTED'},
+        'WORKDAY': {domain: 'HR', classification: 'RESTRICTED'},
+        'SERVICENOW': {domain: 'OPERATIONS', classification: 'INTERNAL'}
     };
     
     var config = domainMap[P_SOURCE_SYSTEM.toUpperCase()] || {domain: 'OTHER', classification: 'INTERNAL'};

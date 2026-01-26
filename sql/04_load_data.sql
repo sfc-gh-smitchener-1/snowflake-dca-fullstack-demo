@@ -333,13 +333,14 @@ $$
     var sourceSystem = P_SOURCE_SYSTEM.toUpperCase();
     var schemaName = 'RAW_DEV.' + sourceSystem;
     
+    // DATA_DOMAIN allowed values: CUSTOMER, EMPLOYEE, PRODUCT, ORDER, FINANCE, OPERATIONS, MARKETING, HR
     var domainMap = {
-        'SAP': {domain: 'ERP', classification: 'CONFIDENTIAL'},
-        'SALESFORCE': {domain: 'CRM', classification: 'CONFIDENTIAL'},
-        'ORACLE': {domain: 'ERP', classification: 'CONFIDENTIAL'},
-        'FHIR': {domain: 'HEALTHCARE', classification: 'RESTRICTED'},
-        'WORKDAY': {domain: 'HCM', classification: 'RESTRICTED'},
-        'SERVICENOW': {domain: 'ITSM', classification: 'INTERNAL'}
+        'SAP': {domain: 'OPERATIONS', classification: 'CONFIDENTIAL'},
+        'SALESFORCE': {domain: 'CUSTOMER', classification: 'CONFIDENTIAL'},
+        'ORACLE': {domain: 'FINANCE', classification: 'CONFIDENTIAL'},
+        'FHIR': {domain: 'CUSTOMER', classification: 'RESTRICTED'},
+        'WORKDAY': {domain: 'HR', classification: 'RESTRICTED'},
+        'SERVICENOW': {domain: 'OPERATIONS', classification: 'INTERNAL'}
     };
     
     var config = domainMap[sourceSystem] || {domain: 'OTHER', classification: 'INTERNAL'};
