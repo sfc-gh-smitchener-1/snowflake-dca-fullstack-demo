@@ -98,10 +98,10 @@ CREATE SCHEMA IF NOT EXISTS RAW_DEV.SERVICENOW
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE RAW_DEV.STAGING.INFER_AND_CREATE_TABLE(
-    p_source_system VARCHAR,      -- SAP, SALESFORCE, ORACLE, FHIR, WORKDAY, SERVICENOW
-    p_table_name VARCHAR,         -- Table/object name (e.g., KNA1, Account, Patient)
-    p_file_format VARCHAR,        -- CSV, JSON, or PARQUET
-    p_stage_path VARCHAR          -- Path in stage (e.g., 'sap_s4hana/KNA1.csv')
+    p_source_system VARCHAR,
+    p_table_name VARCHAR,
+    p_file_format VARCHAR,
+    p_stage_path VARCHAR
 )
 RETURNS VARCHAR
 LANGUAGE SQL
@@ -116,148 +116,47 @@ DECLARE
     v_create_sql VARCHAR;
     v_copy_sql VARCHAR;
     v_result VARCHAR;
+    v_row_count NUMBER;
 BEGIN
-    -- Map source system to schema
     v_schema_name := 'RAW_DEV.' || UPPER(p_source_system);
     v_full_table_name := v_schema_name || '.' || UPPER(p_table_name);
     v_file_format_name := 'RAW_DEV.STAGING.' || UPPER(p_file_format) || '_FORMAT';
     
     -- Generate column definitions from INFER_SCHEMA
-    SELECT LISTAGG(
-        '"' || COLUMN_NAME || '" ' || TYPE,
-        ', '
-    ) WITHIN GROUP (ORDER BY ORDER_ID)
+    SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') WITHIN GROUP (ORDER BY ORDER_ID)
     INTO v_column_defs
     FROM TABLE(
         INFER_SCHEMA(
-            LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path,
-            FILE_FORMAT => v_file_format_name,
+            LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/' || :p_stage_path,
+            FILE_FORMAT => :v_file_format_name,
             MAX_RECORDS_PER_FILE => 1000
         )
     );
     
-    -- If no columns inferred, return error
     IF (v_column_defs IS NULL OR v_column_defs = '') THEN
         RETURN 'ERROR: Could not infer schema from ' || p_stage_path;
     END IF;
     
-    -- Create table using inferred schema
     v_create_sql := 'CREATE OR REPLACE TABLE ' || v_full_table_name || ' (' || v_column_defs || ')';
     v_create_sql := v_create_sql || ' COMMENT = ''Auto-generated from ' || p_stage_path || '''';
     
     EXECUTE IMMEDIATE v_create_sql;
     
-    -- Load data based on file format
-    IF (UPPER(p_file_format) = 'CSV') THEN
-        v_copy_sql := 'COPY INTO ' || v_full_table_name || 
-                      ' FROM @RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path ||
-                      ' FILE_FORMAT = ' || v_file_format_name ||
-                      ' MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE' ||
-                      ' ON_ERROR = CONTINUE';
-    ELSEIF (UPPER(p_file_format) = 'JSON') THEN
-        -- For JSON, we need to handle it differently - load into VARIANT first
-        v_copy_sql := 'COPY INTO ' || v_full_table_name || 
-                      ' FROM @RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path ||
-                      ' FILE_FORMAT = ' || v_file_format_name ||
-                      ' MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE' ||
-                      ' ON_ERROR = CONTINUE';
-    ELSE
-        v_copy_sql := 'COPY INTO ' || v_full_table_name || 
-                      ' FROM @RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path ||
-                      ' FILE_FORMAT = ' || v_file_format_name ||
-                      ' MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE' ||
-                      ' ON_ERROR = CONTINUE';
-    END IF;
+    v_copy_sql := 'COPY INTO ' || v_full_table_name || 
+                  ' FROM @RAW_DEV.STAGING.DATA_STAGE/' || p_stage_path ||
+                  ' FILE_FORMAT = ' || v_file_format_name ||
+                  ' MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE' ||
+                  ' ON_ERROR = CONTINUE';
     
     EXECUTE IMMEDIATE v_copy_sql;
     
-    -- Get row count
-    EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || v_full_table_name INTO v_result;
+    SELECT COUNT(*) INTO v_row_count FROM IDENTIFIER(v_full_table_name);
     
-    RETURN 'SUCCESS: Created ' || v_full_table_name || ' with ' || v_result || ' rows';
+    RETURN 'SUCCESS: Created ' || v_full_table_name || ' with ' || v_row_count::VARCHAR || ' rows';
     
 EXCEPTION
     WHEN OTHER THEN
         RETURN 'ERROR: ' || SQLERRM;
-END;
-$$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- BULK LOAD PROCEDURE FOR SOURCE SYSTEM
--- ═══════════════════════════════════════════════════════════════════════════
---
--- Loads ALL tables for a given source system by scanning the stage
---
--- ═══════════════════════════════════════════════════════════════════════════
-
-CREATE OR REPLACE PROCEDURE RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM(
-    p_source_system VARCHAR,   -- SAP, SALESFORCE, ORACLE, FHIR, WORKDAY, SERVICENOW
-    p_file_format VARCHAR      -- CSV or JSON
-)
-RETURNS TABLE (table_name VARCHAR, status VARCHAR, row_count NUMBER)
-LANGUAGE SQL
-EXECUTE AS CALLER
-AS
-$$
-DECLARE
-    v_stage_folder VARCHAR;
-    v_file_pattern VARCHAR;
-    v_result_table RESULTSET;
-BEGIN
-    -- Map source system to stage folder
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN v_stage_folder := 'sap_s4hana';
-        WHEN 'SALESFORCE' THEN v_stage_folder := 'salesforce';
-        WHEN 'ORACLE' THEN v_stage_folder := 'oracle_ebs';
-        WHEN 'FHIR' THEN v_stage_folder := 'fhir_r4';
-        WHEN 'WORKDAY' THEN v_stage_folder := 'workday';
-        WHEN 'SERVICENOW' THEN v_stage_folder := 'servicenow';
-        ELSE v_stage_folder := LOWER(p_source_system);
-    END CASE;
-    
-    -- Create temp table for results
-    CREATE OR REPLACE TEMPORARY TABLE _load_results (
-        table_name VARCHAR,
-        status VARCHAR,
-        row_count NUMBER
-    );
-    
-    -- Get list of files in stage folder
-    v_file_pattern := '@RAW_DEV.STAGING.DATA_STAGE/' || v_stage_folder || '/';
-    
-    -- List files and process each
-    FOR file_rec IN (
-        SELECT 
-            REGEXP_REPLACE("name", '.*/', '') AS file_name,
-            REGEXP_REPLACE(REGEXP_REPLACE("name", '.*/', ''), '\\.(csv|json|parquet)$', '') AS table_name
-        FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()))
-        WHERE "name" LIKE '%.' || LOWER(p_file_format)
-    )
-    DO
-        DECLARE
-            v_result VARCHAR;
-            v_row_count NUMBER DEFAULT 0;
-        BEGIN
-            -- Call the infer and create procedure
-            CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE(
-                p_source_system,
-                file_rec.table_name,
-                p_file_format,
-                v_stage_folder || '/' || file_rec.file_name
-            ) INTO v_result;
-            
-            -- Get row count if successful
-            IF (v_result LIKE 'SUCCESS%') THEN
-                EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(file_rec.table_name) INTO v_row_count;
-            END IF;
-            
-            INSERT INTO _load_results VALUES (file_rec.table_name, v_result, v_row_count);
-        END;
-    END FOR;
-    
-    -- Return results
-    v_result_table := (SELECT * FROM _load_results);
-    RETURN TABLE(v_result_table);
 END;
 $$;
 
@@ -274,6 +173,7 @@ AS
 $$
 DECLARE
     v_stage_folder VARCHAR;
+    res RESULTSET;
 BEGIN
     CASE UPPER(p_source_system)
         WHEN 'SAP' THEN v_stage_folder := 'sap_s4hana';
@@ -285,7 +185,7 @@ BEGIN
         ELSE v_stage_folder := LOWER(p_source_system);
     END CASE;
     
-    RETURN TABLE(
+    res := (
         SELECT 
             "name" AS file_name,
             "size" AS file_size,
@@ -294,158 +194,9 @@ BEGIN
         WHERE "name" LIKE v_stage_folder || '/%'
         ORDER BY "name"
     );
+    RETURN TABLE(res);
 END;
 $$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- QUICK LOAD COMMANDS
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- After uploading files to the stage, use these commands:
---
--- 1. Upload files to stage:
---    PUT file:///path/to/data/sap_s4hana/*.csv @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/ AUTO_COMPRESS=TRUE;
---
--- 2. Load individual table:
---    CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
---
--- 3. Load all tables for a source system:
---    CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SAP', 'CSV');
---
--- ═══════════════════════════════════════════════════════════════════════════
-
--- ═══════════════════════════════════════════════════════════════════════════
--- EXAMPLE: MANUAL TABLE CREATION (When schema is known)
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- For known source systems, you can also create tables explicitly.
--- These serve as reference implementations.
---
--- ═══════════════════════════════════════════════════════════════════════════
-
--- SAP KNA1 (Customer Master) - Reference Implementation
-CREATE TABLE IF NOT EXISTS RAW_DEV.SAP.KNA1_TEMPLATE (
-    -- SAP Key Fields
-    MANDT VARCHAR(3),                          -- Client
-    KUNNR VARCHAR(10),                         -- Customer Number
-    
-    -- General Data
-    NAME1 VARCHAR(35),                         -- Name 1
-    NAME2 VARCHAR(35),                         -- Name 2
-    SORTL VARCHAR(10),                         -- Sort field
-    STRAS VARCHAR(35),                         -- Street Address
-    ORT01 VARCHAR(35),                         -- City
-    PSTLZ VARCHAR(10),                         -- Postal Code
-    LAND1 VARCHAR(3),                          -- Country Key
-    REGIO VARCHAR(3),                          -- Region
-    SPRAS VARCHAR(2),                          -- Language
-    
-    -- Communication
-    TELF1 VARCHAR(16),                         -- Telephone 1
-    TELFX VARCHAR(16),                         -- Fax
-    SMTP_ADDR VARCHAR(241),                    -- Email
-    
-    -- Control Data
-    KTOKD VARCHAR(4),                          -- Account Group
-    ERDAT VARCHAR(8),                          -- Created Date (YYYYMMDD)
-    ERNAM VARCHAR(12),                         -- Created By
-    LOEVM VARCHAR(1),                          -- Deletion Flag
-    SPERR VARCHAR(1),                          -- Central Block
-    
-    -- Classification
-    BRSCH VARCHAR(4),                          -- Industry
-    KUKLA VARCHAR(2),                          -- Customer Classification
-    STCEG VARCHAR(20),                         -- VAT Number
-    
-    -- SCD Type 2 Columns (from data generator)
-    "_LOADED_AT" TIMESTAMP_NTZ,
-    "_SOURCE_SYSTEM" VARCHAR(100),
-    "_SOURCE_TABLE" VARCHAR(100),
-    "_ROW_HASH" VARCHAR(64),
-    "_IS_CURRENT" BOOLEAN,
-    "_VALID_FROM" TIMESTAMP_NTZ,
-    "_VALID_TO" VARCHAR(50)
-)
-COMMENT = 'SAP KNA1 Customer Master template - use INFER_AND_CREATE_TABLE for dynamic creation';
-
--- Salesforce Account - Reference Implementation
-CREATE TABLE IF NOT EXISTS RAW_DEV.SALESFORCE.ACCOUNT_TEMPLATE (
-    -- System Fields
-    "Id" VARCHAR(18),
-    "IsDeleted" BOOLEAN,
-    "CreatedDate" VARCHAR(50),
-    "CreatedById" VARCHAR(18),
-    "LastModifiedDate" VARCHAR(50),
-    "LastModifiedById" VARCHAR(18),
-    "SystemModstamp" VARCHAR(50),
-    
-    -- Account Fields
-    "Name" VARCHAR(255),
-    "Type" VARCHAR(255),
-    "Industry" VARCHAR(255),
-    "AnnualRevenue" NUMBER(18,2),
-    "NumberOfEmployees" NUMBER,
-    "Rating" VARCHAR(50),
-    
-    -- Address
-    "BillingStreet" VARCHAR(255),
-    "BillingCity" VARCHAR(255),
-    "BillingState" VARCHAR(255),
-    "BillingPostalCode" VARCHAR(50),
-    "BillingCountry" VARCHAR(255),
-    "ShippingStreet" VARCHAR(255),
-    "ShippingCity" VARCHAR(255),
-    "ShippingState" VARCHAR(255),
-    "ShippingPostalCode" VARCHAR(50),
-    "ShippingCountry" VARCHAR(255),
-    
-    -- Contact
-    "Phone" VARCHAR(50),
-    "Fax" VARCHAR(50),
-    "Website" VARCHAR(255),
-    
-    -- Ownership
-    "OwnerId" VARCHAR(18),
-    
-    -- Custom Fields
-    "Customer_Segment__c" VARCHAR(255),
-    "Lifecycle_Stage__c" VARCHAR(255),
-    
-    -- SCD Type 2
-    "_LOADED_AT" TIMESTAMP_NTZ,
-    "_SOURCE_SYSTEM" VARCHAR(100),
-    "_SOURCE_TABLE" VARCHAR(100),
-    "_ROW_HASH" VARCHAR(64),
-    "_IS_CURRENT" BOOLEAN,
-    "_VALID_FROM" TIMESTAMP_NTZ,
-    "_VALID_TO" VARCHAR(50)
-)
-COMMENT = 'Salesforce Account template - use INFER_AND_CREATE_TABLE for dynamic creation';
-
--- FHIR Patient - Reference Implementation
-CREATE TABLE IF NOT EXISTS RAW_DEV.FHIR.PATIENT_TEMPLATE (
-    "resourceType" VARCHAR(50),
-    "id" VARCHAR(50),
-    "identifier" VARIANT,
-    "active" BOOLEAN,
-    "name" VARIANT,
-    "telecom" VARIANT,
-    "gender" VARCHAR(20),
-    "birthDate" VARCHAR(20),
-    "address" VARIANT,
-    "maritalStatus" VARIANT,
-    "communication" VARIANT,
-    
-    -- SCD Type 2
-    "_LOADED_AT" TIMESTAMP_NTZ,
-    "_SOURCE_SYSTEM" VARCHAR(100),
-    "_SOURCE_TABLE" VARCHAR(100),
-    "_ROW_HASH" VARCHAR(64),
-    "_IS_CURRENT" BOOLEAN,
-    "_VALID_FROM" TIMESTAMP_NTZ,
-    "_VALID_TO" VARCHAR(50)
-)
-COMMENT = 'FHIR Patient template - use INFER_AND_CREATE_TABLE for dynamic creation';
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- GOVERNANCE TAG APPLICATION (Applied after table creation)
@@ -467,7 +218,6 @@ DECLARE
 BEGIN
     v_full_table_name := 'RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(p_table_name);
     
-    -- Set defaults based on source system
     CASE UPPER(p_source_system)
         WHEN 'SAP' THEN 
             v_data_domain := 'ERP';
@@ -492,7 +242,6 @@ BEGIN
             v_classification := 'INTERNAL';
     END CASE;
     
-    -- Apply table-level tags
     EXECUTE IMMEDIATE 'ALTER TABLE ' || v_full_table_name || ' SET TAG ' ||
         'GOVERNANCE.TAGS.DATA_CLASSIFICATION = ''' || v_classification || ''', ' ||
         'GOVERNANCE.TAGS.DATA_DOMAIN = ''' || v_data_domain || ''', ' ||
@@ -515,7 +264,6 @@ $$;
 GRANT USAGE ON SCHEMA RAW_DEV.STAGING TO ROLE DATA_ENGINEER;
 GRANT READ, WRITE ON STAGE RAW_DEV.STAGING.DATA_STAGE TO ROLE DATA_ENGINEER;
 GRANT USAGE ON PROCEDURE RAW_DEV.STAGING.INFER_AND_CREATE_TABLE(VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE DATA_ENGINEER;
-GRANT USAGE ON PROCEDURE RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM(VARCHAR, VARCHAR) TO ROLE DATA_ENGINEER;
 GRANT USAGE ON PROCEDURE RAW_DEV.STAGING.LIST_SOURCE_FILES(VARCHAR) TO ROLE DATA_ENGINEER;
 
 -- Source system schema access for DATA_ENGINEER
@@ -550,6 +298,116 @@ GRANT SELECT ON FUTURE TABLES IN SCHEMA RAW_DEV.WORKDAY TO ROLE DATA_STEWARD;
 GRANT SELECT ON FUTURE TABLES IN SCHEMA RAW_DEV.SERVICENOW TO ROLE DATA_STEWARD;
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- EXAMPLE: MANUAL TABLE CREATION (When schema is known)
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 
+-- For known source systems, you can also create tables explicitly.
+-- These serve as reference implementations.
+-- Commented out - use INFER_AND_CREATE_TABLE for dynamic creation.
+--
+-- ═══════════════════════════════════════════════════════════════════════════
+
+/*
+-- SAP KNA1 (Customer Master) - Reference Implementation
+CREATE TABLE IF NOT EXISTS RAW_DEV.SAP.KNA1_TEMPLATE (
+    MANDT VARCHAR(3),
+    KUNNR VARCHAR(10),
+    NAME1 VARCHAR(35),
+    NAME2 VARCHAR(35),
+    SORTL VARCHAR(10),
+    STRAS VARCHAR(35),
+    ORT01 VARCHAR(35),
+    PSTLZ VARCHAR(10),
+    LAND1 VARCHAR(3),
+    REGIO VARCHAR(3),
+    SPRAS VARCHAR(2),
+    TELF1 VARCHAR(16),
+    TELFX VARCHAR(16),
+    SMTP_ADDR VARCHAR(241),
+    KTOKD VARCHAR(4),
+    ERDAT VARCHAR(8),
+    ERNAM VARCHAR(12),
+    LOEVM VARCHAR(1),
+    SPERR VARCHAR(1),
+    BRSCH VARCHAR(4),
+    KUKLA VARCHAR(2),
+    STCEG VARCHAR(20),
+    "_LOADED_AT" TIMESTAMP_NTZ,
+    "_SOURCE_SYSTEM" VARCHAR(100),
+    "_SOURCE_TABLE" VARCHAR(100),
+    "_ROW_HASH" VARCHAR(64),
+    "_IS_CURRENT" BOOLEAN,
+    "_VALID_FROM" TIMESTAMP_NTZ,
+    "_VALID_TO" VARCHAR(50)
+)
+COMMENT = 'SAP KNA1 Customer Master template';
+
+-- Salesforce Account - Reference Implementation
+CREATE TABLE IF NOT EXISTS RAW_DEV.SALESFORCE.ACCOUNT_TEMPLATE (
+    "Id" VARCHAR(18),
+    "IsDeleted" BOOLEAN,
+    "CreatedDate" VARCHAR(50),
+    "CreatedById" VARCHAR(18),
+    "LastModifiedDate" VARCHAR(50),
+    "LastModifiedById" VARCHAR(18),
+    "SystemModstamp" VARCHAR(50),
+    "Name" VARCHAR(255),
+    "Type" VARCHAR(255),
+    "Industry" VARCHAR(255),
+    "AnnualRevenue" NUMBER(18,2),
+    "NumberOfEmployees" NUMBER,
+    "Rating" VARCHAR(50),
+    "BillingStreet" VARCHAR(255),
+    "BillingCity" VARCHAR(255),
+    "BillingState" VARCHAR(255),
+    "BillingPostalCode" VARCHAR(50),
+    "BillingCountry" VARCHAR(255),
+    "ShippingStreet" VARCHAR(255),
+    "ShippingCity" VARCHAR(255),
+    "ShippingState" VARCHAR(255),
+    "ShippingPostalCode" VARCHAR(50),
+    "ShippingCountry" VARCHAR(255),
+    "Phone" VARCHAR(50),
+    "Fax" VARCHAR(50),
+    "Website" VARCHAR(255),
+    "OwnerId" VARCHAR(18),
+    "Customer_Segment__c" VARCHAR(255),
+    "Lifecycle_Stage__c" VARCHAR(255),
+    "_LOADED_AT" TIMESTAMP_NTZ,
+    "_SOURCE_SYSTEM" VARCHAR(100),
+    "_SOURCE_TABLE" VARCHAR(100),
+    "_ROW_HASH" VARCHAR(64),
+    "_IS_CURRENT" BOOLEAN,
+    "_VALID_FROM" TIMESTAMP_NTZ,
+    "_VALID_TO" VARCHAR(50)
+)
+COMMENT = 'Salesforce Account template';
+
+-- FHIR Patient - Reference Implementation
+CREATE TABLE IF NOT EXISTS RAW_DEV.FHIR.PATIENT_TEMPLATE (
+    "resourceType" VARCHAR(50),
+    "id" VARCHAR(50),
+    "identifier" VARIANT,
+    "active" BOOLEAN,
+    "name" VARIANT,
+    "telecom" VARIANT,
+    "gender" VARCHAR(20),
+    "birthDate" VARCHAR(20),
+    "address" VARIANT,
+    "maritalStatus" VARIANT,
+    "communication" VARIANT,
+    "_LOADED_AT" TIMESTAMP_NTZ,
+    "_SOURCE_SYSTEM" VARCHAR(100),
+    "_SOURCE_TABLE" VARCHAR(100),
+    "_ROW_HASH" VARCHAR(64),
+    "_IS_CURRENT" BOOLEAN,
+    "_VALID_FROM" TIMESTAMP_NTZ,
+    "_VALID_TO" VARCHAR(50)
+)
+COMMENT = 'FHIR Patient template';
+*/
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- USAGE INSTRUCTIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
@@ -571,13 +429,11 @@ GRANT SELECT ON FUTURE TABLES IN SCHEMA RAW_DEV.SERVICENOW TO ROLE DATA_STEWARD;
 -- LIST @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/;
 -- CALL RAW_DEV.STAGING.LIST_SOURCE_FILES('SAP');
 --
--- STEP 4: Create tables and load data (choose one method)
+-- STEP 4: Create tables and load data
 -- ───────────────────────────────────────────────────────────────────────────
--- Method A: Load single table
 -- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
---
--- Method B: Load all tables for a source system
--- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SAP', 'CSV');
+-- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SALESFORCE', 'ACCOUNT', 'CSV', 'salesforce/Account.csv');
+-- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('FHIR', 'PATIENT', 'JSON', 'fhir_r4/Patient.json');
 --
 -- STEP 5: Apply governance tags
 -- ───────────────────────────────────────────────────────────────────────────
@@ -593,4 +449,4 @@ GRANT SELECT ON FUTURE TABLES IN SCHEMA RAW_DEV.SERVICENOW TO ROLE DATA_STEWARD;
 
 SELECT '✓ RAW Layer Dynamic Schema Infrastructure Created' AS STATUS;
 SELECT '  Source System Schemas: SAP, SALESFORCE, ORACLE, FHIR, WORKDAY, SERVICENOW' AS INFO;
-SELECT '  Use INFER_AND_CREATE_TABLE() or LOAD_SOURCE_SYSTEM() to create tables' AS INFO;
+SELECT '  Use INFER_AND_CREATE_TABLE() to create tables from staged files' AS INFO;
