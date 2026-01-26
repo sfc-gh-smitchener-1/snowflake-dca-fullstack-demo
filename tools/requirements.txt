@@ -1,0 +1,10 @@
+# Snowflake DCA Demo - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Data Generation
+faker>=18.0.0
+pyarrow>=14.0.0
+
+# Optional: Snowflake connectivity for direct loading
+# snowflake-connector-python>=3.0.0
+# snowflake-snowpark-python>=1.10.0
