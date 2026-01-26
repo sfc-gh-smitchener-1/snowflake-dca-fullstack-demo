@@ -39,10 +39,19 @@ CREATE STAGE IF NOT EXISTS DATA_STAGE
     DIRECTORY = (ENABLE = TRUE)
     COMMENT = 'Stage for source system data files (CSV, JSON, Parquet)';
 
--- File formats
-CREATE FILE FORMAT IF NOT EXISTS CSV_FORMAT
+-- File formats for INFER_SCHEMA (needs to see headers)
+CREATE FILE FORMAT IF NOT EXISTS CSV_INFER_FORMAT
     TYPE = 'CSV'
     PARSE_HEADER = TRUE
+    FIELD_OPTIONALLY_ENCLOSED_BY = '"'
+    NULL_IF = ('', 'NULL', 'null', 'None')
+    EMPTY_FIELD_AS_NULL = TRUE
+    COMPRESSION = AUTO;
+
+-- File format for COPY INTO (skip header, load by position)
+CREATE FILE FORMAT IF NOT EXISTS CSV_FORMAT
+    TYPE = 'CSV'
+    SKIP_HEADER = 1
     FIELD_OPTIONALLY_ENCLOSED_BY = '"'
     NULL_IF = ('', 'NULL', 'null', 'None')
     EMPTY_FIELD_AS_NULL = TRUE

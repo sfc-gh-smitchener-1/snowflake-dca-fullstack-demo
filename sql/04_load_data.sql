@@ -60,7 +60,9 @@ $$
     var folder = folderMap[sourceSystem] || P_SOURCE_SYSTEM.toLowerCase();
     var fileFormat = P_FILE_FORMAT.toUpperCase();
     var fileExtension = fileFormat === 'JSON' ? '.json' : '.csv';
-    var fileFormatName = 'RAW_DEV.STAGING.' + fileFormat + '_FORMAT';
+    // Use separate formats: INFER format has PARSE_HEADER=TRUE, COPY format has SKIP_HEADER=1
+    var inferFormatName = fileFormat === 'CSV' ? 'RAW_DEV.STAGING.CSV_INFER_FORMAT' : 'RAW_DEV.STAGING.' + fileFormat + '_FORMAT';
+    var copyFormatName = 'RAW_DEV.STAGING.' + fileFormat + '_FORMAT';
     var schemaName = 'RAW_DEV.' + sourceSystem;
     
     try {
@@ -112,14 +114,14 @@ $$
             var stagePath = folder + '/' + fileNameWithExt;
             
             try {
-                // Infer schema
+                // Infer schema (using INFER format with PARSE_HEADER=TRUE)
                 var inferSql = `
                     SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') 
                            WITHIN GROUP (ORDER BY ORDER_ID) AS COL_DEFS
                     FROM TABLE(
                         INFER_SCHEMA(
                             LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/${stagePath}',
-                            FILE_FORMAT => '${fileFormatName}',
+                            FILE_FORMAT => '${inferFormatName}',
                             MAX_RECORDS_PER_FILE => 1000
                         )
                     )
@@ -160,11 +162,12 @@ $$
                 var createStmt = snowflake.createStatement({sqlText: createSql});
                 createStmt.execute();
                 
-                // Load data (columns already in correct order from INFER_SCHEMA)
+                // Load data (using COPY format with SKIP_HEADER=1, FORCE=TRUE to reload)
                 var copySql = `COPY INTO ${fullTableName} 
                                FROM @RAW_DEV.STAGING.DATA_STAGE/${stagePath}
-                               FILE_FORMAT = ${fileFormatName}
-                               ON_ERROR = CONTINUE`;
+                               FILE_FORMAT = ${copyFormatName}
+                               ON_ERROR = CONTINUE
+                               FORCE = TRUE`;
                 var copyStmt = snowflake.createStatement({sqlText: copySql});
                 copyStmt.execute();
                 
