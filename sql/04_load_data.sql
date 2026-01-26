@@ -96,31 +96,27 @@ $$
         
         // Process each file
         for (var i = 0; i < files.length; i++) {
-            var fullPath = files[i];
+            var fullStagePath = files[i];
             
-            // Extract just the filename from the full path
-            // e.g., "s3://bucket/path/sap_s4hana/KNA1.csv.gz" -> "KNA1.csv.gz"
-            var pathParts = fullPath.split('/');
+            // fullStagePath from LIST is like: @"RAW_DEV"."STAGING"."DATA_STAGE"/sap_s4hana/KNA1.csv
+            // Extract just the filename
+            var pathParts = fullStagePath.split('/');
             var fileNameWithExt = pathParts[pathParts.length - 1];
             
             // Extract table name by removing extension(s)
-            // e.g., "KNA1.csv.gz" -> "KNA1"
             var tableName = fileNameWithExt
                 .replace(/\.gz$/i, '')
                 .replace(/\.(csv|json|parquet)$/i, '')
                 .toUpperCase();
             
-            // Build the relative stage path for INFER_SCHEMA
-            var stagePath = folder + '/' + fileNameWithExt;
-            
             try {
-                // Infer schema (using INFER format with PARSE_HEADER=TRUE)
+                // Infer schema - use the full stage path directly from LIST
                 var inferSql = `
                     SELECT LISTAGG('"' || COLUMN_NAME || '" ' || TYPE, ', ') 
                            WITHIN GROUP (ORDER BY ORDER_ID) AS COL_DEFS
                     FROM TABLE(
                         INFER_SCHEMA(
-                            LOCATION => '@RAW_DEV.STAGING.DATA_STAGE/${stagePath}',
+                            LOCATION => '${fullStagePath}',
                             FILE_FORMAT => '${inferFormatName}',
                             MAX_RECORDS_PER_FILE => 1000
                         )
@@ -158,18 +154,32 @@ $$
                 
                 // Create table
                 var createSql = `CREATE OR REPLACE TABLE ${fullTableName} (${columnDefs}) 
-                                 COMMENT = 'Auto-loaded from ${stagePath}'`;
+                                 COMMENT = 'Auto-loaded from ${fileNameWithExt}'`;
                 var createStmt = snowflake.createStatement({sqlText: createSql});
                 createStmt.execute();
                 
                 // Load data (using COPY format with SKIP_HEADER=1, FORCE=TRUE to reload)
+                // Use the full stage path directly from LIST
                 var copySql = `COPY INTO ${fullTableName} 
-                               FROM @RAW_DEV.STAGING.DATA_STAGE/${stagePath}
+                               FROM '${fullStagePath}'
                                FILE_FORMAT = ${copyFormatName}
                                ON_ERROR = CONTINUE
                                FORCE = TRUE`;
                 var copyStmt = snowflake.createStatement({sqlText: copySql});
-                copyStmt.execute();
+                var copyResult = copyStmt.execute();
+                
+                // Capture COPY result details
+                var copyDetails = [];
+                while (copyResult.next()) {
+                    copyDetails.push({
+                        file: copyResult.getColumnValue(1),
+                        status: copyResult.getColumnValue(2),
+                        rows_parsed: copyResult.getColumnValue(3),
+                        rows_loaded: copyResult.getColumnValue(4),
+                        errors_seen: copyResult.getColumnValue(5),
+                        first_error: copyResult.getColumnValue(6)
+                    });
+                }
                 
                 // Get row count
                 var countSql = `SELECT COUNT(*) FROM ${fullTableName}`;
@@ -183,7 +193,8 @@ $$
                     file: fileNameWithExt,
                     status: 'SUCCESS',
                     message: 'Created and loaded',
-                    rows: rowCount
+                    rows: rowCount,
+                    copy_details: copyDetails
                 });
                 
             } catch (fileErr) {
