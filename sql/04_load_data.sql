@@ -71,11 +71,15 @@ $$
         
         var files = [];
         while (listResult.next()) {
-            var fileName = listResult.getColumnValue(1);
-            // Filter by file extension
-            if (fileName.toLowerCase().endsWith(fileExtension) || 
-                fileName.toLowerCase().endsWith(fileExtension + '.gz')) {
-                files.push(fileName);
+            // Column 1 is "name" which contains the full path like:
+            // s3://bucket/path/sap_s4hana/KNA1.csv.gz or
+            // @RAW_DEV.STAGING.DATA_STAGE/sap_s4hana/KNA1.csv.gz
+            var fullPath = listResult.getColumnValue(1);
+            
+            // Filter by file extension (handle .gz compression)
+            var lowerPath = fullPath.toLowerCase();
+            if (lowerPath.endsWith(fileExtension) || lowerPath.endsWith(fileExtension + '.gz')) {
+                files.push(fullPath);
             }
         }
         
@@ -83,7 +87,8 @@ $$
             return {
                 status: 'WARNING',
                 message: 'No ' + fileExtension + ' files found in ' + folder + '/',
-                tables_loaded: 0
+                tables_loaded: 0,
+                folder: folder
             };
         }
         
@@ -91,14 +96,20 @@ $$
         for (var i = 0; i < files.length; i++) {
             var fullPath = files[i];
             
-            // Extract table name from file path
-            // e.g., "sap_s4hana/KNA1.csv.gz" -> "KNA1"
-            var parts = fullPath.split('/');
-            var fileName = parts[parts.length - 1];
-            var tableName = fileName.replace(/\.(csv|json|parquet)(\.gz)?$/i, '').toUpperCase();
+            // Extract just the filename from the full path
+            // e.g., "s3://bucket/path/sap_s4hana/KNA1.csv.gz" -> "KNA1.csv.gz"
+            var pathParts = fullPath.split('/');
+            var fileNameWithExt = pathParts[pathParts.length - 1];
             
-            // Get relative path for INFER_SCHEMA
-            var stagePath = folder + '/' + fileName;
+            // Extract table name by removing extension(s)
+            // e.g., "KNA1.csv.gz" -> "KNA1"
+            var tableName = fileNameWithExt
+                .replace(/\.gz$/i, '')
+                .replace(/\.(csv|json|parquet)$/i, '')
+                .toUpperCase();
+            
+            // Build the relative stage path for INFER_SCHEMA
+            var stagePath = folder + '/' + fileNameWithExt;
             
             try {
                 // Infer schema
@@ -120,6 +131,7 @@ $$
                 if (!inferResult.next()) {
                     results.push({
                         table: tableName,
+                        file: fileNameWithExt,
                         status: 'ERROR',
                         message: 'Could not infer schema',
                         rows: 0
@@ -132,6 +144,7 @@ $$
                 if (!columnDefs || columnDefs.trim() === '') {
                     results.push({
                         table: tableName,
+                        file: fileNameWithExt,
                         status: 'ERROR',
                         message: 'No columns detected',
                         rows: 0
@@ -165,6 +178,7 @@ $$
                 
                 results.push({
                     table: tableName,
+                    file: fileNameWithExt,
                     status: 'SUCCESS',
                     message: 'Created and loaded',
                     rows: rowCount
@@ -173,6 +187,7 @@ $$
             } catch (fileErr) {
                 results.push({
                     table: tableName,
+                    file: fileNameWithExt,
                     status: 'ERROR',
                     message: fileErr.message,
                     rows: 0
@@ -181,14 +196,15 @@ $$
         }
         
         // Summary
-        var successCount = results.filter(r => r.status === 'SUCCESS').length;
-        var errorCount = results.filter(r => r.status === 'ERROR').length;
-        var totalRows = results.reduce((sum, r) => sum + r.rows, 0);
+        var successCount = results.filter(function(r) { return r.status === 'SUCCESS'; }).length;
+        var errorCount = results.filter(function(r) { return r.status === 'ERROR'; }).length;
+        var totalRows = results.reduce(function(sum, r) { return sum + r.rows; }, 0);
         
         return {
             status: errorCount === 0 ? 'SUCCESS' : 'PARTIAL',
             source_system: sourceSystem,
             folder: folder,
+            files_found: files.length,
             tables_loaded: successCount,
             tables_failed: errorCount,
             total_rows: totalRows,
@@ -199,7 +215,8 @@ $$
         return {
             status: 'ERROR',
             message: err.message,
-            source_system: sourceSystem
+            source_system: sourceSystem,
+            folder: folder
         };
     }
 $$;
@@ -233,48 +250,49 @@ $$
     var totalTablesLoaded = 0;
     var totalTablesFailed = 0;
     var totalRows = 0;
+    var systemsProcessed = 0;
     
     for (var i = 0; i < sourceSystems.length; i++) {
         var sys = sourceSystems[i];
         
         try {
-            // Check if folder has files
-            var listSql = `LIST @RAW_DEV.STAGING.DATA_STAGE/${sys.folder}/`;
-            var listStmt = snowflake.createStatement({sqlText: listSql});
-            var listResult = listStmt.execute();
+            // Directly call LOAD_SOURCE_SYSTEM - it will handle empty folders gracefully
+            var loadSql = `CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('${sys.name}', '${sys.format}')`;
+            var loadStmt = snowflake.createStatement({sqlText: loadSql});
+            var loadResult = loadStmt.execute();
+            loadResult.next();
             
-            var hasFiles = listResult.next();
+            var resultStr = loadResult.getColumnValue(1);
+            var result;
             
-            if (hasFiles) {
-                // Call LOAD_SOURCE_SYSTEM
-                var loadSql = `CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('${sys.name}', '${sys.format}')`;
-                var loadStmt = snowflake.createStatement({sqlText: loadSql});
-                var loadResult = loadStmt.execute();
-                loadResult.next();
-                
-                var result = JSON.parse(loadResult.getColumnValue(1));
-                allResults[sys.name] = result;
-                
-                if (result.tables_loaded) totalTablesLoaded += result.tables_loaded;
-                if (result.tables_failed) totalTablesFailed += result.tables_failed;
-                if (result.total_rows) totalRows += result.total_rows;
+            // Parse the result (it's a VARIANT returned as string)
+            if (typeof resultStr === 'string') {
+                result = JSON.parse(resultStr);
             } else {
-                allResults[sys.name] = {
-                    status: 'SKIPPED',
-                    message: 'No files in ' + sys.folder + '/'
-                };
+                result = resultStr;
             }
+            
+            allResults[sys.name] = result;
+            
+            if (result.tables_loaded) {
+                totalTablesLoaded += result.tables_loaded;
+                systemsProcessed++;
+            }
+            if (result.tables_failed) totalTablesFailed += result.tables_failed;
+            if (result.total_rows) totalRows += result.total_rows;
             
         } catch (err) {
             allResults[sys.name] = {
-                status: 'SKIPPED',
-                message: 'Folder not found or empty'
+                status: 'ERROR',
+                message: err.message
             };
         }
     }
     
     return {
-        status: totalTablesFailed === 0 ? 'SUCCESS' : 'PARTIAL',
+        status: totalTablesFailed === 0 && totalTablesLoaded > 0 ? 'SUCCESS' : 
+                totalTablesLoaded > 0 ? 'PARTIAL' : 'NO_DATA',
+        systems_with_data: systemsProcessed,
         total_tables_loaded: totalTablesLoaded,
         total_tables_failed: totalTablesFailed,
         total_rows: totalRows,
@@ -346,7 +364,7 @@ $$
         return {
             status: 'SUCCESS',
             source_system: sourceSystem,
-            tables_tagged: results.filter(r => r.status === 'SUCCESS').length,
+            tables_tagged: results.filter(function(r) { return r.status === 'SUCCESS'; }).length,
             details: results
         };
         
@@ -402,7 +420,7 @@ LIST @RAW_DEV.STAGING.DATA_STAGE;
 -- CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('SERVICENOW', 'CSV');
 
 -- Option C: Load individual table
--- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv');
+-- CALL RAW_DEV.STAGING.INFER_AND_CREATE_TABLE('SAP', 'KNA1', 'CSV', 'sap_s4hana/KNA1.csv.gz');
 
 -- STEP 5: Apply governance tags
 -- ─────────────────────────────────────────────────────────────────────────────
