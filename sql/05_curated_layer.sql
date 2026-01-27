@@ -1,11 +1,17 @@
 -- ============================================================================
--- CURATED LAYER - Dynamic Tables by Source System
+-- CURATED LAYER - Metadata-Driven Dynamic Tables
 -- ============================================================================
 -- 
+-- This script uses a metadata-driven approach to build curated layers:
+--   1. CURATED_CONFIG table stores all table/column mappings
+--   2. BUILD_CURATED_LAYER procedure reads config and creates dynamic tables
+--   3. Adding new tables = inserting rows, not editing SQL
+--
 -- Schema Structure (one schema per source system):
---   CURATED_DEV.SHARED      - Shared dimensions (DIM_DATE)
+--   CURATED_DEV.SHARED      - Shared dimensions (DIM_DATE) + Config
 --   CURATED_DEV.SAP         - SAP dimensions and facts
 --   CURATED_DEV.SALESFORCE  - Salesforce dimensions and facts
+--   CURATED_DEV.ORACLE      - Oracle EBS dimensions and facts
 --   CURATED_DEV.FHIR        - FHIR dimensions and facts
 --   CURATED_DEV.WORKDAY     - Workday dimensions and facts
 --   CURATED_DEV.SERVICENOW  - ServiceNow dimensions and facts
@@ -22,13 +28,16 @@ USE WAREHOUSE TRANSFORM_WH;
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SHARED
-    COMMENT = 'Shared reference dimensions (Date, Geography, etc.)';
+    COMMENT = 'Shared reference dimensions and configuration';
 
 CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SAP
     COMMENT = 'SAP S/4HANA curated dimensions and facts';
 
 CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SALESFORCE
     COMMENT = 'Salesforce CRM curated dimensions and facts';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.ORACLE
+    COMMENT = 'Oracle EBS curated dimensions and facts';
 
 CREATE SCHEMA IF NOT EXISTS CURATED_DEV.FHIR
     COMMENT = 'FHIR R4 healthcare curated dimensions and facts';
@@ -67,7 +76,1166 @@ FROM date_spine
 WHERE DATE_KEY <= '2030-12-31';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- BUILD PROCEDURE: Creates all curated objects for a source system
+-- CURATED CONFIGURATION TABLE
+-- ═══════════════════════════════════════════════════════════════════════════
+-- This table defines all curated tables and their SELECT statements.
+-- To add a new table: INSERT a row with the source system, target table name,
+-- source table, SELECT SQL, and metadata.
+
+CREATE OR REPLACE TABLE CURATED_DEV.SHARED.CURATED_CONFIG (
+    CONFIG_ID NUMBER AUTOINCREMENT PRIMARY KEY,
+    SOURCE_SYSTEM VARCHAR(50) NOT NULL,
+    TARGET_TABLE VARCHAR(100) NOT NULL,
+    TABLE_TYPE VARCHAR(20) NOT NULL DEFAULT 'DIMENSION',  -- DIMENSION or FACT
+    SOURCE_TABLE VARCHAR(100) NOT NULL,
+    SELECT_SQL VARCHAR(16000) NOT NULL,
+    TARGET_LAG VARCHAR(20) DEFAULT '1 hour',
+    TABLE_COMMENT VARCHAR(500),
+    IS_ACTIVE BOOLEAN DEFAULT TRUE,
+    CREATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    UPDATED_AT TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    
+    CONSTRAINT UK_CURATED_CONFIG UNIQUE (SOURCE_SYSTEM, TARGET_TABLE)
+);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SAP S/4HANA CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_CUSTOMER
+('SAP', 'DIM_CUSTOMER', 'DIMENSION', 'KNA1', '
+SELECT
+    KUNNR AS CUSTOMER_KEY,
+    KUNNR AS CUSTOMER_ID,
+    SHA2(KUNNR, 256) AS CUSTOMER_ID_HASH,
+    NAME1 AS CUSTOMER_NAME,
+    NAME2 AS CUSTOMER_NAME2,
+    STRAS AS ADDRESS,
+    ORT01 AS CITY,
+    PSTLZ AS POSTAL_CODE,
+    REGIO AS STATE,
+    LAND1 AS COUNTRY,
+    TELF1 AS PHONE,
+    SMTP_ADDR AS EMAIL,
+    BRSCH AS INDUSTRY_CODE,
+    KUKLA AS CUSTOMER_CLASS,
+    KTOKD AS ACCOUNT_GROUP,
+    CASE WHEN LOEVM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+    TRY_TO_DATE(ERDAT::VARCHAR, ''YYYYMMDD'') AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.KNA1
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'SAP Customer Master from KNA1'),
+
+-- DIM_PRODUCT
+('SAP', 'DIM_PRODUCT', 'DIMENSION', 'MARA', '
+SELECT
+    MATNR AS PRODUCT_KEY,
+    MATNR AS MATERIAL_NUMBER,
+    SHA2(MATNR, 256) AS PRODUCT_ID_HASH,
+    MAKTX AS PRODUCT_NAME,
+    MTART AS MATERIAL_TYPE,
+    MATKL AS MATERIAL_GROUP,
+    MBRSH AS INDUSTRY_SECTOR,
+    MEINS AS BASE_UOM,
+    BRGEW AS GROSS_WEIGHT,
+    NTGEW AS NET_WEIGHT,
+    GEWEI AS WEIGHT_UNIT,
+    CASE WHEN LVORM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+    TRY_TO_DATE(ERSDA::VARCHAR, ''YYYYMMDD'') AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.MARA
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'SAP Material Master from MARA'),
+
+-- DIM_VENDOR
+('SAP', 'DIM_VENDOR', 'DIMENSION', 'LFA1', '
+SELECT
+    LIFNR AS VENDOR_KEY,
+    LIFNR AS VENDOR_ID,
+    SHA2(LIFNR, 256) AS VENDOR_ID_HASH,
+    NAME1 AS VENDOR_NAME,
+    NAME2 AS VENDOR_NAME2,
+    STRAS AS ADDRESS,
+    ORT01 AS CITY,
+    PSTLZ AS POSTAL_CODE,
+    LAND1 AS COUNTRY,
+    TELF1 AS PHONE,
+    SMTP_ADDR AS EMAIL,
+    CASE WHEN LOEVM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.LFA1
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'SAP Vendor Master from LFA1'),
+
+-- DIM_EMPLOYEE (SAP HR)
+('SAP', 'DIM_EMPLOYEE', 'DIMENSION', 'PA0001', '
+SELECT
+    PERNR AS EMPLOYEE_KEY,
+    PERNR AS EMPLOYEE_ID,
+    SHA2(PERNR, 256) AS EMPLOYEE_ID_HASH,
+    ENAME AS EMPLOYEE_NAME,
+    WERKS AS PERSONNEL_AREA,
+    BTRTL AS PERSONNEL_SUBAREA,
+    PERSG AS EMPLOYEE_GROUP,
+    PERSK AS EMPLOYEE_SUBGROUP,
+    ORGEH AS ORG_UNIT,
+    STELL AS POSITION,
+    PLANS AS JOB,
+    KOSTL AS COST_CENTER,
+    BEGDA AS VALID_FROM,
+    ENDDA AS VALID_TO,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.PA0001
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'SAP Employee Master from PA0001'),
+
+-- FACT_SALES_ORDERS
+('SAP', 'FACT_SALES_ORDERS', 'FACT', 'VBAK', '
+SELECT
+    VBELN AS ORDER_KEY,
+    VBELN AS ORDER_NUMBER,
+    KUNNR AS CUSTOMER_KEY,
+    TRY_TO_DATE(AUDAT::VARCHAR, ''YYYYMMDD'') AS ORDER_DATE,
+    TRY_TO_DATE(ERDAT::VARCHAR, ''YYYYMMDD'') AS CREATED_DATE,
+    VKORG AS SALES_ORG,
+    VTWEG AS DISTRIBUTION_CHANNEL,
+    SPART AS DIVISION,
+    AUART AS ORDER_TYPE,
+    NETWR AS NET_VALUE,
+    WAERK AS CURRENCY,
+    GBSTK AS ORDER_STATUS,
+    CASE WHEN GBSTK = ''C'' THEN TRUE ELSE FALSE END AS IS_COMPLETED,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.VBAK
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'SAP Sales Orders from VBAK'),
+
+-- FACT_SALES_ORDER_ITEMS
+('SAP', 'FACT_SALES_ORDER_ITEMS', 'FACT', 'VBAP', '
+SELECT
+    VBELN || ''-'' || POSNR AS ITEM_KEY,
+    VBELN AS ORDER_KEY,
+    POSNR AS ITEM_NUMBER,
+    MATNR AS PRODUCT_KEY,
+    KWMENG AS ORDER_QUANTITY,
+    MEINS AS UNIT_OF_MEASURE,
+    NETWR AS NET_VALUE,
+    WAERK AS CURRENCY,
+    WERKS AS PLANT,
+    LGORT AS STORAGE_LOCATION,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.VBAP
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'SAP Sales Order Items from VBAP'),
+
+-- FACT_PURCHASE_ORDERS
+('SAP', 'FACT_PURCHASE_ORDERS', 'FACT', 'EKKO', '
+SELECT
+    EBELN AS PO_KEY,
+    EBELN AS PO_NUMBER,
+    LIFNR AS VENDOR_KEY,
+    TRY_TO_DATE(BEDAT::VARCHAR, ''YYYYMMDD'') AS PO_DATE,
+    TRY_TO_DATE(ERDAT::VARCHAR, ''YYYYMMDD'') AS CREATED_DATE,
+    EKORG AS PURCHASING_ORG,
+    EKGRP AS PURCHASING_GROUP,
+    BSART AS PO_TYPE,
+    WAERS AS CURRENCY,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.EKKO
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'SAP Purchase Orders from EKKO'),
+
+-- FACT_ACCOUNTING_DOCUMENTS
+('SAP', 'FACT_ACCOUNTING_DOCUMENTS', 'FACT', 'BKPF', '
+SELECT
+    BUKRS || ''-'' || BELNR || ''-'' || GJAHR AS DOC_KEY,
+    BUKRS AS COMPANY_CODE,
+    BELNR AS DOCUMENT_NUMBER,
+    GJAHR AS FISCAL_YEAR,
+    BLART AS DOCUMENT_TYPE,
+    TRY_TO_DATE(BUDAT::VARCHAR, ''YYYYMMDD'') AS POSTING_DATE,
+    TRY_TO_DATE(BLDAT::VARCHAR, ''YYYYMMDD'') AS DOCUMENT_DATE,
+    MONAT AS FISCAL_PERIOD,
+    WAERS AS CURRENCY,
+    BSTAT AS DOCUMENT_STATUS,
+    USNAM AS CREATED_BY,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SAP.BKPF
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'SAP Accounting Documents from BKPF');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SALESFORCE CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_ACCOUNT
+('SALESFORCE', 'DIM_ACCOUNT', 'DIMENSION', 'ACCOUNT', '
+SELECT
+    "Id" AS ACCOUNT_KEY,
+    "Id" AS ACCOUNT_ID,
+    SHA2("Id", 256) AS ACCOUNT_ID_HASH,
+    "Name" AS ACCOUNT_NAME,
+    "Type" AS ACCOUNT_TYPE,
+    "Industry" AS INDUSTRY,
+    "AnnualRevenue" AS ANNUAL_REVENUE,
+    "NumberOfEmployees" AS EMPLOYEE_COUNT,
+    "Rating" AS RATING,
+    "BillingStreet" AS BILLING_ADDRESS,
+    "BillingCity" AS BILLING_CITY,
+    "BillingState" AS BILLING_STATE,
+    "BillingPostalCode" AS BILLING_POSTAL_CODE,
+    "BillingCountry" AS BILLING_COUNTRY,
+    "Phone" AS PHONE,
+    "Website" AS WEBSITE,
+    "OwnerId" AS OWNER_ID,
+    CASE 
+        WHEN "AnnualRevenue" >= 100000000 THEN ''ENTERPRISE''
+        WHEN "AnnualRevenue" >= 10000000 THEN ''MID-MARKET''
+        WHEN "AnnualRevenue" >= 1000000 THEN ''SMB''
+        ELSE ''STARTUP''
+    END AS ACCOUNT_TIER,
+    NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.ACCOUNT
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Salesforce Account dimension'),
+
+-- DIM_CONTACT
+('SALESFORCE', 'DIM_CONTACT', 'DIMENSION', 'CONTACT', '
+SELECT
+    "Id" AS CONTACT_KEY,
+    "Id" AS CONTACT_ID,
+    SHA2("Id", 256) AS CONTACT_ID_HASH,
+    "AccountId" AS ACCOUNT_KEY,
+    "FirstName" AS FIRST_NAME,
+    "LastName" AS LAST_NAME,
+    "Email" AS EMAIL,
+    "Phone" AS PHONE,
+    "Title" AS TITLE,
+    "Department" AS DEPARTMENT,
+    "MailingCity" AS CITY,
+    "MailingState" AS STATE,
+    "MailingCountry" AS COUNTRY,
+    "LeadSource" AS LEAD_SOURCE,
+    NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.CONTACT
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Salesforce Contact dimension'),
+
+-- DIM_LEAD
+('SALESFORCE', 'DIM_LEAD', 'DIMENSION', 'LEAD', '
+SELECT
+    "Id" AS LEAD_KEY,
+    "Id" AS LEAD_ID,
+    SHA2("Id", 256) AS LEAD_ID_HASH,
+    "FirstName" AS FIRST_NAME,
+    "LastName" AS LAST_NAME,
+    "Company" AS COMPANY,
+    "Email" AS EMAIL,
+    "Phone" AS PHONE,
+    "Title" AS TITLE,
+    "Industry" AS INDUSTRY,
+    "LeadSource" AS LEAD_SOURCE,
+    "Status" AS STATUS,
+    "Rating" AS RATING,
+    "AnnualRevenue" AS ANNUAL_REVENUE,
+    "NumberOfEmployees" AS EMPLOYEE_COUNT,
+    COALESCE("IsConverted", FALSE) AS IS_CONVERTED,
+    "ConvertedAccountId" AS CONVERTED_ACCOUNT_ID,
+    "ConvertedContactId" AS CONVERTED_CONTACT_ID,
+    "ConvertedOpportunityId" AS CONVERTED_OPPORTUNITY_ID,
+    "OwnerId" AS OWNER_ID,
+    NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.LEAD
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Salesforce Lead dimension'),
+
+-- DIM_PRODUCT
+('SALESFORCE', 'DIM_PRODUCT', 'DIMENSION', 'PRODUCT', '
+SELECT
+    "Id" AS PRODUCT_KEY,
+    "Id" AS PRODUCT_ID,
+    SHA2("Id", 256) AS PRODUCT_ID_HASH,
+    "Name" AS PRODUCT_NAME,
+    "ProductCode" AS PRODUCT_CODE,
+    "Description" AS DESCRIPTION,
+    "Family" AS PRODUCT_FAMILY,
+    COALESCE("IsActive", TRUE) AS IS_ACTIVE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.PRODUCT
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'Salesforce Product dimension'),
+
+-- DIM_CAMPAIGN
+('SALESFORCE', 'DIM_CAMPAIGN', 'DIMENSION', 'CAMPAIGN', '
+SELECT
+    "Id" AS CAMPAIGN_KEY,
+    "Id" AS CAMPAIGN_ID,
+    SHA2("Id", 256) AS CAMPAIGN_ID_HASH,
+    "Name" AS CAMPAIGN_NAME,
+    "Type" AS CAMPAIGN_TYPE,
+    "Status" AS STATUS,
+    "StartDate"::DATE AS START_DATE,
+    "EndDate"::DATE AS END_DATE,
+    "BudgetedCost" AS BUDGETED_COST,
+    "ActualCost" AS ACTUAL_COST,
+    "ExpectedRevenue" AS EXPECTED_REVENUE,
+    "NumberOfLeads" AS NUMBER_OF_LEADS,
+    "NumberOfConvertedLeads" AS NUMBER_OF_CONVERTED_LEADS,
+    "NumberOfOpportunities" AS NUMBER_OF_OPPORTUNITIES,
+    "NumberOfWonOpportunities" AS NUMBER_OF_WON_OPPORTUNITIES,
+    "AmountAllOpportunities" AS AMOUNT_ALL_OPPORTUNITIES,
+    "AmountWonOpportunities" AS AMOUNT_WON_OPPORTUNITIES,
+    "OwnerId" AS OWNER_ID,
+    COALESCE("IsActive", TRUE) AS IS_ACTIVE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.CAMPAIGN
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'Salesforce Campaign dimension'),
+
+-- FACT_OPPORTUNITIES
+('SALESFORCE', 'FACT_OPPORTUNITIES', 'FACT', 'OPPORTUNITY', '
+SELECT
+    "Id" AS OPPORTUNITY_KEY,
+    "Id" AS OPPORTUNITY_ID,
+    "AccountId" AS ACCOUNT_KEY,
+    "OwnerId" AS OWNER_KEY,
+    "Name" AS OPPORTUNITY_NAME,
+    "Amount" AS AMOUNT,
+    "CloseDate"::DATE AS CLOSE_DATE,
+    "StageName" AS STAGE_NAME,
+    "Probability" AS PROBABILITY,
+    "Type" AS OPPORTUNITY_TYPE,
+    "LeadSource" AS LEAD_SOURCE,
+    "ForecastCategory" AS FORECAST_CATEGORY,
+    "CampaignId" AS CAMPAIGN_KEY,
+    "ExpectedRevenue" AS EXPECTED_REVENUE,
+    COALESCE("IsClosed", FALSE) AS IS_CLOSED,
+    COALESCE("IsWon", FALSE) AS IS_WON,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.OPPORTUNITY
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Salesforce Opportunity fact'),
+
+-- FACT_CASES
+('SALESFORCE', 'FACT_CASES', 'FACT', 'CASE_OBJ', '
+SELECT
+    "Id" AS CASE_KEY,
+    "CaseNumber" AS CASE_NUMBER,
+    "AccountId" AS ACCOUNT_KEY,
+    "ContactId" AS CONTACT_KEY,
+    "OwnerId" AS OWNER_KEY,
+    "Subject" AS SUBJECT,
+    "Description" AS DESCRIPTION,
+    "Status" AS STATUS,
+    "Priority" AS PRIORITY,
+    "Origin" AS ORIGIN,
+    "Type" AS CASE_TYPE,
+    "Reason" AS REASON,
+    COALESCE("IsClosed", FALSE) AS IS_CLOSED,
+    COALESCE("IsEscalated", FALSE) AS IS_ESCALATED,
+    "ClosedDate"::TIMESTAMP_NTZ AS CLOSED_DATE,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.CASE_OBJ
+WHERE "_IS_CURRENT" = TRUE
+', '30 minutes', 'Salesforce Case fact'),
+
+-- FACT_TASKS
+('SALESFORCE', 'FACT_TASKS', 'FACT', 'TASK', '
+SELECT
+    "Id" AS TASK_KEY,
+    "WhatId" AS RELATED_TO_KEY,
+    "WhoId" AS CONTACT_KEY,
+    "OwnerId" AS OWNER_KEY,
+    "Subject" AS SUBJECT,
+    "Status" AS STATUS,
+    "Priority" AS PRIORITY,
+    "TaskSubtype" AS TASK_SUBTYPE,
+    "ActivityDate"::DATE AS ACTIVITY_DATE,
+    COALESCE("IsClosed", FALSE) AS IS_CLOSED,
+    COALESCE("IsHighPriority", FALSE) AS IS_HIGH_PRIORITY,
+    "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SALESFORCE.TASK
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Salesforce Task fact');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- ORACLE EBS CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_PARTY (Customer/Vendor)
+('ORACLE', 'DIM_PARTY', 'DIMENSION', 'HZ_PARTIES', '
+SELECT
+    "PARTY_ID" AS PARTY_KEY,
+    "PARTY_ID" AS PARTY_ID,
+    SHA2("PARTY_ID"::VARCHAR, 256) AS PARTY_ID_HASH,
+    "PARTY_NUMBER" AS PARTY_NUMBER,
+    "PARTY_NAME" AS PARTY_NAME,
+    "PARTY_TYPE" AS PARTY_TYPE,
+    "ADDRESS1" AS ADDRESS,
+    "CITY" AS CITY,
+    "STATE" AS STATE,
+    "POSTAL_CODE" AS POSTAL_CODE,
+    "COUNTRY" AS COUNTRY,
+    "EMAIL_ADDRESS" AS EMAIL,
+    "PRIMARY_PHONE_NUMBER" AS PHONE,
+    "DUNS_NUMBER" AS DUNS_NUMBER,
+    "STATUS" = ''A'' AS IS_ACTIVE,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.HZ_PARTIES
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle Party/Customer dimension from HZ_PARTIES'),
+
+-- DIM_VENDOR
+('ORACLE', 'DIM_VENDOR', 'DIMENSION', 'PO_VENDORS', '
+SELECT
+    "VENDOR_ID" AS VENDOR_KEY,
+    "VENDOR_ID" AS VENDOR_ID,
+    SHA2("VENDOR_ID"::VARCHAR, 256) AS VENDOR_ID_HASH,
+    "VENDOR_NAME" AS VENDOR_NAME,
+    "SEGMENT1" AS VENDOR_NUMBER,
+    "VENDOR_TYPE_LOOKUP_CODE" AS VENDOR_TYPE,
+    "ENABLED_FLAG" = ''Y'' AS IS_ACTIVE,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.PO_VENDORS
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'Oracle Vendor dimension from PO_VENDORS'),
+
+-- DIM_ITEM (Product/Inventory)
+('ORACLE', 'DIM_ITEM', 'DIMENSION', 'MTL_SYSTEM_ITEMS', '
+SELECT
+    "INVENTORY_ITEM_ID" AS ITEM_KEY,
+    "INVENTORY_ITEM_ID" AS ITEM_ID,
+    SHA2("INVENTORY_ITEM_ID"::VARCHAR, 256) AS ITEM_ID_HASH,
+    "SEGMENT1" AS ITEM_NUMBER,
+    "DESCRIPTION" AS ITEM_DESCRIPTION,
+    "ITEM_TYPE" AS ITEM_TYPE,
+    "PRIMARY_UOM_CODE" AS PRIMARY_UOM,
+    "INVENTORY_ITEM_STATUS_CODE" AS STATUS_CODE,
+    "LIST_PRICE_PER_UNIT" AS LIST_PRICE,
+    "ORGANIZATION_ID" AS ORGANIZATION_ID,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.MTL_SYSTEM_ITEMS
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'Oracle Item/Product dimension from MTL_SYSTEM_ITEMS'),
+
+-- DIM_EMPLOYEE
+('ORACLE', 'DIM_EMPLOYEE', 'DIMENSION', 'HR_ALL_PEOPLE', '
+SELECT
+    "PERSON_ID" AS EMPLOYEE_KEY,
+    "PERSON_ID" AS PERSON_ID,
+    SHA2("PERSON_ID"::VARCHAR, 256) AS PERSON_ID_HASH,
+    "EMPLOYEE_NUMBER" AS EMPLOYEE_NUMBER,
+    "FIRST_NAME" AS FIRST_NAME,
+    "LAST_NAME" AS LAST_NAME,
+    "FULL_NAME" AS FULL_NAME,
+    "EMAIL_ADDRESS" AS EMAIL,
+    "WORK_TELEPHONE" AS PHONE,
+    "CURRENT_EMPLOYEE_FLAG" = ''Y'' AS IS_ACTIVE,
+    "EFFECTIVE_START_DATE"::DATE AS START_DATE,
+    "EFFECTIVE_END_DATE"::DATE AS END_DATE,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.HR_ALL_PEOPLE
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'Oracle Employee dimension from HR_ALL_PEOPLE'),
+
+-- FACT_ORDER_HEADERS
+('ORACLE', 'FACT_ORDER_HEADERS', 'FACT', 'OE_ORDER_HEADERS', '
+SELECT
+    "HEADER_ID" AS ORDER_KEY,
+    "HEADER_ID" AS ORDER_HEADER_ID,
+    "ORDER_NUMBER" AS ORDER_NUMBER,
+    "SOLD_TO_ORG_ID" AS CUSTOMER_KEY,
+    "ORDERED_DATE"::DATE AS ORDER_DATE,
+    "ORDER_TYPE_ID" AS ORDER_TYPE_ID,
+    "TRANSACTIONAL_CURR_CODE" AS CURRENCY,
+    "FLOW_STATUS_CODE" AS STATUS,
+    "BOOKED_FLAG" = ''Y'' AS IS_BOOKED,
+    "CANCELLED_FLAG" = ''Y'' AS IS_CANCELLED,
+    "OPEN_FLAG" = ''Y'' AS IS_OPEN,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.OE_ORDER_HEADERS
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle Order Headers from OE_ORDER_HEADERS'),
+
+-- FACT_ORDER_LINES
+('ORACLE', 'FACT_ORDER_LINES', 'FACT', 'OE_ORDER_LINES', '
+SELECT
+    "LINE_ID" AS LINE_KEY,
+    "HEADER_ID" AS ORDER_KEY,
+    "LINE_NUMBER" AS LINE_NUMBER,
+    "INVENTORY_ITEM_ID" AS ITEM_KEY,
+    "ORDERED_QUANTITY" AS ORDERED_QUANTITY,
+    "SHIPPED_QUANTITY" AS SHIPPED_QUANTITY,
+    "UNIT_SELLING_PRICE" AS UNIT_PRICE,
+    "ORDERED_QUANTITY" * "UNIT_SELLING_PRICE" AS LINE_AMOUNT,
+    "ORDER_QUANTITY_UOM" AS UOM,
+    "FLOW_STATUS_CODE" AS STATUS,
+    "SCHEDULE_SHIP_DATE"::DATE AS SCHEDULED_SHIP_DATE,
+    "ACTUAL_SHIPMENT_DATE"::DATE AS ACTUAL_SHIP_DATE,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.OE_ORDER_LINES
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle Order Lines from OE_ORDER_LINES'),
+
+-- FACT_AP_INVOICES
+('ORACLE', 'FACT_AP_INVOICES', 'FACT', 'AP_INVOICES', '
+SELECT
+    "INVOICE_ID" AS INVOICE_KEY,
+    "INVOICE_ID" AS INVOICE_ID,
+    "INVOICE_NUM" AS INVOICE_NUMBER,
+    "VENDOR_ID" AS VENDOR_KEY,
+    "INVOICE_AMOUNT" AS INVOICE_AMOUNT,
+    "AMOUNT_PAID" AS AMOUNT_PAID,
+    "INVOICE_CURRENCY_CODE" AS CURRENCY,
+    "INVOICE_TYPE_LOOKUP_CODE" AS INVOICE_TYPE,
+    "INVOICE_DATE"::DATE AS INVOICE_DATE,
+    "GL_DATE"::DATE AS GL_DATE,
+    "PAYMENT_STATUS_FLAG" AS PAYMENT_STATUS,
+    "CANCELLED_DATE" IS NOT NULL AS IS_CANCELLED,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.AP_INVOICES
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle AP Invoices from AP_INVOICES'),
+
+-- FACT_AR_INVOICES
+('ORACLE', 'FACT_AR_INVOICES', 'FACT', 'AR_INVOICES', '
+SELECT
+    "CUSTOMER_TRX_ID" AS INVOICE_KEY,
+    "CUSTOMER_TRX_ID" AS INVOICE_ID,
+    "TRX_NUMBER" AS INVOICE_NUMBER,
+    "BILL_TO_CUSTOMER_ID" AS CUSTOMER_KEY,
+    "INVOICE_CURRENCY_CODE" AS CURRENCY,
+    "TRX_DATE"::DATE AS INVOICE_DATE,
+    "COMPLETE_FLAG" = ''Y'' AS IS_COMPLETE,
+    "STATUS_TRX" AS STATUS,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.AR_INVOICES
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle AR Invoices from AR_INVOICES'),
+
+-- FACT_GL_JOURNAL_LINES
+('ORACLE', 'FACT_GL_JOURNAL_LINES', 'FACT', 'GL_JE_LINES', '
+SELECT
+    "JE_HEADER_ID"::VARCHAR || ''-'' || "JE_LINE_NUM"::VARCHAR AS LINE_KEY,
+    "JE_HEADER_ID" AS HEADER_ID,
+    "JE_LINE_NUM" AS LINE_NUMBER,
+    "LEDGER_ID" AS LEDGER_ID,
+    "CODE_COMBINATION_ID" AS ACCOUNT_KEY,
+    "PERIOD_NAME" AS PERIOD_NAME,
+    "EFFECTIVE_DATE"::DATE AS EFFECTIVE_DATE,
+    "ENTERED_DR" AS ENTERED_DEBIT,
+    "ENTERED_CR" AS ENTERED_CREDIT,
+    "ACCOUNTED_DR" AS ACCOUNTED_DEBIT,
+    "ACCOUNTED_CR" AS ACCOUNTED_CREDIT,
+    "DESCRIPTION" AS DESCRIPTION,
+    "STATUS" AS STATUS,
+    "CREATION_DATE"::TIMESTAMP_NTZ AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.ORACLE.GL_JE_LINES
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Oracle GL Journal Lines from GL_JE_LINES');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FHIR R4 CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_PATIENT
+('FHIR', 'DIM_PATIENT', 'DIMENSION', 'PATIENT', '
+SELECT
+    "id" AS PATIENT_KEY,
+    "id" AS PATIENT_ID,
+    SHA2("id", 256) AS PATIENT_ID_HASH,
+    "name"[0]:given[0]::VARCHAR AS FIRST_NAME,
+    "name"[0]:family::VARCHAR AS LAST_NAME,
+    "gender" AS GENDER,
+    TRY_TO_DATE("birthDate"::VARCHAR) AS BIRTH_DATE,
+    "address"[0]:city::VARCHAR AS CITY,
+    "address"[0]:state::VARCHAR AS STATE,
+    "address"[0]:postalCode::VARCHAR AS POSTAL_CODE,
+    "address"[0]:country::VARCHAR AS COUNTRY,
+    "telecom"[0]:value::VARCHAR AS PHONE,
+    COALESCE("active", TRUE) AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.PATIENT
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Patient dimension'),
+
+-- DIM_PRACTITIONER
+('FHIR', 'DIM_PRACTITIONER', 'DIMENSION', 'PRACTITIONER', '
+SELECT
+    "id" AS PRACTITIONER_KEY,
+    "id" AS PRACTITIONER_ID,
+    SHA2("id", 256) AS PRACTITIONER_ID_HASH,
+    "name"[0]:given[0]::VARCHAR AS FIRST_NAME,
+    "name"[0]:family::VARCHAR AS LAST_NAME,
+    "name"[0]:prefix[0]::VARCHAR AS PREFIX,
+    "gender" AS GENDER,
+    TRY_TO_DATE("birthDate"::VARCHAR) AS BIRTH_DATE,
+    "qualification"[0]:code:coding[0]:display::VARCHAR AS QUALIFICATION,
+    "telecom"[0]:value::VARCHAR AS PHONE,
+    COALESCE("active", TRUE) AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.PRACTITIONER
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'FHIR Practitioner dimension'),
+
+-- DIM_ORGANIZATION
+('FHIR', 'DIM_ORGANIZATION', 'DIMENSION', 'ORGANIZATION', '
+SELECT
+    "id" AS ORGANIZATION_KEY,
+    "id" AS ORGANIZATION_ID,
+    SHA2("id", 256) AS ORGANIZATION_ID_HASH,
+    "name" AS ORGANIZATION_NAME,
+    "type"[0]:coding[0]:display::VARCHAR AS ORGANIZATION_TYPE,
+    "address"[0]:city::VARCHAR AS CITY,
+    "address"[0]:state::VARCHAR AS STATE,
+    "address"[0]:country::VARCHAR AS COUNTRY,
+    "telecom"[0]:value::VARCHAR AS PHONE,
+    COALESCE("active", TRUE) AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.ORGANIZATION
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'FHIR Organization dimension'),
+
+-- FACT_ENCOUNTERS
+('FHIR', 'FACT_ENCOUNTERS', 'FACT', 'ENCOUNTER', '
+SELECT
+    "id" AS ENCOUNTER_KEY,
+    "id" AS ENCOUNTER_ID,
+    REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    "class":code::VARCHAR AS ENCOUNTER_CLASS,
+    "type"[0]:coding[0]:code::VARCHAR AS ENCOUNTER_TYPE_CODE,
+    "type"[0]:coding[0]:display::VARCHAR AS ENCOUNTER_TYPE,
+    "status" AS STATUS,
+    TRY_TO_TIMESTAMP("period":start::VARCHAR) AS START_TIME,
+    TRY_TO_TIMESTAMP("period":end::VARCHAR) AS END_TIME,
+    DATEDIFF(''minute'', TRY_TO_TIMESTAMP("period":start::VARCHAR), TRY_TO_TIMESTAMP("period":end::VARCHAR)) AS DURATION_MINUTES,
+    "serviceProvider":reference::VARCHAR AS SERVICE_PROVIDER,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.ENCOUNTER
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Encounter fact'),
+
+-- FACT_CONDITIONS
+('FHIR', 'FACT_CONDITIONS', 'FACT', 'CONDITION', '
+SELECT
+    "id" AS CONDITION_KEY,
+    "id" AS CONDITION_ID,
+    REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
+    "code":coding[0]:code::VARCHAR AS CONDITION_CODE,
+    "code":coding[0]:display::VARCHAR AS CONDITION_NAME,
+    "code":coding[0]:system::VARCHAR AS CODE_SYSTEM,
+    "clinicalStatus":coding[0]:code::VARCHAR AS CLINICAL_STATUS,
+    "verificationStatus":coding[0]:code::VARCHAR AS VERIFICATION_STATUS,
+    "category"[0]:coding[0]:display::VARCHAR AS CATEGORY,
+    "severity":coding[0]:display::VARCHAR AS SEVERITY,
+    TRY_TO_DATE("onsetDateTime"::VARCHAR) AS ONSET_DATE,
+    TRY_TO_DATE("abatementDateTime"::VARCHAR) AS ABATEMENT_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.CONDITION
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Condition/Diagnosis fact'),
+
+-- FACT_OBSERVATIONS
+('FHIR', 'FACT_OBSERVATIONS', 'FACT', 'OBSERVATION', '
+SELECT
+    "id" AS OBSERVATION_KEY,
+    "id" AS OBSERVATION_ID,
+    REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
+    "code":coding[0]:code::VARCHAR AS OBSERVATION_CODE,
+    "code":coding[0]:display::VARCHAR AS OBSERVATION_NAME,
+    "category"[0]:coding[0]:display::VARCHAR AS CATEGORY,
+    "status" AS STATUS,
+    "valueQuantity":value::NUMBER AS VALUE_NUMERIC,
+    "valueQuantity":unit::VARCHAR AS VALUE_UNIT,
+    "valueString"::VARCHAR AS VALUE_STRING,
+    TRY_TO_TIMESTAMP("effectiveDateTime"::VARCHAR) AS EFFECTIVE_TIME,
+    TRY_TO_TIMESTAMP("issued"::VARCHAR) AS ISSUED_TIME,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.OBSERVATION
+WHERE "_IS_CURRENT" = TRUE
+', '30 minutes', 'FHIR Observation/Vital Signs fact'),
+
+-- FACT_MEDICATION_REQUESTS
+('FHIR', 'FACT_MEDICATION_REQUESTS', 'FACT', 'MEDICATION_REQUEST', '
+SELECT
+    "id" AS MEDICATION_REQUEST_KEY,
+    "id" AS MEDICATION_REQUEST_ID,
+    REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
+    REPLACE("requester":reference::VARCHAR, ''Practitioner/'', '''') AS PRACTITIONER_KEY,
+    "medicationCodeableConcept":coding[0]:code::VARCHAR AS MEDICATION_CODE,
+    "medicationCodeableConcept":coding[0]:display::VARCHAR AS MEDICATION_NAME,
+    "status" AS STATUS,
+    "intent" AS INTENT,
+    "dosageInstruction"[0]:text::VARCHAR AS DOSAGE_INSTRUCTION,
+    "dosageInstruction"[0]:timing:repeat:frequency::NUMBER AS FREQUENCY,
+    "dosageInstruction"[0]:timing:repeat:period::NUMBER AS PERIOD,
+    "dosageInstruction"[0]:timing:repeat:periodUnit::VARCHAR AS PERIOD_UNIT,
+    TRY_TO_TIMESTAMP("authoredOn"::VARCHAR) AS AUTHORED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.MEDICATION_REQUEST
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Medication Request/Prescription fact'),
+
+-- FACT_PROCEDURES
+('FHIR', 'FACT_PROCEDURES', 'FACT', 'PROCEDURE', '
+SELECT
+    "id" AS PROCEDURE_KEY,
+    "id" AS PROCEDURE_ID,
+    REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
+    "code":coding[0]:code::VARCHAR AS PROCEDURE_CODE,
+    "code":coding[0]:display::VARCHAR AS PROCEDURE_NAME,
+    "status" AS STATUS,
+    "category":coding[0]:display::VARCHAR AS CATEGORY,
+    TRY_TO_TIMESTAMP("performedDateTime"::VARCHAR) AS PERFORMED_DATE,
+    "outcome":coding[0]:display::VARCHAR AS OUTCOME,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.PROCEDURE
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Procedure fact'),
+
+-- FACT_CLAIMS
+('FHIR', 'FACT_CLAIMS', 'FACT', 'CLAIM', '
+SELECT
+    "id" AS CLAIM_KEY,
+    "id" AS CLAIM_ID,
+    REPLACE("patient":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
+    REPLACE("provider":reference::VARCHAR, ''Organization/'', '''') AS PROVIDER_KEY,
+    "type":coding[0]:code::VARCHAR AS CLAIM_TYPE,
+    "status" AS STATUS,
+    "use" AS CLAIM_USE,
+    "total":value::NUMBER AS TOTAL_AMOUNT,
+    "total":currency::VARCHAR AS CURRENCY,
+    "priority":coding[0]:code::VARCHAR AS PRIORITY,
+    TRY_TO_DATE("billablePeriod":start::VARCHAR) AS SERVICE_START_DATE,
+    TRY_TO_DATE("billablePeriod":end::VARCHAR) AS SERVICE_END_DATE,
+    TRY_TO_TIMESTAMP("created"::VARCHAR) AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.FHIR.CLAIM
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'FHIR Claim fact');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- WORKDAY HCM CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_EMPLOYEE
+('WORKDAY', 'DIM_EMPLOYEE', 'DIMENSION', 'WORKERS', '
+SELECT
+    "Worker_ID" AS EMPLOYEE_KEY,
+    "Worker_ID" AS EMPLOYEE_ID,
+    "Employee_ID" AS EMPLOYEE_NUMBER,
+    SHA2("Worker_ID", 256) AS EMPLOYEE_ID_HASH,
+    "Legal_First_Name" AS FIRST_NAME,
+    "Legal_Last_Name" AS LAST_NAME,
+    "Preferred_First_Name" AS PREFERRED_NAME,
+    "Email_Work" AS EMAIL,
+    "Phone_Work" AS PHONE,
+    "Worker_Type" AS WORKER_TYPE,
+    "Worker_Sub_Type" AS WORKER_SUB_TYPE,
+    "Business_Title" AS JOB_TITLE,
+    "Job_Family" AS JOB_FAMILY,
+    "Job_Level" AS JOB_LEVEL,
+    "Supervisory_Organization_Name" AS DEPARTMENT,
+    "Manager_WID" AS MANAGER_ID,
+    "Company_Name" AS COMPANY,
+    "Cost_Center" AS COST_CENTER,
+    "Work_Location" AS WORK_LOCATION,
+    "City" AS CITY,
+    "State_Province" AS STATE,
+    "Country" AS COUNTRY,
+    TRY_TO_DATE("Hire_Date"::VARCHAR) AS HIRE_DATE,
+    TRY_TO_DATE("Termination_Date"::VARCHAR) AS TERMINATION_DATE,
+    "Active_Status" = ''Active'' AS IS_ACTIVE,
+    "Time_Type" AS TIME_TYPE,
+    "FTE" AS FTE,
+    ROUND(DATEDIFF(''day'', TRY_TO_DATE("Hire_Date"::VARCHAR), COALESCE(TRY_TO_DATE("Termination_Date"::VARCHAR), CURRENT_DATE())) / 365.25, 1) AS TENURE_YEARS,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.WORKERS
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'Workday Employee dimension from Workers'),
+
+-- DIM_ORGANIZATION
+('WORKDAY', 'DIM_ORGANIZATION', 'DIMENSION', 'ORGANIZATIONS', '
+SELECT
+    "Organization_WID" AS ORGANIZATION_KEY,
+    "Organization_Reference_ID" AS ORGANIZATION_ID,
+    SHA2("Organization_WID", 256) AS ORGANIZATION_ID_HASH,
+    "Organization_Name" AS ORGANIZATION_NAME,
+    "Organization_Type" AS ORGANIZATION_TYPE,
+    "Organization_Subtype" AS ORGANIZATION_SUBTYPE,
+    "Superior_Organization_WID" AS PARENT_ORGANIZATION_KEY,
+    "Manager_WID" AS MANAGER_ID,
+    "Manager_Name" AS MANAGER_NAME,
+    "Location_Name" AS LOCATION,
+    "Headcount" AS HEADCOUNT,
+    COALESCE("Is_Active", TRUE) AS IS_ACTIVE,
+    TRY_TO_DATE("Effective_Date"::VARCHAR) AS EFFECTIVE_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.ORGANIZATIONS
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'Workday Organization dimension'),
+
+-- DIM_JOB_PROFILE
+('WORKDAY', 'DIM_JOB_PROFILE', 'DIMENSION', 'JOB_PROFILES', '
+SELECT
+    "Job_Profile_WID" AS JOB_PROFILE_KEY,
+    "Job_Profile_Reference_ID" AS JOB_PROFILE_ID,
+    SHA2("Job_Profile_WID", 256) AS JOB_PROFILE_ID_HASH,
+    "Job_Profile_Name" AS JOB_PROFILE_NAME,
+    "Job_Family" AS JOB_FAMILY,
+    "Job_Level" AS JOB_LEVEL,
+    "Management_Level" AS MANAGEMENT_LEVEL,
+    "Job_Category" AS JOB_CATEGORY,
+    "Pay_Rate_Type" AS PAY_RATE_TYPE,
+    "Compensation_Grade" AS COMPENSATION_GRADE,
+    COALESCE("Is_Active", TRUE) AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.JOB_PROFILES
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'Workday Job Profile dimension'),
+
+-- FACT_COMPENSATION
+('WORKDAY', 'FACT_COMPENSATION', 'FACT', 'COMPENSATION', '
+SELECT
+    "Compensation_WID" AS COMPENSATION_KEY,
+    "Worker_WID" AS EMPLOYEE_KEY,
+    "Compensation_Plan" AS COMPENSATION_PLAN,
+    "Compensation_Element" AS COMPENSATION_ELEMENT,
+    "Amount" AS AMOUNT,
+    "Currency" AS CURRENCY,
+    "Frequency" AS FREQUENCY,
+    "Annual_Amount" AS ANNUAL_AMOUNT,
+    TRY_TO_DATE("Effective_Date"::VARCHAR) AS EFFECTIVE_DATE,
+    TRY_TO_DATE("End_Date"::VARCHAR) AS END_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.COMPENSATION
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'Workday Compensation fact'),
+
+-- FACT_TIME_OFF
+('WORKDAY', 'FACT_TIME_OFF', 'FACT', 'TIME_OFF', '
+SELECT
+    "Time_Off_WID" AS TIME_OFF_KEY,
+    "Worker_WID" AS EMPLOYEE_KEY,
+    "Time_Off_Type" AS TIME_OFF_TYPE,
+    "Time_Off_Reason" AS TIME_OFF_REASON,
+    TRY_TO_DATE("Start_Date"::VARCHAR) AS START_DATE,
+    TRY_TO_DATE("End_Date"::VARCHAR) AS END_DATE,
+    "Total_Days" AS TOTAL_DAYS,
+    "Total_Hours" AS TOTAL_HOURS,
+    "Status" AS STATUS,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.TIME_OFF
+WHERE "_IS_CURRENT" = TRUE
+', '1 hour', 'Workday Time Off fact'),
+
+-- FACT_BENEFITS
+('WORKDAY', 'FACT_BENEFITS', 'FACT', 'BENEFITS', '
+SELECT
+    "Benefit_Election_WID" AS BENEFIT_KEY,
+    "Worker_WID" AS EMPLOYEE_KEY,
+    "Benefit_Plan" AS BENEFIT_PLAN,
+    "Benefit_Plan_Type" AS BENEFIT_PLAN_TYPE,
+    "Coverage_Level" AS COVERAGE_LEVEL,
+    "Employee_Cost" AS EMPLOYEE_COST,
+    "Employer_Cost" AS EMPLOYER_COST,
+    "Total_Cost" AS TOTAL_COST,
+    "Currency" AS CURRENCY,
+    TRY_TO_DATE("Coverage_Begin_Date"::VARCHAR) AS COVERAGE_BEGIN_DATE,
+    TRY_TO_DATE("Coverage_End_Date"::VARCHAR) AS COVERAGE_END_DATE,
+    "Status" AS STATUS,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.WORKDAY.BENEFITS
+WHERE "_IS_CURRENT" = TRUE
+', '4 hours', 'Workday Benefits Enrollment fact');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SERVICENOW ITSM CONFIGURATION
+-- ═══════════════════════════════════════════════════════════════════════════
+
+INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+    (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+VALUES
+-- DIM_USER
+('SERVICENOW', 'DIM_USER', 'DIMENSION', 'SYS_USER', '
+SELECT
+    "sys_id" AS USER_KEY,
+    "sys_id" AS USER_ID,
+    SHA2("sys_id", 256) AS USER_ID_HASH,
+    "user_name" AS USERNAME,
+    "first_name" AS FIRST_NAME,
+    "last_name" AS LAST_NAME,
+    "email" AS EMAIL,
+    "phone" AS PHONE,
+    "title" AS JOB_TITLE,
+    "department" AS DEPARTMENT,
+    "location" AS LOCATION,
+    "manager" AS MANAGER_ID,
+    "company" AS COMPANY,
+    "active" AS IS_ACTIVE,
+    "vip" AS IS_VIP,
+    TRY_TO_TIMESTAMP("sys_created_on") AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.SYS_USER
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'ServiceNow User dimension from sys_user'),
+
+-- DIM_CMDB_CI
+('SERVICENOW', 'DIM_CMDB_CI', 'DIMENSION', 'CMDB_CI', '
+SELECT
+    "sys_id" AS CI_KEY,
+    "sys_id" AS CI_ID,
+    SHA2("sys_id", 256) AS CI_ID_HASH,
+    "name" AS CI_NAME,
+    "sys_class_name" AS CI_CLASS,
+    "category" AS CATEGORY,
+    "subcategory" AS SUBCATEGORY,
+    "manufacturer" AS MANUFACTURER,
+    "model_number" AS MODEL,
+    "serial_number" AS SERIAL_NUMBER,
+    "asset_tag" AS ASSET_TAG,
+    "ip_address" AS IP_ADDRESS,
+    "operational_status" AS OPERATIONAL_STATUS,
+    "environment" AS ENVIRONMENT,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "support_group" AS SUPPORT_GROUP,
+    TRY_TO_TIMESTAMP("sys_created_on") AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.CMDB_CI
+WHERE "_IS_CURRENT" = TRUE
+', '24 hours', 'ServiceNow CMDB Configuration Item dimension'),
+
+-- FACT_INCIDENTS
+('SERVICENOW', 'FACT_INCIDENTS', 'FACT', 'INCIDENT', '
+SELECT
+    "sys_id" AS INCIDENT_KEY,
+    "number" AS INCIDENT_NUMBER,
+    "caller_id" AS CALLER_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "assignment_group" AS ASSIGNMENT_GROUP,
+    "cmdb_ci" AS CI_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "priority" AS PRIORITY,
+    "urgency" AS URGENCY,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "state_display" AS STATE_DISPLAY,
+    "category" AS CATEGORY,
+    "subcategory" AS SUBCATEGORY,
+    TRY_TO_TIMESTAMP("opened_at") AS OPENED_AT,
+    TRY_TO_TIMESTAMP("resolved_at") AS RESOLVED_AT,
+    TRY_TO_TIMESTAMP("closed_at") AS CLOSED_AT,
+    DATEDIFF(''minute'', TRY_TO_TIMESTAMP("opened_at"), COALESCE(TRY_TO_TIMESTAMP("resolved_at"), CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
+    "active" AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.INCIDENT
+WHERE "_IS_CURRENT" = TRUE
+', '15 minutes', 'ServiceNow Incident fact'),
+
+-- FACT_CHANGES
+('SERVICENOW', 'FACT_CHANGES', 'FACT', 'CHANGE_REQUEST', '
+SELECT
+    "sys_id" AS CHANGE_KEY,
+    "number" AS CHANGE_NUMBER,
+    "requested_by" AS REQUESTED_BY_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "assignment_group" AS ASSIGNMENT_GROUP,
+    "cmdb_ci" AS CI_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "type" AS CHANGE_TYPE,
+    "risk" AS RISK,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "category" AS CATEGORY,
+    "phase" AS PHASE,
+    TRY_TO_TIMESTAMP("start_date") AS PLANNED_START_DATE,
+    TRY_TO_TIMESTAMP("end_date") AS PLANNED_END_DATE,
+    TRY_TO_TIMESTAMP("cab_date") AS CAB_DATE,
+    "cab_required" AS CAB_REQUIRED,
+    TRY_TO_TIMESTAMP("sys_created_on") AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.CHANGE_REQUEST
+WHERE "_IS_CURRENT" = TRUE
+', '30 minutes', 'ServiceNow Change Request fact'),
+
+-- FACT_PROBLEMS
+('SERVICENOW', 'FACT_PROBLEMS', 'FACT', 'PROBLEM', '
+SELECT
+    "sys_id" AS PROBLEM_KEY,
+    "number" AS PROBLEM_NUMBER,
+    "opened_by" AS OPENED_BY_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "assignment_group" AS ASSIGNMENT_GROUP,
+    "cmdb_ci" AS CI_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "priority" AS PRIORITY,
+    "urgency" AS URGENCY,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "problem_state" AS PROBLEM_STATE,
+    "known_error" AS IS_KNOWN_ERROR,
+    TRY_TO_TIMESTAMP("opened_at") AS OPENED_AT,
+    TRY_TO_TIMESTAMP("resolved_at") AS RESOLVED_AT,
+    TRY_TO_TIMESTAMP("closed_at") AS CLOSED_AT,
+    TRY_TO_TIMESTAMP("sys_created_on") AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.PROBLEM
+WHERE "_IS_CURRENT" = TRUE
+', '30 minutes', 'ServiceNow Problem fact'),
+
+-- FACT_REQUESTS
+('SERVICENOW', 'FACT_REQUESTS', 'FACT', 'SC_REQUEST', '
+SELECT
+    "sys_id" AS REQUEST_KEY,
+    "number" AS REQUEST_NUMBER,
+    "requested_for" AS REQUESTED_FOR_KEY,
+    "opened_by" AS OPENED_BY_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "request_state" AS STATE,
+    "stage" AS STAGE,
+    "delivery_plan" AS DELIVERY_PLAN,
+    "price" AS PRICE,
+    TRY_TO_TIMESTAMP("expected_start") AS EXPECTED_START,
+    TRY_TO_TIMESTAMP("sys_created_on") AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
+FROM RAW_DEV.SERVICENOW.SC_REQUEST
+WHERE "_IS_CURRENT" = TRUE
+', '30 minutes', 'ServiceNow Service Catalog Request fact');
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- BUILD PROCEDURE: Creates all curated objects from configuration
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE CURATED_DEV.SHARED.BUILD_CURATED_LAYER(
@@ -81,350 +1249,77 @@ $$
     var results = [];
     var sourceSystem = P_SOURCE_SYSTEM.toUpperCase();
     var targetSchema = 'CURATED_DEV.' + sourceSystem;
-    var rawSchema = 'RAW_DEV.' + sourceSystem;
     
-    function createDynamicTable(tableName, selectSql, targetLag, comment) {
-        var createSql = `
-            CREATE OR REPLACE DYNAMIC TABLE ${targetSchema}.${tableName}
-                TARGET_LAG = '${targetLag}'
-                WAREHOUSE = TRANSFORM_WH
-                COMMENT = '${comment}'
-            AS ${selectSql}
-        `;
-        try {
-            snowflake.createStatement({sqlText: createSql}).execute();
-            results.push({object: tableName, status: 'SUCCESS', type: 'DYNAMIC TABLE'});
-        } catch (err) {
-            results.push({object: tableName, status: 'ERROR', message: err.message});
-        }
-    }
+    // Get all configurations for this source system
+    var configSql = `
+        SELECT 
+            TARGET_TABLE,
+            TABLE_TYPE,
+            SOURCE_TABLE,
+            SELECT_SQL,
+            TARGET_LAG,
+            TABLE_COMMENT
+        FROM CURATED_DEV.SHARED.CURATED_CONFIG
+        WHERE SOURCE_SYSTEM = '${sourceSystem}'
+          AND IS_ACTIVE = TRUE
+        ORDER BY TABLE_TYPE DESC, TARGET_TABLE
+    `;
     
     try {
-        switch (sourceSystem) {
-            // ═══════════════════════════════════════════════════════════════
-            // SAP S/4HANA
-            // ═══════════════════════════════════════════════════════════════
-            case 'SAP':
-                // DIM_CUSTOMER from KNA1
-                createDynamicTable('DIM_CUSTOMER', `
-                    SELECT
-                        KUNNR AS CUSTOMER_KEY,
-                        KUNNR AS CUSTOMER_ID,
-                        SHA2(KUNNR, 256) AS CUSTOMER_ID_HASH,
-                        NAME1 AS CUSTOMER_NAME,
-                        NAME2 AS CUSTOMER_NAME2,
-                        STRAS AS ADDRESS,
-                        ORT01 AS CITY,
-                        PSTLZ AS POSTAL_CODE,
-                        REGIO AS STATE,
-                        LAND1 AS COUNTRY,
-                        TELF1 AS PHONE,
-                        SMTP_ADDR AS EMAIL,
-                        BRSCH AS INDUSTRY_CODE,
-                        KUKLA AS CUSTOMER_CLASS,
-                        KTOKD AS ACCOUNT_GROUP,
-                        CASE WHEN LOEVM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
-                        TRY_TO_DATE(ERDAT::VARCHAR, 'YYYYMMDD') AS CREATED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.KNA1
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'SAP Customer Master from KNA1');
-                
-                // DIM_PRODUCT from MARA
-                createDynamicTable('DIM_PRODUCT', `
-                    SELECT
-                        MATNR AS PRODUCT_KEY,
-                        MATNR AS MATERIAL_NUMBER,
-                        SHA2(MATNR, 256) AS PRODUCT_ID_HASH,
-                        MAKTX AS PRODUCT_NAME,
-                        MTART AS MATERIAL_TYPE,
-                        MATKL AS MATERIAL_GROUP,
-                        MBRSH AS INDUSTRY_SECTOR,
-                        MEINS AS BASE_UOM,
-                        BRGEW AS GROSS_WEIGHT,
-                        NTGEW AS NET_WEIGHT,
-                        GEWEI AS WEIGHT_UNIT,
-                        CASE WHEN LVORM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
-                        TRY_TO_DATE(ERSDA::VARCHAR, 'YYYYMMDD') AS CREATED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.MARA
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '24 hours', 'SAP Material Master from MARA');
-                
-                // DIM_VENDOR from LFA1
-                createDynamicTable('DIM_VENDOR', `
-                    SELECT
-                        LIFNR AS VENDOR_KEY,
-                        LIFNR AS VENDOR_ID,
-                        SHA2(LIFNR, 256) AS VENDOR_ID_HASH,
-                        NAME1 AS VENDOR_NAME,
-                        NAME2 AS VENDOR_NAME2,
-                        STRAS AS ADDRESS,
-                        ORT01 AS CITY,
-                        PSTLZ AS POSTAL_CODE,
-                        LAND1 AS COUNTRY,
-                        TELF1 AS PHONE,
-                        SMTP_ADDR AS EMAIL,
-                        CASE WHEN LOEVM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.LFA1
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '24 hours', 'SAP Vendor Master from LFA1');
-                
-                // FACT_SALES_ORDERS from VBAK
-                createDynamicTable('FACT_SALES_ORDERS', `
-                    SELECT
-                        VBELN AS ORDER_KEY,
-                        VBELN AS ORDER_NUMBER,
-                        KUNNR AS CUSTOMER_KEY,
-                        TRY_TO_DATE(AUDAT::VARCHAR, 'YYYYMMDD') AS ORDER_DATE,
-                        TRY_TO_DATE(ERDAT::VARCHAR, 'YYYYMMDD') AS CREATED_DATE,
-                        VKORG AS SALES_ORG,
-                        VTWEG AS DISTRIBUTION_CHANNEL,
-                        SPART AS DIVISION,
-                        AUART AS ORDER_TYPE,
-                        NETWR AS NET_VALUE,
-                        WAERK AS CURRENCY,
-                        GBSTK AS ORDER_STATUS,
-                        CASE WHEN GBSTK = 'C' THEN TRUE ELSE FALSE END AS IS_COMPLETED,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.VBAK
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'SAP Sales Orders from VBAK');
-                
-                // FACT_PURCHASE_ORDERS from EKKO
-                createDynamicTable('FACT_PURCHASE_ORDERS', `
-                    SELECT
-                        EBELN AS PO_KEY,
-                        EBELN AS PO_NUMBER,
-                        LIFNR AS VENDOR_KEY,
-                        TRY_TO_DATE(BEDAT::VARCHAR, 'YYYYMMDD') AS PO_DATE,
-                        TRY_TO_DATE(ERDAT::VARCHAR, 'YYYYMMDD') AS CREATED_DATE,
-                        EKORG AS PURCHASING_ORG,
-                        EKGRP AS PURCHASING_GROUP,
-                        BSART AS PO_TYPE,
-                        WAERS AS CURRENCY,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.EKKO
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'SAP Purchase Orders from EKKO');
-                break;
-                
-            // ═══════════════════════════════════════════════════════════════
-            // SALESFORCE
-            // ═══════════════════════════════════════════════════════════════
-            case 'SALESFORCE':
-                // DIM_ACCOUNT from Account
-                createDynamicTable('DIM_ACCOUNT', `
-                    SELECT
-                        "Id" AS ACCOUNT_KEY,
-                        "Id" AS ACCOUNT_ID,
-                        SHA2("Id", 256) AS ACCOUNT_ID_HASH,
-                        "Name" AS ACCOUNT_NAME,
-                        "Type" AS ACCOUNT_TYPE,
-                        "Industry" AS INDUSTRY,
-                        "AnnualRevenue" AS ANNUAL_REVENUE,
-                        "NumberOfEmployees" AS EMPLOYEE_COUNT,
-                        "Rating" AS RATING,
-                        "BillingStreet" AS BILLING_ADDRESS,
-                        "BillingCity" AS BILLING_CITY,
-                        "BillingState" AS BILLING_STATE,
-                        "BillingPostalCode" AS BILLING_POSTAL_CODE,
-                        "BillingCountry" AS BILLING_COUNTRY,
-                        "Phone" AS PHONE,
-                        "Website" AS WEBSITE,
-                        "OwnerId" AS OWNER_ID,
-                        CASE 
-                            WHEN "AnnualRevenue" >= 100000000 THEN 'ENTERPRISE'
-                            WHEN "AnnualRevenue" >= 10000000 THEN 'MID-MARKET'
-                            WHEN "AnnualRevenue" >= 1000000 THEN 'SMB'
-                            ELSE 'STARTUP'
-                        END AS ACCOUNT_TIER,
-                        NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
-                        "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.ACCOUNT
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'Salesforce Account dimension');
-                
-                // FACT_OPPORTUNITIES from Opportunity
-                createDynamicTable('FACT_OPPORTUNITIES', `
-                    SELECT
-                        "Id" AS OPPORTUNITY_KEY,
-                        "Id" AS OPPORTUNITY_ID,
-                        "AccountId" AS ACCOUNT_KEY,
-                        "OwnerId" AS OWNER_KEY,
-                        "Name" AS OPPORTUNITY_NAME,
-                        "Amount" AS AMOUNT,
-                        "CloseDate"::DATE AS CLOSE_DATE,
-                        "StageName" AS STAGE_NAME,
-                        "Probability" AS PROBABILITY,
-                        "Type" AS OPPORTUNITY_TYPE,
-                        "LeadSource" AS LEAD_SOURCE,
-                        "ForecastCategory" AS FORECAST_CATEGORY,
-                        COALESCE("IsClosed", FALSE) AS IS_CLOSED,
-                        COALESCE("IsWon", FALSE) AS IS_WON,
-                        "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.OPPORTUNITY
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'Salesforce Opportunity fact');
-                break;
-                
-            // ═══════════════════════════════════════════════════════════════
-            // FHIR R4
-            // ═══════════════════════════════════════════════════════════════
-            case 'FHIR':
-                // DIM_PATIENT from Patient
-                createDynamicTable('DIM_PATIENT', `
-                    SELECT
-                        "id" AS PATIENT_KEY,
-                        "id" AS PATIENT_ID,
-                        SHA2("id", 256) AS PATIENT_ID_HASH,
-                        "name"[0]:given[0]::VARCHAR AS FIRST_NAME,
-                        "name"[0]:family::VARCHAR AS LAST_NAME,
-                        "gender" AS GENDER,
-                        "birthDate"::DATE AS BIRTH_DATE,
-                        "address"[0]:city::VARCHAR AS CITY,
-                        "address"[0]:state::VARCHAR AS STATE,
-                        "address"[0]:postalCode::VARCHAR AS POSTAL_CODE,
-                        "address"[0]:country::VARCHAR AS COUNTRY,
-                        COALESCE("active", TRUE) AS IS_ACTIVE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.PATIENT
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'FHIR Patient dimension');
-                
-                // FACT_ENCOUNTERS from Encounter
-                createDynamicTable('FACT_ENCOUNTERS', `
-                    SELECT
-                        "id" AS ENCOUNTER_KEY,
-                        "id" AS ENCOUNTER_ID,
-                        REPLACE("subject":reference::VARCHAR, 'Patient/', '') AS PATIENT_KEY,
-                        "class":code::VARCHAR AS ENCOUNTER_CLASS,
-                        "type"[0]:coding[0]:code::VARCHAR AS ENCOUNTER_TYPE_CODE,
-                        "type"[0]:coding[0]:display::VARCHAR AS ENCOUNTER_TYPE,
-                        "status" AS STATUS,
-                        ("period":start)::TIMESTAMP_NTZ AS START_TIME,
-                        ("period":end)::TIMESTAMP_NTZ AS END_TIME,
-                        DATEDIFF('minute', ("period":start)::TIMESTAMP_NTZ, ("period":end)::TIMESTAMP_NTZ) AS DURATION_MINUTES,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.ENCOUNTER
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '1 hour', 'FHIR Encounter fact');
-                break;
-                
-            // ═══════════════════════════════════════════════════════════════
-            // WORKDAY
-            // ═══════════════════════════════════════════════════════════════
-            case 'WORKDAY':
-                // DIM_EMPLOYEE from Workers
-                createDynamicTable('DIM_EMPLOYEE', `
-                    SELECT
-                        "Worker_ID" AS EMPLOYEE_KEY,
-                        "Worker_ID" AS EMPLOYEE_ID,
-                        SHA2("Worker_ID", 256) AS EMPLOYEE_ID_HASH,
-                        "Legal_First_Name" AS FIRST_NAME,
-                        "Legal_Last_Name" AS LAST_NAME,
-                        "Preferred_First_Name" AS PREFERRED_NAME,
-                        "Email_Work" AS EMAIL,
-                        "Worker_Type" AS EMPLOYMENT_TYPE,
-                        "Business_Title" AS JOB_TITLE,
-                        "Job_Level" AS JOB_LEVEL,
-                        "Supervisory_Organization_Name" AS DEPARTMENT,
-                        "Manager_WID" AS MANAGER_ID,
-                        "Work_Location" AS WORK_LOCATION,
-                        "Hire_Date"::DATE AS HIRE_DATE,
-                        "Termination_Date"::DATE AS TERMINATION_DATE,
-                        "Active_Status" = 'Active' AS IS_ACTIVE,
-                        ROUND(DATEDIFF('day', "Hire_Date"::DATE, COALESCE("Termination_Date"::DATE, CURRENT_DATE())) / 365.25, 1) AS TENURE_YEARS,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.WORKERS
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '4 hours', 'Workday Employee dimension');
-                break;
-                
-            // ═══════════════════════════════════════════════════════════════
-            // SERVICENOW
-            // ═══════════════════════════════════════════════════════════════
-            case 'SERVICENOW':
-                // DIM_USER from sys_user
-                createDynamicTable('DIM_USER', `
-                    SELECT
-                        "sys_id" AS USER_KEY,
-                        "sys_id" AS USER_ID,
-                        SHA2("sys_id", 256) AS USER_ID_HASH,
-                        "user_name" AS USERNAME,
-                        "first_name" AS FIRST_NAME,
-                        "last_name" AS LAST_NAME,
-                        "email" AS EMAIL,
-                        "title" AS JOB_TITLE,
-                        "department" AS DEPARTMENT,
-                        "location" AS LOCATION,
-                        "active" AS IS_ACTIVE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.SYS_USER
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '24 hours', 'ServiceNow User dimension');
-                
-                // FACT_INCIDENTS from incident
-                createDynamicTable('FACT_INCIDENTS', `
-                    SELECT
-                        "sys_id" AS INCIDENT_KEY,
-                        "number" AS INCIDENT_NUMBER,
-                        "caller_id" AS CALLER_KEY,
-                        "assigned_to" AS ASSIGNED_TO_KEY,
-                        "assignment_group" AS ASSIGNMENT_GROUP,
-                        "short_description" AS SHORT_DESCRIPTION,
-                        "priority" AS PRIORITY,
-                        "urgency" AS URGENCY,
-                        "impact" AS IMPACT,
-                        "state" AS STATE,
-                        "category" AS CATEGORY,
-                        "subcategory" AS SUBCATEGORY,
-                        TRY_TO_TIMESTAMP("opened_at") AS OPENED_AT,
-                        TRY_TO_TIMESTAMP("resolved_at") AS RESOLVED_AT,
-                        TRY_TO_TIMESTAMP("closed_at") AS CLOSED_AT,
-                        DATEDIFF('minute', TRY_TO_TIMESTAMP("opened_at"), COALESCE(TRY_TO_TIMESTAMP("resolved_at"), CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ${rawSchema}.INCIDENT
-                    WHERE "_IS_CURRENT" = TRUE
-                `, '15 minutes', 'ServiceNow Incident fact');
-                break;
-                
-            default:
-                return {status: 'ERROR', message: 'Unsupported source system: ' + sourceSystem};
+        var configStmt = snowflake.createStatement({sqlText: configSql});
+        var configResult = configStmt.execute();
+        
+        var tableCount = 0;
+        
+        while (configResult.next()) {
+            var tableName = configResult.getColumnValue('TARGET_TABLE');
+            var tableType = configResult.getColumnValue('TABLE_TYPE');
+            var selectSql = configResult.getColumnValue('SELECT_SQL');
+            var targetLag = configResult.getColumnValue('TARGET_LAG');
+            var comment = configResult.getColumnValue('TABLE_COMMENT') || '';
+            
+            // Escape single quotes in comment for SQL
+            comment = comment.replace(/'/g, "''");
+            
+            var createSql = `
+                CREATE OR REPLACE DYNAMIC TABLE ${targetSchema}.${tableName}
+                    TARGET_LAG = '${targetLag}'
+                    WAREHOUSE = TRANSFORM_WH
+                    COMMENT = '${comment}'
+                AS ${selectSql}
+            `;
+            
+            try {
+                snowflake.createStatement({sqlText: createSql}).execute();
+                results.push({
+                    object: tableName, 
+                    status: 'SUCCESS', 
+                    type: tableType
+                });
+                tableCount++;
+            } catch (err) {
+                results.push({
+                    object: tableName, 
+                    status: 'ERROR', 
+                    type: tableType,
+                    message: err.message
+                });
+            }
+        }
+        
+        if (tableCount === 0) {
+            return {
+                status: 'WARNING',
+                message: 'No configurations found for source system: ' + sourceSystem,
+                source_system: sourceSystem
+            };
         }
         
         var successCount = results.filter(function(r) { return r.status === 'SUCCESS'; }).length;
         var errorCount = results.filter(function(r) { return r.status === 'ERROR'; }).length;
         
         return {
-            status: errorCount === 0 ? 'SUCCESS' : 'PARTIAL',
+            status: errorCount === 0 ? 'SUCCESS' : (successCount > 0 ? 'PARTIAL' : 'FAILED'),
             source_system: sourceSystem,
             target_schema: targetSchema,
             objects_created: successCount,
@@ -438,6 +1333,73 @@ $$
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- BUILD ALL: Procedure to build all source systems at once
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE PROCEDURE CURATED_DEV.SHARED.BUILD_ALL_CURATED_LAYERS()
+RETURNS VARIANT
+LANGUAGE JAVASCRIPT
+EXECUTE AS CALLER
+AS
+$$
+    var results = [];
+    var sourceSystems = ['SAP', 'SALESFORCE', 'ORACLE', 'FHIR', 'WORKDAY', 'SERVICENOW'];
+    
+    for (var i = 0; i < sourceSystems.length; i++) {
+        var system = sourceSystems[i];
+        try {
+            var callSql = "CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('" + system + "')";
+            var stmt = snowflake.createStatement({sqlText: callSql});
+            var result = stmt.execute();
+            result.next();
+            var buildResult = result.getColumnValue(1);
+            results.push({
+                source_system: system,
+                result: buildResult
+            });
+        } catch (err) {
+            results.push({
+                source_system: system,
+                result: {status: 'ERROR', message: err.message}
+            });
+        }
+    }
+    
+    var totalSuccess = 0;
+    var totalFailed = 0;
+    
+    for (var j = 0; j < results.length; j++) {
+        if (results[j].result && results[j].result.objects_created) {
+            totalSuccess += results[j].result.objects_created;
+        }
+        if (results[j].result && results[j].result.objects_failed) {
+            totalFailed += results[j].result.objects_failed;
+        }
+    }
+    
+    return {
+        status: totalFailed === 0 ? 'SUCCESS' : 'PARTIAL',
+        total_objects_created: totalSuccess,
+        total_objects_failed: totalFailed,
+        systems: results
+    };
+$$;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- HELPER: View configuration status
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW CURATED_DEV.SHARED.V_CURATED_CONFIG_SUMMARY AS
+SELECT 
+    SOURCE_SYSTEM,
+    TABLE_TYPE,
+    COUNT(*) AS TABLE_COUNT,
+    SUM(CASE WHEN IS_ACTIVE THEN 1 ELSE 0 END) AS ACTIVE_COUNT
+FROM CURATED_DEV.SHARED.CURATED_CONFIG
+GROUP BY SOURCE_SYSTEM, TABLE_TYPE
+ORDER BY SOURCE_SYSTEM, TABLE_TYPE;
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -445,42 +1407,63 @@ $$;
 GRANT USAGE ON SCHEMA CURATED_DEV.SHARED TO ROLE DATA_ENGINEER;
 GRANT USAGE ON SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
 GRANT USAGE ON SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.ORACLE TO ROLE DATA_ENGINEER;
 GRANT USAGE ON SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
 GRANT USAGE ON SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
 GRANT USAGE ON SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
 
--- Grant select on all objects
-GRANT SELECT ON ALL TABLES IN SCHEMA CURATED_DEV.SHARED TO ROLE DATA_ENGINEER;
+-- Grant select on config table and view
+GRANT SELECT ON TABLE CURATED_DEV.SHARED.CURATED_CONFIG TO ROLE DATA_ENGINEER;
+GRANT SELECT ON TABLE CURATED_DEV.SHARED.DIM_DATE TO ROLE DATA_ENGINEER;
+GRANT SELECT ON VIEW CURATED_DEV.SHARED.V_CURATED_CONFIG_SUMMARY TO ROLE DATA_ENGINEER;
+
+-- Grant select on all dynamic tables (current and future)
 GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
 GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.ORACLE TO ROLE DATA_ENGINEER;
 GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
 GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
 GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
 
--- Future grants
 GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
 GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.ORACLE TO ROLE DATA_ENGINEER;
 GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
 GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
 GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
 
 GRANT USAGE ON PROCEDURE CURATED_DEV.SHARED.BUILD_CURATED_LAYER(VARCHAR) TO ROLE DATA_ENGINEER;
+GRANT USAGE ON PROCEDURE CURATED_DEV.SHARED.BUILD_ALL_CURATED_LAYERS() TO ROLE DATA_ENGINEER;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- USAGE INSTRUCTIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
--- Build curated layer for a source system:
+-- View configuration summary:
+--   SELECT * FROM CURATED_DEV.SHARED.V_CURATED_CONFIG_SUMMARY;
+--
+-- Build curated layer for a single source system:
 --   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SAP');
 --   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SALESFORCE');
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('ORACLE');
 --   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('FHIR');
 --   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('WORKDAY');
 --   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SERVICENOW');
 --
+-- Build ALL source systems at once:
+--   CALL CURATED_DEV.SHARED.BUILD_ALL_CURATED_LAYERS();
+--
+-- Add a new table (just insert a row):
+--   INSERT INTO CURATED_DEV.SHARED.CURATED_CONFIG 
+--     (SOURCE_SYSTEM, TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT)
+--   VALUES ('SAP', 'DIM_NEW_TABLE', 'DIMENSION', 'SOURCE_TABLE', 'SELECT ...', '1 hour', 'Description');
+--
+-- Disable a table:
+--   UPDATE CURATED_DEV.SHARED.CURATED_CONFIG SET IS_ACTIVE = FALSE WHERE TARGET_TABLE = 'DIM_SOME_TABLE';
+--
 -- Verify:
 --   SHOW DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP;
 --   SELECT * FROM CURATED_DEV.SAP.DIM_CUSTOMER LIMIT 10;
---   SELECT * FROM CURATED_DEV.SAP.FACT_SALES_ORDERS LIMIT 10;
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
