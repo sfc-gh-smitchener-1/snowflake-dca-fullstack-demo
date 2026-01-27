@@ -371,9 +371,11 @@ SELECT
     SHA2("Id", 256) AS LEAD_ID_HASH,
     "FirstName" AS FIRST_NAME,
     "LastName" AS LAST_NAME,
+    "Salutation" AS SALUTATION,
     "Company" AS COMPANY,
     "Email" AS EMAIL,
     "Phone" AS PHONE,
+    "MobilePhone" AS MOBILE_PHONE,
     "Title" AS TITLE,
     "Industry" AS INDUSTRY,
     "LeadSource" AS LEAD_SOURCE,
@@ -381,10 +383,13 @@ SELECT
     "Rating" AS RATING,
     "AnnualRevenue" AS ANNUAL_REVENUE,
     "NumberOfEmployees" AS EMPLOYEE_COUNT,
+    "City" AS CITY,
+    "State" AS STATE,
+    "Country" AS COUNTRY,
     COALESCE("IsConverted", FALSE) AS IS_CONVERTED,
+    "ConvertedDate"::DATE AS CONVERTED_DATE,
     "ConvertedAccountId" AS CONVERTED_ACCOUNT_ID,
     "ConvertedContactId" AS CONVERTED_CONTACT_ID,
-    "ConvertedOpportunityId" AS CONVERTED_OPPORTUNITY_ID,
     "OwnerId" AS OWNER_ID,
     NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
     "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
@@ -396,7 +401,7 @@ WHERE "_IS_CURRENT" = TRUE
 ', '1 hour', 'Salesforce Lead dimension'),
 
 -- DIM_PRODUCT
-('SALESFORCE', 'DIM_PRODUCT', 'DIMENSION', 'PRODUCT', '
+('SALESFORCE', 'DIM_PRODUCT', 'DIMENSION', 'PRODUCT2', '
 SELECT
     "Id" AS PRODUCT_KEY,
     "Id" AS PRODUCT_ID,
@@ -405,12 +410,14 @@ SELECT
     "ProductCode" AS PRODUCT_CODE,
     "Description" AS DESCRIPTION,
     "Family" AS PRODUCT_FAMILY,
+    "QuantityUnitOfMeasure" AS UNIT_OF_MEASURE,
+    "StockKeepingUnit" AS SKU,
     COALESCE("IsActive", TRUE) AS IS_ACTIVE,
     "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
-FROM RAW_DEV.SALESFORCE.PRODUCT
+FROM RAW_DEV.SALESFORCE.PRODUCT2
 WHERE "_IS_CURRENT" = TRUE
 ', '24 hours', 'Salesforce Product dimension'),
 
@@ -423,17 +430,13 @@ SELECT
     "Name" AS CAMPAIGN_NAME,
     "Type" AS CAMPAIGN_TYPE,
     "Status" AS STATUS,
-    "StartDate"::DATE AS START_DATE,
-    "EndDate"::DATE AS END_DATE,
+    TRY_TO_DATE("StartDate"::VARCHAR) AS START_DATE,
+    TRY_TO_DATE("EndDate"::VARCHAR) AS END_DATE,
     "BudgetedCost" AS BUDGETED_COST,
     "ActualCost" AS ACTUAL_COST,
     "ExpectedRevenue" AS EXPECTED_REVENUE,
-    "NumberOfLeads" AS NUMBER_OF_LEADS,
-    "NumberOfConvertedLeads" AS NUMBER_OF_CONVERTED_LEADS,
-    "NumberOfOpportunities" AS NUMBER_OF_OPPORTUNITIES,
-    "NumberOfWonOpportunities" AS NUMBER_OF_WON_OPPORTUNITIES,
-    "AmountAllOpportunities" AS AMOUNT_ALL_OPPORTUNITIES,
-    "AmountWonOpportunities" AS AMOUNT_WON_OPPORTUNITIES,
+    "NumberSent" AS NUMBER_SENT,
+    "ExpectedResponse" AS EXPECTED_RESPONSE,
     "OwnerId" AS OWNER_ID,
     COALESCE("IsActive", TRUE) AS IS_ACTIVE,
     "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
@@ -453,14 +456,15 @@ SELECT
     "OwnerId" AS OWNER_KEY,
     "Name" AS OPPORTUNITY_NAME,
     "Amount" AS AMOUNT,
-    "CloseDate"::DATE AS CLOSE_DATE,
+    TRY_TO_DATE("CloseDate"::VARCHAR) AS CLOSE_DATE,
     "StageName" AS STAGE_NAME,
     "Probability" AS PROBABILITY,
     "Type" AS OPPORTUNITY_TYPE,
     "LeadSource" AS LEAD_SOURCE,
     "ForecastCategory" AS FORECAST_CATEGORY,
-    "CampaignId" AS CAMPAIGN_KEY,
-    "ExpectedRevenue" AS EXPECTED_REVENUE,
+    "NextStep" AS NEXT_STEP,
+    "FiscalQuarter" AS FISCAL_QUARTER,
+    "FiscalYear" AS FISCAL_YEAR,
     COALESCE("IsClosed", FALSE) AS IS_CLOSED,
     COALESCE("IsWon", FALSE) AS IS_WON,
     "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
@@ -472,7 +476,7 @@ WHERE "_IS_CURRENT" = TRUE
 ', '1 hour', 'Salesforce Opportunity fact'),
 
 -- FACT_CASES
-('SALESFORCE', 'FACT_CASES', 'FACT', 'CASE_OBJ', '
+('SALESFORCE', 'FACT_CASES', 'FACT', 'CASE', '
 SELECT
     "Id" AS CASE_KEY,
     "CaseNumber" AS CASE_NUMBER,
@@ -485,7 +489,6 @@ SELECT
     "Priority" AS PRIORITY,
     "Origin" AS ORIGIN,
     "Type" AS CASE_TYPE,
-    "Reason" AS REASON,
     COALESCE("IsClosed", FALSE) AS IS_CLOSED,
     COALESCE("IsEscalated", FALSE) AS IS_ESCALATED,
     "ClosedDate"::TIMESTAMP_NTZ AS CLOSED_DATE,
@@ -493,7 +496,7 @@ SELECT
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
-FROM RAW_DEV.SALESFORCE.CASE_OBJ
+FROM RAW_DEV.SALESFORCE."Case"
 WHERE "_IS_CURRENT" = TRUE
 ', '30 minutes', 'Salesforce Case fact'),
 
@@ -507,10 +510,11 @@ SELECT
     "Subject" AS SUBJECT,
     "Status" AS STATUS,
     "Priority" AS PRIORITY,
-    "TaskSubtype" AS TASK_SUBTYPE,
-    "ActivityDate"::DATE AS ACTIVITY_DATE,
+    "Description" AS DESCRIPTION,
+    TRY_TO_DATE("ActivityDate"::VARCHAR) AS ACTIVITY_DATE,
     COALESCE("IsClosed", FALSE) AS IS_CLOSED,
     COALESCE("IsHighPriority", FALSE) AS IS_HIGH_PRIORITY,
+    COALESCE("IsRecurrence", FALSE) AS IS_RECURRENCE,
     "CreatedDate"::TIMESTAMP_NTZ AS CREATED_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
