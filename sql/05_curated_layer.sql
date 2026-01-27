@@ -1017,13 +1017,13 @@ SELECT
     "Organization_Reference_ID" AS ORGANIZATION_ID,
     SHA2("Organization_WID", 256) AS ORGANIZATION_ID_HASH,
     "Organization_Name" AS ORGANIZATION_NAME,
+    "Organization_Code" AS ORGANIZATION_CODE,
     "Organization_Type" AS ORGANIZATION_TYPE,
     "Organization_Subtype" AS ORGANIZATION_SUBTYPE,
     "Superior_Organization_WID" AS PARENT_ORGANIZATION_KEY,
     "Manager_WID" AS MANAGER_ID,
-    "Manager_Name" AS MANAGER_NAME,
-    "Location_Name" AS LOCATION,
-    "Headcount" AS HEADCOUNT,
+    "Location_WID" AS LOCATION_ID,
+    "Company_WID" AS COMPANY_ID,
     COALESCE("Is_Active", TRUE) AS IS_ACTIVE,
     TRY_TO_DATE("Effective_Date"::VARCHAR) AS EFFECTIVE_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
@@ -1040,12 +1040,13 @@ SELECT
     "Job_Profile_Reference_ID" AS JOB_PROFILE_ID,
     SHA2("Job_Profile_WID", 256) AS JOB_PROFILE_ID_HASH,
     "Job_Profile_Name" AS JOB_PROFILE_NAME,
-    "Job_Family" AS JOB_FAMILY,
+    "Job_Code" AS JOB_CODE,
+    "Job_Description" AS JOB_DESCRIPTION,
+    "Job_Family_WID" AS JOB_FAMILY_ID,
+    "Job_Family_Name" AS JOB_FAMILY,
     "Job_Level" AS JOB_LEVEL,
     "Management_Level" AS MANAGEMENT_LEVEL,
-    "Job_Category" AS JOB_CATEGORY,
-    "Pay_Rate_Type" AS PAY_RATE_TYPE,
-    "Compensation_Grade" AS COMPENSATION_GRADE,
+    COALESCE("Is_Critical_Job", FALSE) AS IS_CRITICAL_JOB,
     COALESCE("Is_Active", TRUE) AS IS_ACTIVE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
@@ -1060,13 +1061,17 @@ SELECT
     "Compensation_WID" AS COMPENSATION_KEY,
     "Worker_WID" AS EMPLOYEE_KEY,
     "Compensation_Plan" AS COMPENSATION_PLAN,
-    "Compensation_Element" AS COMPENSATION_ELEMENT,
-    "Amount" AS AMOUNT,
-    "Currency" AS CURRENCY,
-    "Frequency" AS FREQUENCY,
-    "Annual_Amount" AS ANNUAL_AMOUNT,
+    "Base_Pay_Amount" AS BASE_PAY_AMOUNT,
+    "Base_Pay_Currency" AS CURRENCY,
+    "Base_Pay_Frequency" AS PAY_FREQUENCY,
+    "Total_Compensation" AS TOTAL_COMPENSATION,
+    "Bonus_Target_Percent" AS BONUS_TARGET_PERCENT,
+    "Compensation_Grade_WID" AS COMPENSATION_GRADE_ID,
+    "Compensation_Grade" AS COMPENSATION_GRADE,
+    "Pay_Range_Minimum" AS PAY_RANGE_MIN,
+    "Pay_Range_Maximum" AS PAY_RANGE_MAX,
+    "Compa_Ratio" AS COMPA_RATIO,
     TRY_TO_DATE("Effective_Date"::VARCHAR) AS EFFECTIVE_DATE,
-    TRY_TO_DATE("End_Date"::VARCHAR) AS END_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
@@ -1077,15 +1082,16 @@ WHERE "_IS_CURRENT" = TRUE
 -- FACT_TIME_OFF
 ('WORKDAY', 'FACT_TIME_OFF', 'FACT', 'TIME_OFF', '
 SELECT
-    "Time_Off_WID" AS TIME_OFF_KEY,
+    "Time_Off_Request_WID" AS TIME_OFF_KEY,
     "Worker_WID" AS EMPLOYEE_KEY,
     "Time_Off_Type" AS TIME_OFF_TYPE,
-    "Time_Off_Reason" AS TIME_OFF_REASON,
     TRY_TO_DATE("Start_Date"::VARCHAR) AS START_DATE,
     TRY_TO_DATE("End_Date"::VARCHAR) AS END_DATE,
     "Total_Days" AS TOTAL_DAYS,
     "Total_Hours" AS TOTAL_HOURS,
     "Status" AS STATUS,
+    TRY_TO_DATE("Submitted_Date"::VARCHAR) AS SUBMITTED_DATE,
+    "Approver_WID" AS APPROVER_ID,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
@@ -1094,24 +1100,23 @@ WHERE "_IS_CURRENT" = TRUE
 ', '1 hour', 'Workday Time Off fact'),
 
 -- FACT_BENEFITS
-('WORKDAY', 'FACT_BENEFITS', 'FACT', 'BENEFITS', '
+('WORKDAY', 'FACT_BENEFITS', 'FACT', 'BENEFIT_ELECTIONS', '
 SELECT
     "Benefit_Election_WID" AS BENEFIT_KEY,
     "Worker_WID" AS EMPLOYEE_KEY,
-    "Benefit_Plan" AS BENEFIT_PLAN,
     "Benefit_Plan_Type" AS BENEFIT_PLAN_TYPE,
+    "Benefit_Plan_Name" AS BENEFIT_PLAN_NAME,
     "Coverage_Level" AS COVERAGE_LEVEL,
     "Employee_Cost" AS EMPLOYEE_COST,
     "Employer_Cost" AS EMPLOYER_COST,
-    "Total_Cost" AS TOTAL_COST,
-    "Currency" AS CURRENCY,
+    TRY_TO_DATE("Election_Date"::VARCHAR) AS ELECTION_DATE,
     TRY_TO_DATE("Coverage_Begin_Date"::VARCHAR) AS COVERAGE_BEGIN_DATE,
     TRY_TO_DATE("Coverage_End_Date"::VARCHAR) AS COVERAGE_END_DATE,
-    "Status" AS STATUS,
+    COALESCE("Is_Active", TRUE) AS IS_ACTIVE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
-FROM RAW_DEV.WORKDAY.BENEFITS
+FROM RAW_DEV.WORKDAY.BENEFIT_ELECTIONS
 WHERE "_IS_CURRENT" = TRUE
 ', '4 hours', 'Workday Benefits Enrollment fact');
 
