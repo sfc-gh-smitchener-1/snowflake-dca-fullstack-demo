@@ -801,9 +801,11 @@ SELECT
     "name"[0]:family::VARCHAR AS LAST_NAME,
     "name"[0]:prefix[0]::VARCHAR AS PREFIX,
     "gender" AS GENDER,
-    TRY_TO_DATE("birthDate"::VARCHAR) AS BIRTH_DATE,
-    "qualification"[0]:code:coding[0]:display::VARCHAR AS QUALIFICATION,
+    "identifier"[0]:value::VARCHAR AS NPI_NUMBER,
+    "qualification"[0]:code:coding[0]:code::VARCHAR AS SPECIALTY_CODE,
+    "qualification"[0]:code:coding[0]:display::VARCHAR AS SPECIALTY,
     "telecom"[0]:value::VARCHAR AS PHONE,
+    "telecom"[1]:value::VARCHAR AS EMAIL,
     COALESCE("active", TRUE) AS IS_ACTIVE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
@@ -839,13 +841,14 @@ SELECT
     "id" AS ENCOUNTER_ID,
     REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
     "class":code::VARCHAR AS ENCOUNTER_CLASS,
+    "class":display::VARCHAR AS ENCOUNTER_CLASS_DISPLAY,
     "type"[0]:coding[0]:code::VARCHAR AS ENCOUNTER_TYPE_CODE,
     "type"[0]:coding[0]:display::VARCHAR AS ENCOUNTER_TYPE,
     "status" AS STATUS,
+    "reasonCode"[0]:coding[0]:display::VARCHAR AS REASON,
     TRY_TO_TIMESTAMP("period":start::VARCHAR) AS START_TIME,
     TRY_TO_TIMESTAMP("period":end::VARCHAR) AS END_TIME,
     DATEDIFF(''minute'', TRY_TO_TIMESTAMP("period":start::VARCHAR), TRY_TO_TIMESTAMP("period":end::VARCHAR)) AS DURATION_MINUTES,
-    "serviceProvider":reference::VARCHAR AS SERVICE_PROVIDER,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
@@ -868,7 +871,6 @@ SELECT
     "category"[0]:coding[0]:display::VARCHAR AS CATEGORY,
     "severity":coding[0]:display::VARCHAR AS SEVERITY,
     TRY_TO_DATE("onsetDateTime"::VARCHAR) AS ONSET_DATE,
-    TRY_TO_DATE("abatementDateTime"::VARCHAR) AS ABATEMENT_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
@@ -882,16 +884,15 @@ SELECT
     "id" AS OBSERVATION_KEY,
     "id" AS OBSERVATION_ID,
     REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
-    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
     "code":coding[0]:code::VARCHAR AS OBSERVATION_CODE,
     "code":coding[0]:display::VARCHAR AS OBSERVATION_NAME,
     "category"[0]:coding[0]:display::VARCHAR AS CATEGORY,
     "status" AS STATUS,
     "valueQuantity":value::NUMBER AS VALUE_NUMERIC,
     "valueQuantity":unit::VARCHAR AS VALUE_UNIT,
-    "valueString"::VARCHAR AS VALUE_STRING,
+    "interpretation"[0]:coding[0]:code::VARCHAR AS INTERPRETATION_CODE,
+    "interpretation"[0]:coding[0]:display::VARCHAR AS INTERPRETATION,
     TRY_TO_TIMESTAMP("effectiveDateTime"::VARCHAR) AS EFFECTIVE_TIME,
-    TRY_TO_TIMESTAMP("issued"::VARCHAR) AS ISSUED_TIME,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
@@ -900,12 +901,11 @@ WHERE "_IS_CURRENT" = TRUE
 ', '30 minutes', 'FHIR Observation/Vital Signs fact'),
 
 -- FACT_MEDICATION_REQUESTS
-('FHIR', 'FACT_MEDICATION_REQUESTS', 'FACT', 'MEDICATION_REQUEST', '
+('FHIR', 'FACT_MEDICATION_REQUESTS', 'FACT', 'MEDICATIONREQUEST', '
 SELECT
     "id" AS MEDICATION_REQUEST_KEY,
     "id" AS MEDICATION_REQUEST_ID,
     REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
-    REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
     REPLACE("requester":reference::VARCHAR, ''Practitioner/'', '''') AS PRACTITIONER_KEY,
     "medicationCodeableConcept":coding[0]:code::VARCHAR AS MEDICATION_CODE,
     "medicationCodeableConcept":coding[0]:display::VARCHAR AS MEDICATION_NAME,
@@ -915,11 +915,13 @@ SELECT
     "dosageInstruction"[0]:timing:repeat:frequency::NUMBER AS FREQUENCY,
     "dosageInstruction"[0]:timing:repeat:period::NUMBER AS PERIOD,
     "dosageInstruction"[0]:timing:repeat:periodUnit::VARCHAR AS PERIOD_UNIT,
+    "dispenseRequest":numberOfRepeatsAllowed::NUMBER AS REFILLS_ALLOWED,
+    "dispenseRequest":quantity:value::NUMBER AS DISPENSE_QUANTITY,
     TRY_TO_TIMESTAMP("authoredOn"::VARCHAR) AS AUTHORED_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
-FROM RAW_DEV.FHIR.MEDICATION_REQUEST
+FROM RAW_DEV.FHIR.MEDICATIONREQUEST
 WHERE "_IS_CURRENT" = TRUE
 ', '1 hour', 'FHIR Medication Request/Prescription fact'),
 
@@ -933,7 +935,6 @@ SELECT
     "code":coding[0]:code::VARCHAR AS PROCEDURE_CODE,
     "code":coding[0]:display::VARCHAR AS PROCEDURE_NAME,
     "status" AS STATUS,
-    "category":coding[0]:display::VARCHAR AS CATEGORY,
     TRY_TO_TIMESTAMP("performedDateTime"::VARCHAR) AS PERFORMED_DATE,
     "outcome":coding[0]:display::VARCHAR AS OUTCOME,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
@@ -956,9 +957,7 @@ SELECT
     "total":value::NUMBER AS TOTAL_AMOUNT,
     "total":currency::VARCHAR AS CURRENCY,
     "priority":coding[0]:code::VARCHAR AS PRIORITY,
-    TRY_TO_DATE("billablePeriod":start::VARCHAR) AS SERVICE_START_DATE,
-    TRY_TO_DATE("billablePeriod":end::VARCHAR) AS SERVICE_END_DATE,
-    TRY_TO_TIMESTAMP("created"::VARCHAR) AS CREATED_DATE,
+    TRY_TO_DATE("created"::VARCHAR) AS CREATED_DATE,
     "_LOADED_AT" AS _SOURCE_LOADED_AT,
     "_SOURCE_SYSTEM",
     "_IS_CURRENT"
