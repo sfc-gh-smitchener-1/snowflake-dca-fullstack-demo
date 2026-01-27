@@ -1,19 +1,14 @@
 -- ============================================================================
--- CURATED LAYER - Dynamic Tables for Business-Ready Data
+-- CURATED LAYER - Dynamic Tables by Source System
 -- ============================================================================
 -- 
--- This script creates Dynamic Tables that:
---   1. Transform raw source system data into dimensional model
---   2. Automatically refresh based on upstream changes
---   3. Apply business rules and derived attributes
---   4. Create pseudonymized columns for AI-safe consumption
---   5. Support multiple source systems (SAP, Salesforce, Oracle, FHIR, etc.)
---
--- Dynamic Tables use TARGET_LAG to define freshness SLAs:
---   - Reference data: 24 hours
---   - Dimension tables: 1-4 hours
---   - Fact tables: 15-60 minutes
---   - Aggregates: 1-4 hours
+-- Schema Structure (one schema per source system):
+--   CURATED_DEV.SHARED      - Shared dimensions (DIM_DATE)
+--   CURATED_DEV.SAP         - SAP dimensions and facts
+--   CURATED_DEV.SALESFORCE  - Salesforce dimensions and facts
+--   CURATED_DEV.FHIR        - FHIR dimensions and facts
+--   CURATED_DEV.WORKDAY     - Workday dimensions and facts
+--   CURATED_DEV.SERVICENOW  - ServiceNow dimensions and facts
 --
 -- RUN AS: DATA_ADMIN
 -- ============================================================================
@@ -23,19 +18,40 @@ USE DATABASE CURATED_DEV;
 USE WAREHOUSE TRANSFORM_WH;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- DIMENSION: Date (Static Table)
+-- CREATE SOURCE SYSTEM SCHEMAS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-USE SCHEMA CURATED_DEV.DIMENSIONS;
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SHARED
+    COMMENT = 'Shared reference dimensions (Date, Geography, etc.)';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SAP
+    COMMENT = 'SAP S/4HANA curated dimensions and facts';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SALESFORCE
+    COMMENT = 'Salesforce CRM curated dimensions and facts';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.FHIR
+    COMMENT = 'FHIR R4 healthcare curated dimensions and facts';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.WORKDAY
+    COMMENT = 'Workday HCM curated dimensions and facts';
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SERVICENOW
+    COMMENT = 'ServiceNow ITSM curated dimensions and facts';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SHARED: DIM_DATE (Static Reference Table)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+USE SCHEMA CURATED_DEV.SHARED;
 
 CREATE OR REPLACE TABLE DIM_DATE AS
 WITH date_spine AS (
     SELECT DATEADD(DAY, SEQ4(), '2015-01-01')::DATE AS DATE_KEY
-    FROM TABLE(GENERATOR(ROWCOUNT => 5844))  -- ~16 years
+    FROM TABLE(GENERATOR(ROWCOUNT => 5844))
 )
 SELECT
     DATE_KEY,
-    DATE_KEY AS FULL_DATE,
     YEAR(DATE_KEY) AS YEAR,
     QUARTER(DATE_KEY) AS QUARTER,
     MONTH(DATE_KEY) AS MONTH,
@@ -44,64 +60,53 @@ SELECT
     DAYOFWEEK(DATE_KEY) AS DAY_OF_WEEK,
     DAYNAME(DATE_KEY) AS DAY_NAME,
     DAYOFMONTH(DATE_KEY) AS DAY_OF_MONTH,
-    DAYOFYEAR(DATE_KEY) AS DAY_OF_YEAR,
     CASE WHEN MONTH(DATE_KEY) >= 7 THEN YEAR(DATE_KEY) ELSE YEAR(DATE_KEY) - 1 END AS FISCAL_YEAR,
-    CASE WHEN MONTH(DATE_KEY) >= 7 THEN MONTH(DATE_KEY) - 6 ELSE MONTH(DATE_KEY) + 6 END AS FISCAL_MONTH,
     CEIL(CASE WHEN MONTH(DATE_KEY) >= 7 THEN MONTH(DATE_KEY) - 6 ELSE MONTH(DATE_KEY) + 6 END / 3.0) AS FISCAL_QUARTER,
-    CASE WHEN DAYOFWEEK(DATE_KEY) IN (0, 6) THEN TRUE ELSE FALSE END AS IS_WEEKEND,
-    CASE WHEN DAYOFWEEK(DATE_KEY) IN (0, 6) THEN FALSE ELSE TRUE END AS IS_WEEKDAY,
-    CASE 
-        WHEN MONTH(DATE_KEY) = 1 AND DAYOFMONTH(DATE_KEY) = 1 THEN TRUE
-        WHEN MONTH(DATE_KEY) = 7 AND DAYOFMONTH(DATE_KEY) = 4 THEN TRUE
-        WHEN MONTH(DATE_KEY) = 12 AND DAYOFMONTH(DATE_KEY) = 25 THEN TRUE
-        ELSE FALSE
-    END AS IS_HOLIDAY,
-    TO_CHAR(DATE_KEY, 'YYYYMM')::INT AS YEAR_MONTH_KEY,
-    TO_CHAR(DATE_KEY, 'YYYYQ')::VARCHAR AS YEAR_QUARTER_KEY
+    CASE WHEN DAYOFWEEK(DATE_KEY) IN (0, 6) THEN TRUE ELSE FALSE END AS IS_WEEKEND
 FROM date_spine
 WHERE DATE_KEY <= '2030-12-31';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- DYNAMIC DIMENSION CREATION PROCEDURE
--- ═══════════════════════════════════════════════════════════════════════════
--- 
--- Creates curated dimension tables from RAW source system data.
--- Maps source system fields to standardized dimension attributes.
---
+-- BUILD PROCEDURE: Creates all curated objects for a source system
 -- ═══════════════════════════════════════════════════════════════════════════
 
-CREATE OR REPLACE PROCEDURE CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE(
-    p_source_system VARCHAR,      -- SAP, SALESFORCE, ORACLE, FHIR, WORKDAY, SERVICENOW
-    p_source_table VARCHAR,       -- Source table name
-    p_dimension_name VARCHAR,     -- Target dimension name (e.g., DIM_CUSTOMER)
-    p_target_lag VARCHAR          -- TARGET_LAG for refresh (e.g., '1 hour')
+CREATE OR REPLACE PROCEDURE CURATED_DEV.SHARED.BUILD_CURATED_LAYER(
+    P_SOURCE_SYSTEM VARCHAR
 )
-RETURNS VARCHAR
-LANGUAGE SQL
+RETURNS VARIANT
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_source_path VARCHAR;
-    v_create_sql VARCHAR;
-    v_result VARCHAR;
-BEGIN
-    v_source_path := 'RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(p_source_table);
+    var results = [];
+    var sourceSystem = P_SOURCE_SYSTEM.toUpperCase();
+    var targetSchema = 'CURATED_DEV.' + sourceSystem;
+    var rawSchema = 'RAW_DEV.' + sourceSystem;
     
-    -- Build dynamic table based on source system
-    CASE UPPER(p_source_system)
-        -- ═══════════════════════════════════════════════════════════════════════
-        -- SAP S/4HANA Source Mappings
-        -- ═══════════════════════════════════════════════════════════════════════
-        WHEN 'SAP' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'KNA1' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Customer dimension from SAP KNA1''
-                    AS
+    function createDynamicTable(tableName, selectSql, targetLag, comment) {
+        var createSql = `
+            CREATE OR REPLACE DYNAMIC TABLE ${targetSchema}.${tableName}
+                TARGET_LAG = '${targetLag}'
+                WAREHOUSE = TRANSFORM_WH
+                COMMENT = '${comment}'
+            AS ${selectSql}
+        `;
+        try {
+            snowflake.createStatement({sqlText: createSql}).execute();
+            results.push({object: tableName, status: 'SUCCESS', type: 'DYNAMIC TABLE'});
+        } catch (err) {
+            results.push({object: tableName, status: 'ERROR', message: err.message});
+        }
+    }
+    
+    try {
+        switch (sourceSystem) {
+            // ═══════════════════════════════════════════════════════════════
+            // SAP S/4HANA
+            // ═══════════════════════════════════════════════════════════════
+            case 'SAP':
+                // DIM_CUSTOMER from KNA1
+                createDynamicTable('DIM_CUSTOMER', `
                     SELECT
                         KUNNR AS CUSTOMER_KEY,
                         KUNNR AS CUSTOMER_ID,
@@ -111,31 +116,24 @@ BEGIN
                         STRAS AS ADDRESS,
                         ORT01 AS CITY,
                         PSTLZ AS POSTAL_CODE,
-                        REGIO AS STATE_PROVINCE,
+                        REGIO AS STATE,
                         LAND1 AS COUNTRY,
                         TELF1 AS PHONE,
                         SMTP_ADDR AS EMAIL,
                         BRSCH AS INDUSTRY_CODE,
                         KUKLA AS CUSTOMER_CLASS,
                         KTOKD AS ACCOUNT_GROUP,
-                        CASE WHEN LOEVM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
-                        TO_DATE(ERDAT, ''YYYYMMDD'') AS CREATED_DATE,
-                        MANDT AS CLIENT,
+                        CASE WHEN LOEVM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+                        TRY_TO_DATE(ERDAT, 'YYYYMMDD') AS CREATED_DATE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
-                        "_SOURCE_TABLE",
-                        "_ROW_HASH" AS _SOURCE_HASH,
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'MARA' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Product/Material dimension from SAP MARA''
-                    AS
+                    FROM ${rawSchema}.KNA1
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'SAP Customer Master from KNA1');
+                
+                // DIM_PRODUCT from MARA
+                createDynamicTable('DIM_PRODUCT', `
                     SELECT
                         MATNR AS PRODUCT_KEY,
                         MATNR AS MATERIAL_NUMBER,
@@ -148,21 +146,17 @@ BEGIN
                         BRGEW AS GROSS_WEIGHT,
                         NTGEW AS NET_WEIGHT,
                         GEWEI AS WEIGHT_UNIT,
-                        CASE WHEN LVORM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
-                        TO_DATE(ERSDA, ''YYYYMMDD'') AS CREATED_DATE,
+                        CASE WHEN LVORM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+                        TRY_TO_DATE(ERSDA, 'YYYYMMDD') AS CREATED_DATE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'LFA1' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Vendor dimension from SAP LFA1''
-                    AS
+                    FROM ${rawSchema}.MARA
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '24 hours', 'SAP Material Master from MARA');
+                
+                // DIM_VENDOR from LFA1
+                createDynamicTable('DIM_VENDOR', `
                     SELECT
                         LIFNR AS VENDOR_KEY,
                         LIFNR AS VENDOR_ID,
@@ -175,34 +169,69 @@ BEGIN
                         LAND1 AS COUNTRY,
                         TELF1 AS PHONE,
                         SMTP_ADDR AS EMAIL,
-                        CASE WHEN LOEVM = ''X'' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
+                        CASE WHEN LOEVM = 'X' THEN FALSE ELSE TRUE END AS IS_ACTIVE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported SAP table: ' || p_source_table;
-            END CASE;
-            
-        -- ═══════════════════════════════════════════════════════════════════════
-        -- Salesforce Source Mappings
-        -- ═══════════════════════════════════════════════════════════════════════
-        WHEN 'SALESFORCE' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'ACCOUNT' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Customer/Account dimension from Salesforce''
-                    AS
+                    FROM ${rawSchema}.LFA1
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '24 hours', 'SAP Vendor Master from LFA1');
+                
+                // FACT_SALES_ORDERS from VBAK
+                createDynamicTable('FACT_SALES_ORDERS', `
                     SELECT
-                        "Id" AS CUSTOMER_KEY,
-                        "Id" AS CUSTOMER_ID,
-                        SHA2("Id", 256) AS CUSTOMER_ID_HASH,
-                        "Name" AS CUSTOMER_NAME,
-                        "Type" AS CUSTOMER_TYPE,
+                        VBELN AS ORDER_KEY,
+                        VBELN AS ORDER_NUMBER,
+                        KUNNR AS CUSTOMER_KEY,
+                        TRY_TO_DATE(AUDAT, 'YYYYMMDD') AS ORDER_DATE,
+                        TRY_TO_DATE(ERDAT, 'YYYYMMDD') AS CREATED_DATE,
+                        VKORG AS SALES_ORG,
+                        VTWEG AS DISTRIBUTION_CHANNEL,
+                        SPART AS DIVISION,
+                        AUART AS ORDER_TYPE,
+                        NETWR AS NET_VALUE,
+                        WAERK AS CURRENCY,
+                        GBSTK AS ORDER_STATUS,
+                        CASE WHEN GBSTK = 'C' THEN TRUE ELSE FALSE END AS IS_COMPLETED,
+                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
+                        "_SOURCE_SYSTEM",
+                        "_IS_CURRENT"
+                    FROM ${rawSchema}.VBAK
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'SAP Sales Orders from VBAK');
+                
+                // FACT_PURCHASE_ORDERS from EKKO
+                createDynamicTable('FACT_PURCHASE_ORDERS', `
+                    SELECT
+                        EBELN AS PO_KEY,
+                        EBELN AS PO_NUMBER,
+                        LIFNR AS VENDOR_KEY,
+                        TRY_TO_DATE(BEDAT, 'YYYYMMDD') AS PO_DATE,
+                        TRY_TO_DATE(AEDAT, 'YYYYMMDD') AS CHANGED_DATE,
+                        EKORG AS PURCHASING_ORG,
+                        EKGRP AS PURCHASING_GROUP,
+                        BSART AS PO_TYPE,
+                        WAERS AS CURRENCY,
+                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
+                        "_SOURCE_SYSTEM",
+                        "_IS_CURRENT"
+                    FROM ${rawSchema}.EKKO
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'SAP Purchase Orders from EKKO');
+                break;
+                
+            // ═══════════════════════════════════════════════════════════════
+            // SALESFORCE
+            // ═══════════════════════════════════════════════════════════════
+            case 'SALESFORCE':
+                // DIM_ACCOUNT from Account
+                createDynamicTable('DIM_ACCOUNT', `
+                    SELECT
+                        "Id" AS ACCOUNT_KEY,
+                        "Id" AS ACCOUNT_ID,
+                        SHA2("Id", 256) AS ACCOUNT_ID_HASH,
+                        "Name" AS ACCOUNT_NAME,
+                        "Type" AS ACCOUNT_TYPE,
                         "Industry" AS INDUSTRY,
                         "AnnualRevenue" AS ANNUAL_REVENUE,
                         "NumberOfEmployees" AS EMPLOYEE_COUNT,
@@ -214,153 +243,107 @@ BEGIN
                         "BillingCountry" AS BILLING_COUNTRY,
                         "Phone" AS PHONE,
                         "Website" AS WEBSITE,
-                        "OwnerId" AS ACCOUNT_OWNER_ID,
+                        "OwnerId" AS OWNER_ID,
                         CASE 
-                            WHEN "AnnualRevenue" >= 100000000 THEN ''ENTERPRISE''
-                            WHEN "AnnualRevenue" >= 10000000 THEN ''MID-MARKET''
-                            WHEN "AnnualRevenue" >= 1000000 THEN ''SMB''
-                            ELSE ''STARTUP''
-                        END AS CUSTOMER_TIER,
+                            WHEN "AnnualRevenue" >= 100000000 THEN 'ENTERPRISE'
+                            WHEN "AnnualRevenue" >= 10000000 THEN 'MID-MARKET'
+                            WHEN "AnnualRevenue" >= 1000000 THEN 'SMB'
+                            ELSE 'STARTUP'
+                        END AS ACCOUNT_TIER,
                         NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
-                        TO_TIMESTAMP("CreatedDate") AS CREATED_DATE,
+                        TRY_TO_TIMESTAMP("CreatedDate") AS CREATED_DATE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'CONTACT' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Contact dimension from Salesforce''
-                    AS
+                    FROM ${rawSchema}.ACCOUNT
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'Salesforce Account dimension');
+                
+                // FACT_OPPORTUNITIES from Opportunity
+                createDynamicTable('FACT_OPPORTUNITIES', `
                     SELECT
-                        "Id" AS CONTACT_KEY,
-                        "Id" AS CONTACT_ID,
-                        SHA2("Id", 256) AS CONTACT_ID_HASH,
-                        "FirstName" AS FIRST_NAME,
-                        "LastName" AS LAST_NAME,
-                        "Email" AS EMAIL,
-                        SHA2(COALESCE("Email", "Id"), 256) AS EMAIL_HASH,
-                        "Phone" AS PHONE,
-                        "Title" AS JOB_TITLE,
-                        "AccountId" AS ACCOUNT_ID,
-                        "MailingCity" AS CITY,
-                        "MailingState" AS STATE,
-                        "MailingCountry" AS COUNTRY,
-                        COALESCE("FirstName", '''') || '' '' || LEFT(COALESCE("LastName", ''X''), 1) || ''.'' AS DISPLAY_NAME,
-                        NOT COALESCE("IsDeleted", FALSE) AS IS_ACTIVE,
+                        "Id" AS OPPORTUNITY_KEY,
+                        "Id" AS OPPORTUNITY_ID,
+                        "AccountId" AS ACCOUNT_KEY,
+                        "OwnerId" AS OWNER_KEY,
+                        "Name" AS OPPORTUNITY_NAME,
+                        "Amount" AS AMOUNT,
+                        TRY_TO_DATE("CloseDate") AS CLOSE_DATE,
+                        "StageName" AS STAGE_NAME,
+                        "Probability" AS PROBABILITY,
+                        "Type" AS OPPORTUNITY_TYPE,
+                        "LeadSource" AS LEAD_SOURCE,
+                        "ForecastCategory" AS FORECAST_CATEGORY,
+                        COALESCE("IsClosed", FALSE) AS IS_CLOSED,
+                        COALESCE("IsWon", FALSE) AS IS_WON,
+                        TRY_TO_TIMESTAMP("CreatedDate") AS CREATED_DATE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'PRODUCT2' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Product dimension from Salesforce''
-                    AS
-                    SELECT
-                        "Id" AS PRODUCT_KEY,
-                        "Id" AS PRODUCT_ID,
-                        "ProductCode" AS PRODUCT_CODE,
-                        SHA2("Id", 256) AS PRODUCT_ID_HASH,
-                        "Name" AS PRODUCT_NAME,
-                        "Description" AS PRODUCT_DESCRIPTION,
-                        "Family" AS PRODUCT_FAMILY,
-                        COALESCE("IsActive", TRUE) AS IS_ACTIVE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported Salesforce object: ' || p_source_table;
-            END CASE;
-            
-        -- ═══════════════════════════════════════════════════════════════════════
-        -- FHIR R4 Source Mappings
-        -- ═══════════════════════════════════════════════════════════════════════
-        WHEN 'FHIR' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'PATIENT' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Patient dimension from FHIR R4''
-                    AS
+                    FROM ${rawSchema}.OPPORTUNITY
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'Salesforce Opportunity fact');
+                break;
+                
+            // ═══════════════════════════════════════════════════════════════
+            // FHIR R4
+            // ═══════════════════════════════════════════════════════════════
+            case 'FHIR':
+                // DIM_PATIENT from Patient
+                createDynamicTable('DIM_PATIENT', `
                     SELECT
                         "id" AS PATIENT_KEY,
                         "id" AS PATIENT_ID,
                         SHA2("id", 256) AS PATIENT_ID_HASH,
                         "name"[0]:given[0]::VARCHAR AS FIRST_NAME,
                         "name"[0]:family::VARCHAR AS LAST_NAME,
-                        SHA2("name"[0]:given[0]::VARCHAR || '' '' || "name"[0]:family::VARCHAR, 256) AS NAME_HASH,
                         "gender" AS GENDER,
-                        "birthDate"::DATE AS BIRTH_DATE,
+                        TRY_TO_DATE("birthDate") AS BIRTH_DATE,
                         "address"[0]:city::VARCHAR AS CITY,
                         "address"[0]:state::VARCHAR AS STATE,
                         "address"[0]:postalCode::VARCHAR AS POSTAL_CODE,
                         "address"[0]:country::VARCHAR AS COUNTRY,
-                        "telecom" AS TELECOM,
-                        "maritalStatus":coding[0]:code::VARCHAR AS MARITAL_STATUS,
                         COALESCE("active", TRUE) AS IS_ACTIVE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'PRACTITIONER' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Practitioner dimension from FHIR R4''
-                    AS
+                    FROM ${rawSchema}.PATIENT
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'FHIR Patient dimension');
+                
+                // FACT_ENCOUNTERS from Encounter
+                createDynamicTable('FACT_ENCOUNTERS', `
                     SELECT
-                        "id" AS PRACTITIONER_KEY,
-                        "id" AS PRACTITIONER_ID,
-                        SHA2("id", 256) AS PRACTITIONER_ID_HASH,
-                        "name"[0]:given[0]::VARCHAR AS FIRST_NAME,
-                        "name"[0]:family::VARCHAR AS LAST_NAME,
-                        "gender" AS GENDER,
-                        "qualification" AS QUALIFICATIONS,
-                        COALESCE("active", TRUE) AS IS_ACTIVE,
+                        "id" AS ENCOUNTER_KEY,
+                        "id" AS ENCOUNTER_ID,
+                        REPLACE("subject":reference::VARCHAR, 'Patient/', '') AS PATIENT_KEY,
+                        "class":code::VARCHAR AS ENCOUNTER_CLASS,
+                        "type"[0]:coding[0]:code::VARCHAR AS ENCOUNTER_TYPE_CODE,
+                        "type"[0]:coding[0]:display::VARCHAR AS ENCOUNTER_TYPE,
+                        "status" AS STATUS,
+                        TRY_TO_TIMESTAMP("period":start::VARCHAR) AS START_TIME,
+                        TRY_TO_TIMESTAMP("period":end::VARCHAR) AS END_TIME,
+                        DATEDIFF('minute', TRY_TO_TIMESTAMP("period":start::VARCHAR), TRY_TO_TIMESTAMP("period":end::VARCHAR)) AS DURATION_MINUTES,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported FHIR resource: ' || p_source_table;
-            END CASE;
-            
-        -- ═══════════════════════════════════════════════════════════════════════
-        -- Workday Source Mappings
-        -- ═══════════════════════════════════════════════════════════════════════
-        WHEN 'WORKDAY' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'WORKERS' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Employee dimension from Workday''
-                    AS
+                    FROM ${rawSchema}.ENCOUNTER
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '1 hour', 'FHIR Encounter fact');
+                break;
+                
+            // ═══════════════════════════════════════════════════════════════
+            // WORKDAY
+            // ═══════════════════════════════════════════════════════════════
+            case 'WORKDAY':
+                // DIM_EMPLOYEE from Workers
+                createDynamicTable('DIM_EMPLOYEE', `
                     SELECT
                         "Worker_ID" AS EMPLOYEE_KEY,
                         "Worker_ID" AS EMPLOYEE_ID,
                         SHA2("Worker_ID", 256) AS EMPLOYEE_ID_HASH,
                         "Legal_First_Name" AS FIRST_NAME,
                         "Legal_Last_Name" AS LAST_NAME,
-                        SHA2("Legal_First_Name" || '' '' || "Legal_Last_Name", 256) AS NAME_HASH,
                         "Preferred_First_Name" AS PREFERRED_NAME,
                         "Primary_Work_Email" AS EMAIL,
                         "Employee_Type" AS EMPLOYMENT_TYPE,
@@ -369,31 +352,24 @@ BEGIN
                         "Supervisory_Organization_Name" AS DEPARTMENT,
                         "Manager_Name" AS MANAGER_NAME,
                         "Location_Name" AS WORK_LOCATION,
-                        "Hire_Date"::DATE AS HIRE_DATE,
-                        "Termination_Date"::DATE AS TERMINATION_DATE,
-                        "Worker_Status" = ''Active'' AS IS_ACTIVE,
-                        ROUND(DATEDIFF(''day'', "Hire_Date"::DATE, COALESCE("Termination_Date"::DATE, CURRENT_DATE())) / 365.25, 1) AS TENURE_YEARS,
+                        TRY_TO_DATE("Hire_Date") AS HIRE_DATE,
+                        TRY_TO_DATE("Termination_Date") AS TERMINATION_DATE,
+                        "Worker_Status" = 'Active' AS IS_ACTIVE,
+                        ROUND(DATEDIFF('day', TRY_TO_DATE("Hire_Date"), COALESCE(TRY_TO_DATE("Termination_Date"), CURRENT_DATE())) / 365.25, 1) AS TENURE_YEARS,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported Workday report: ' || p_source_table;
-            END CASE;
-            
-        -- ═══════════════════════════════════════════════════════════════════════
-        -- ServiceNow Source Mappings
-        -- ═══════════════════════════════════════════════════════════════════════
-        WHEN 'SERVICENOW' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'SYS_USER' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.DIMENSIONS.' || p_dimension_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''User dimension from ServiceNow''
-                    AS
+                    FROM ${rawSchema}.WORKERS
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '4 hours', 'Workday Employee dimension');
+                break;
+                
+            // ═══════════════════════════════════════════════════════════════
+            // SERVICENOW
+            // ═══════════════════════════════════════════════════════════════
+            case 'SERVICENOW':
+                // DIM_USER from sys_user
+                createDynamicTable('DIM_USER', `
                     SELECT
                         "sys_id" AS USER_KEY,
                         "sys_id" AS USER_ID,
@@ -405,237 +381,16 @@ BEGIN
                         "title" AS JOB_TITLE,
                         "department" AS DEPARTMENT,
                         "location" AS LOCATION,
-                        "manager" AS MANAGER_ID,
                         "active" AS IS_ACTIVE,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported ServiceNow table: ' || p_source_table;
-            END CASE;
-        ELSE
-            RETURN 'ERROR: Unsupported source system: ' || p_source_system;
-    END CASE;
-    
-    -- Execute the create statement
-    EXECUTE IMMEDIATE v_create_sql;
-    
-    RETURN 'SUCCESS: Created dimension ' || p_dimension_name || ' from ' || v_source_path;
-    
-EXCEPTION
-    WHEN OTHER THEN
-        RETURN 'ERROR: ' || SQLERRM;
-END;
-$$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- DYNAMIC FACT TABLE CREATION PROCEDURE
--- ═══════════════════════════════════════════════════════════════════════════
-
-CREATE OR REPLACE PROCEDURE CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE(
-    p_source_system VARCHAR,
-    p_source_table VARCHAR,
-    p_fact_name VARCHAR,
-    p_target_lag VARCHAR
-)
-RETURNS VARCHAR
-LANGUAGE SQL
-EXECUTE AS CALLER
-AS
-$$
-DECLARE
-    v_source_path VARCHAR;
-    v_create_sql VARCHAR;
-BEGIN
-    v_source_path := 'RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(p_source_table);
-    
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'VBAK' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Sales Order fact from SAP VBAK''
-                    AS
-                    SELECT
-                        VBELN AS ORDER_KEY,
-                        VBELN AS ORDER_NUMBER,
-                        KUNNR AS CUSTOMER_KEY,
-                        TO_DATE(AUDAT, ''YYYYMMDD'') AS ORDER_DATE,
-                        TO_DATE(ERDAT, ''YYYYMMDD'') AS CREATED_DATE,
-                        VKORG AS SALES_ORG,
-                        VTWEG AS DISTRIBUTION_CHANNEL,
-                        SPART AS DIVISION,
-                        AUART AS ORDER_TYPE,
-                        NETWR AS NET_VALUE,
-                        WAERK AS CURRENCY,
-                        GBSTK AS ORDER_STATUS,
-                        CASE 
-                            WHEN GBSTK = ''C'' THEN TRUE 
-                            ELSE FALSE 
-                        END AS IS_COMPLETED,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'EKKO' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Purchase Order fact from SAP EKKO''
-                    AS
-                    SELECT
-                        EBELN AS PO_KEY,
-                        EBELN AS PO_NUMBER,
-                        LIFNR AS VENDOR_KEY,
-                        TO_DATE(BEDAT, ''YYYYMMDD'') AS PO_DATE,
-                        EKORG AS PURCHASING_ORG,
-                        EKGRP AS PURCHASING_GROUP,
-                        BSART AS PO_TYPE,
-                        WAERS AS CURRENCY,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported SAP fact table: ' || p_source_table;
-            END CASE;
-            
-        WHEN 'SALESFORCE' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'OPPORTUNITY' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Opportunity fact from Salesforce''
-                    AS
-                    SELECT
-                        "Id" AS OPPORTUNITY_KEY,
-                        "Id" AS OPPORTUNITY_ID,
-                        "AccountId" AS CUSTOMER_KEY,
-                        "OwnerId" AS SALES_REP_KEY,
-                        "Name" AS OPPORTUNITY_NAME,
-                        "Amount" AS AMOUNT,
-                        "CloseDate"::DATE AS CLOSE_DATE,
-                        "StageName" AS STAGE_NAME,
-                        "Probability" AS PROBABILITY,
-                        "Type" AS OPPORTUNITY_TYPE,
-                        "LeadSource" AS LEAD_SOURCE,
-                        "ForecastCategory" AS FORECAST_CATEGORY,
-                        COALESCE("IsClosed", FALSE) AS IS_CLOSED,
-                        COALESCE("IsWon", FALSE) AS IS_WON,
-                        TO_TIMESTAMP("CreatedDate") AS CREATED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'CASE' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Case fact from Salesforce''
-                    AS
-                    SELECT
-                        "Id" AS CASE_KEY,
-                        "CaseNumber" AS CASE_NUMBER,
-                        "AccountId" AS CUSTOMER_KEY,
-                        "ContactId" AS CONTACT_KEY,
-                        "OwnerId" AS OWNER_KEY,
-                        "Subject" AS SUBJECT,
-                        "Status" AS STATUS,
-                        "Priority" AS PRIORITY,
-                        "Origin" AS ORIGIN,
-                        "Type" AS CASE_TYPE,
-                        COALESCE("IsClosed", FALSE) AS IS_CLOSED,
-                        TO_TIMESTAMP("CreatedDate") AS CREATED_DATE,
-                        TO_TIMESTAMP("ClosedDate") AS CLOSED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported Salesforce fact object: ' || p_source_table;
-            END CASE;
-            
-        WHEN 'FHIR' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'ENCOUNTER' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Encounter fact from FHIR R4''
-                    AS
-                    SELECT
-                        "id" AS ENCOUNTER_KEY,
-                        "id" AS ENCOUNTER_ID,
-                        REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
-                        "class":code::VARCHAR AS ENCOUNTER_CLASS,
-                        "type"[0]:coding[0]:code::VARCHAR AS ENCOUNTER_TYPE_CODE,
-                        "type"[0]:coding[0]:display::VARCHAR AS ENCOUNTER_TYPE,
-                        "status" AS STATUS,
-                        "period":start::TIMESTAMP AS START_TIME,
-                        "period":end::TIMESTAMP AS END_TIME,
-                        DATEDIFF(''minute'', "period":start::TIMESTAMP, "period":end::TIMESTAMP) AS DURATION_MINUTES,
-                        "serviceProvider":reference::VARCHAR AS SERVICE_PROVIDER,
-                        "reasonCode"[0]:coding[0]:code::VARCHAR AS REASON_CODE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                    
-                WHEN 'CONDITION' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Condition/Diagnosis fact from FHIR R4''
-                    AS
-                    SELECT
-                        "id" AS CONDITION_KEY,
-                        "id" AS CONDITION_ID,
-                        REPLACE("subject":reference::VARCHAR, ''Patient/'', '''') AS PATIENT_KEY,
-                        REPLACE("encounter":reference::VARCHAR, ''Encounter/'', '''') AS ENCOUNTER_KEY,
-                        "code":coding[0]:code::VARCHAR AS DIAGNOSIS_CODE,
-                        "code":coding[0]:display::VARCHAR AS DIAGNOSIS_DESCRIPTION,
-                        "code":coding[0]:system::VARCHAR AS CODE_SYSTEM,
-                        "clinicalStatus":coding[0]:code::VARCHAR AS CLINICAL_STATUS,
-                        "verificationStatus":coding[0]:code::VARCHAR AS VERIFICATION_STATUS,
-                        "onsetDateTime"::DATE AS ONSET_DATE,
-                        "abatementDateTime"::DATE AS ABATEMENT_DATE,
-                        "recordedDate"::DATE AS RECORDED_DATE,
-                        "_LOADED_AT" AS _SOURCE_LOADED_AT,
-                        "_SOURCE_SYSTEM",
-                        "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported FHIR fact resource: ' || p_source_table;
-            END CASE;
-            
-        WHEN 'SERVICENOW' THEN
-            CASE UPPER(p_source_table)
-                WHEN 'INCIDENT' THEN
-                    v_create_sql := '
-                    CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.FACTS.' || p_fact_name || '
-                        TARGET_LAG = ''' || p_target_lag || '''
-                        WAREHOUSE = TRANSFORM_WH
-                        COMMENT = ''Incident fact from ServiceNow''
-                    AS
+                    FROM ${rawSchema}.SYS_USER
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '24 hours', 'ServiceNow User dimension');
+                
+                // FACT_INCIDENTS from incident
+                createDynamicTable('FACT_INCIDENTS', `
                     SELECT
                         "sys_id" AS INCIDENT_KEY,
                         "number" AS INCIDENT_NUMBER,
@@ -649,155 +404,84 @@ BEGIN
                         "state" AS STATE,
                         "category" AS CATEGORY,
                         "subcategory" AS SUBCATEGORY,
-                        "cmdb_ci" AS CI_KEY,
-                        "opened_at"::TIMESTAMP AS OPENED_AT,
-                        "resolved_at"::TIMESTAMP AS RESOLVED_AT,
-                        "closed_at"::TIMESTAMP AS CLOSED_AT,
-                        DATEDIFF(''minute'', "opened_at"::TIMESTAMP, COALESCE("resolved_at"::TIMESTAMP, CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
+                        TRY_TO_TIMESTAMP("opened_at") AS OPENED_AT,
+                        TRY_TO_TIMESTAMP("resolved_at") AS RESOLVED_AT,
+                        TRY_TO_TIMESTAMP("closed_at") AS CLOSED_AT,
+                        DATEDIFF('minute', TRY_TO_TIMESTAMP("opened_at"), COALESCE(TRY_TO_TIMESTAMP("resolved_at"), CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
                         "_LOADED_AT" AS _SOURCE_LOADED_AT,
                         "_SOURCE_SYSTEM",
                         "_IS_CURRENT"
-                    FROM ' || v_source_path || '
-                    WHERE "_IS_CURRENT" = TRUE';
-                ELSE
-                    RETURN 'ERROR: Unsupported ServiceNow fact table: ' || p_source_table;
-            END CASE;
-        ELSE
-            RETURN 'ERROR: Unsupported source system: ' || p_source_system;
-    END CASE;
-    
-    EXECUTE IMMEDIATE v_create_sql;
-    RETURN 'SUCCESS: Created fact ' || p_fact_name || ' from ' || v_source_path;
-    
-EXCEPTION
-    WHEN OTHER THEN
-        RETURN 'ERROR: ' || SQLERRM;
-END;
-$$;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- QUICK CREATE: Build Curated Layer for a Source System
--- ═══════════════════════════════════════════════════════════════════════════
-
-CREATE OR REPLACE PROCEDURE CURATED_DEV.DIMENSIONS.BUILD_CURATED_LAYER(
-    p_source_system VARCHAR
-)
-RETURNS TABLE (object_type VARCHAR, object_name VARCHAR, status VARCHAR)
-LANGUAGE SQL
-EXECUTE AS CALLER
-AS
-$$
-DECLARE
-    result RESULTSET;
-BEGIN
-    CREATE OR REPLACE TEMPORARY TABLE _build_results (
-        object_type VARCHAR,
-        object_name VARCHAR,
-        status VARCHAR
-    );
-    
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN
-            -- SAP Dimensions
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SAP', 'KNA1', 'DIM_CUSTOMER_SAP', '1 hour');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_CUSTOMER_SAP', 'Created');
-            
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SAP', 'MARA', 'DIM_PRODUCT_SAP', '24 hours');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_PRODUCT_SAP', 'Created');
-            
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SAP', 'LFA1', 'DIM_VENDOR_SAP', '24 hours');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_VENDOR_SAP', 'Created');
-            
-            -- SAP Facts
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SAP', 'VBAK', 'FACT_SALES_ORDERS_SAP', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_SALES_ORDERS_SAP', 'Created');
-            
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SAP', 'EKKO', 'FACT_PURCHASE_ORDERS_SAP', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_PURCHASE_ORDERS_SAP', 'Created');
-            
-        WHEN 'SALESFORCE' THEN
-            -- Salesforce Dimensions
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SALESFORCE', 'ACCOUNT', 'DIM_CUSTOMER_SF', '1 hour');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_CUSTOMER_SF', 'Created');
-            
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SALESFORCE', 'CONTACT', 'DIM_CONTACT_SF', '1 hour');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_CONTACT_SF', 'Created');
-            
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SALESFORCE', 'PRODUCT2', 'DIM_PRODUCT_SF', '24 hours');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_PRODUCT_SF', 'Created');
-            
-            -- Salesforce Facts
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SALESFORCE', 'OPPORTUNITY', 'FACT_OPPORTUNITIES_SF', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_OPPORTUNITIES_SF', 'Created');
-            
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SALESFORCE', 'CASE', 'FACT_CASES_SF', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_CASES_SF', 'Created');
-            
-        WHEN 'FHIR' THEN
-            -- FHIR Dimensions
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('FHIR', 'PATIENT', 'DIM_PATIENT_FHIR', '1 hour');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_PATIENT_FHIR', 'Created');
-            
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('FHIR', 'PRACTITIONER', 'DIM_PRACTITIONER_FHIR', '24 hours');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_PRACTITIONER_FHIR', 'Created');
-            
-            -- FHIR Facts
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('FHIR', 'ENCOUNTER', 'FACT_ENCOUNTERS_FHIR', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_ENCOUNTERS_FHIR', 'Created');
-            
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('FHIR', 'CONDITION', 'FACT_CONDITIONS_FHIR', '1 hour');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_CONDITIONS_FHIR', 'Created');
-            
-        WHEN 'WORKDAY' THEN
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('WORKDAY', 'WORKERS', 'DIM_EMPLOYEE_WD', '1 hour');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_EMPLOYEE_WD', 'Created');
-            
-        WHEN 'SERVICENOW' THEN
-            CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SERVICENOW', 'SYS_USER', 'DIM_USER_SN', '24 hours');
-            INSERT INTO _build_results VALUES ('DIMENSION', 'DIM_USER_SN', 'Created');
-            
-            CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SERVICENOW', 'INCIDENT', 'FACT_INCIDENTS_SN', '15 minutes');
-            INSERT INTO _build_results VALUES ('FACT', 'FACT_INCIDENTS_SN', 'Created');
-    END CASE;
-    
-    result := (SELECT * FROM _build_results);
-    RETURN TABLE(result);
-END;
+                    FROM ${rawSchema}.INCIDENT
+                    WHERE "_IS_CURRENT" = TRUE
+                `, '15 minutes', 'ServiceNow Incident fact');
+                break;
+                
+            default:
+                return {status: 'ERROR', message: 'Unsupported source system: ' + sourceSystem};
+        }
+        
+        var successCount = results.filter(function(r) { return r.status === 'SUCCESS'; }).length;
+        var errorCount = results.filter(function(r) { return r.status === 'ERROR'; }).length;
+        
+        return {
+            status: errorCount === 0 ? 'SUCCESS' : 'PARTIAL',
+            source_system: sourceSystem,
+            target_schema: targetSchema,
+            objects_created: successCount,
+            objects_failed: errorCount,
+            details: results
+        };
+        
+    } catch (err) {
+        return {status: 'ERROR', message: err.message};
+    }
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-GRANT USAGE ON SCHEMA CURATED_DEV.DIMENSIONS TO ROLE DATA_ENGINEER;
-GRANT USAGE ON SCHEMA CURATED_DEV.FACTS TO ROLE DATA_ENGINEER;
-GRANT USAGE ON SCHEMA CURATED_DEV.AGGREGATES TO ROLE DATA_ENGINEER;
+-- Grant schema usage
+GRANT USAGE ON SCHEMA CURATED_DEV.SHARED TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
 
-GRANT SELECT ON ALL TABLES IN SCHEMA CURATED_DEV.DIMENSIONS TO ROLE DATA_ENGINEER;
-GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.DIMENSIONS TO ROLE DATA_ENGINEER;
-GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.FACTS TO ROLE DATA_ENGINEER;
+-- Grant select on all objects
+GRANT SELECT ON ALL TABLES IN SCHEMA CURATED_DEV.SHARED TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL DYNAMIC TABLES IN SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
 
-GRANT USAGE ON PROCEDURE CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE(VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE DATA_ENGINEER;
-GRANT USAGE ON PROCEDURE CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE(VARCHAR, VARCHAR, VARCHAR, VARCHAR) TO ROLE DATA_ENGINEER;
-GRANT USAGE ON PROCEDURE CURATED_DEV.DIMENSIONS.BUILD_CURATED_LAYER(VARCHAR) TO ROLE DATA_ENGINEER;
+-- Future grants
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP TO ROLE DATA_ENGINEER;
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SALESFORCE TO ROLE DATA_ENGINEER;
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.FHIR TO ROLE DATA_ENGINEER;
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.WORKDAY TO ROLE DATA_ENGINEER;
+GRANT SELECT ON FUTURE DYNAMIC TABLES IN SCHEMA CURATED_DEV.SERVICENOW TO ROLE DATA_ENGINEER;
+
+GRANT USAGE ON PROCEDURE CURATED_DEV.SHARED.BUILD_CURATED_LAYER(VARCHAR) TO ROLE DATA_ENGINEER;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- USAGE INSTRUCTIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 
--- OPTION 1: Build entire curated layer for a source system
---   CALL CURATED_DEV.DIMENSIONS.BUILD_CURATED_LAYER('SAP');
---   CALL CURATED_DEV.DIMENSIONS.BUILD_CURATED_LAYER('SALESFORCE');
---   CALL CURATED_DEV.DIMENSIONS.BUILD_CURATED_LAYER('FHIR');
+-- Build curated layer for a source system:
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SAP');
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SALESFORCE');
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('FHIR');
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('WORKDAY');
+--   CALL CURATED_DEV.SHARED.BUILD_CURATED_LAYER('SERVICENOW');
 --
--- OPTION 2: Create individual dimensions/facts
---   CALL CURATED_DEV.DIMENSIONS.CREATE_DIMENSION_FROM_SOURCE('SAP', 'KNA1', 'DIM_CUSTOMER', '1 hour');
---   CALL CURATED_DEV.FACTS.CREATE_FACT_FROM_SOURCE('SALESFORCE', 'OPPORTUNITY', 'FACT_PIPELINE', '1 hour');
---
--- VERIFY:
---   SHOW DYNAMIC TABLES IN DATABASE CURATED_DEV;
+-- Verify:
+--   SHOW DYNAMIC TABLES IN SCHEMA CURATED_DEV.SAP;
+--   SELECT * FROM CURATED_DEV.SAP.DIM_CUSTOMER LIMIT 10;
+--   SELECT * FROM CURATED_DEV.SAP.FACT_SALES_ORDERS LIMIT 10;
 --
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SELECT '✓ Curated Layer Dynamic Infrastructure Created' AS STATUS;
-SELECT '  Use BUILD_CURATED_LAYER(''SAP'') to create dimensions/facts for a source system' AS INFO;
+SELECT '05_curated_layer.sql completed successfully' AS STATUS;
