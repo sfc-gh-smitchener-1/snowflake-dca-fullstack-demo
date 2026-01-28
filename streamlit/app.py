@@ -936,20 +936,82 @@ def render_source_explorer():
                     
                     st.divider()
                     
-                    col1, col2 = st.columns([1, 4])
-                    with col1:
-                        sample_limit = st.number_input("Rows", min_value=10, max_value=500, value=50, step=10, key="sem_limit")
-                    with col2:
-                        st.write("")
-                        if st.button("🔍 Load Underlying Data", key="load_semantic"):
-                            with st.spinner("Loading data from underlying curated table..."):
-                                sample_df = sample_semantic_data(selected_source, selected_object, sample_limit)
-                                if sample_df is not None:
-                                    st.success(f"Loaded {len(sample_df)} rows from underlying curated table")
-                                    st.dataframe(sample_df, use_container_width=True)
-                                else:
-                                    st.warning("Could not load underlying data. Use Cortex Analyst to query this semantic view.")
-                                    st.info("Navigate to 🤖 Cortex Analyst to query semantic views with natural language.")
+                    # Natural language query for semantic view
+                    st.markdown("**Query with Natural Language:**")
+                    semantic_question = st.text_input(
+                        "Ask a question",
+                        placeholder="e.g., Show me a summary of the data",
+                        key="semantic_question_input",
+                        label_visibility="collapsed"
+                    )
+                    
+                    if st.button("🤖 Query via Cortex", key="query_semantic"):
+                        if semantic_question:
+                            with st.spinner("Querying semantic view via Cortex Analyst..."):
+                                semantic_view_path = f"{selected_source}.{selected_object}"
+                                api_response, error = call_cortex_analyst(semantic_question, semantic_view_path)
+                                
+                                if error:
+                                    st.error(f"Error: {error}")
+                                elif api_response:
+                                    msg_content = api_response.get("message", {}).get("content", [])
+                                    sql_query = None
+                                    explanation = ""
+                                    
+                                    for part in msg_content:
+                                        if part.get("type") == "text":
+                                            explanation += part.get("text", "")
+                                        elif part.get("type") == "sql":
+                                            sql_query = part.get("statement", "")
+                                    
+                                    if explanation:
+                                        st.info(explanation)
+                                    
+                                    if sql_query:
+                                        with st.expander("Generated SQL", expanded=False):
+                                            st.code(sql_query, language="sql")
+                                        
+                                        result_df, sql_error = execute_sql(sql_query)
+                                        if sql_error:
+                                            st.error(f"SQL Error: {sql_error}")
+                                        elif result_df is not None:
+                                            st.success(f"Returned {len(result_df)} rows")
+                                            st.dataframe(result_df, use_container_width=True)
+                        else:
+                            st.warning("Please enter a question")
+                    
+                    # Also offer quick sample queries
+                    st.divider()
+                    st.markdown("**Quick Samples:**")
+                    sample_queries = [
+                        "Show me a summary",
+                        "Count by category",
+                        "Show top 10 records"
+                    ]
+                    cols = st.columns(len(sample_queries))
+                    for i, sq in enumerate(sample_queries):
+                        with cols[i]:
+                            if st.button(f"💬 {sq}", key=f"sem_sample_{i}", use_container_width=True):
+                                with st.spinner("Querying..."):
+                                    semantic_view_path = f"{selected_source}.{selected_object}"
+                                    api_response, error = call_cortex_analyst(sq, semantic_view_path)
+                                    
+                                    if error:
+                                        st.error(f"Error: {error}")
+                                    elif api_response:
+                                        msg_content = api_response.get("message", {}).get("content", [])
+                                        sql_query = None
+                                        
+                                        for part in msg_content:
+                                            if part.get("type") == "sql":
+                                                sql_query = part.get("statement", "")
+                                        
+                                        if sql_query:
+                                            result_df, sql_error = execute_sql(sql_query)
+                                            if sql_error:
+                                                st.error(f"SQL Error: {sql_error}")
+                                            elif result_df is not None:
+                                                st.dataframe(result_df, use_container_width=True)
                 else:
                     st.info("No SEMANTIC views available. Run BUILD_SEMANTIC_LAYER() first.")
 
