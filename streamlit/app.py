@@ -747,82 +747,83 @@ def render_cortex_page():
             with cols[i]:
                 if st.button(f"💬 {q}", key=f"q_{i}", use_container_width=True):
                     st.session_state.pending_question = q
+                    st.experimental_rerun()
         
         st.divider()
         
-        # Display chat history
-        for entry in st.session_state.cortex_history:
-            with st.chat_message("user"):
-                st.write(entry["question"])
-            with st.chat_message("assistant"):
-                if entry.get("error"):
-                    st.error(entry["error"])
-                else:
-                    if entry.get("sql"):
-                        with st.expander("📝 Generated SQL"):
-                            st.code(entry["sql"], language="sql")
-                    if entry.get("data") is not None:
-                        st.dataframe(entry["data"], use_container_width=True)
+        # Question input
+        col_input, col_btn = st.columns([4, 1])
+        with col_input:
+            question = st.text_input(
+                "Ask a question", 
+                value=st.session_state.pending_question or "",
+                placeholder="e.g., Show total sales by region",
+                label_visibility="collapsed"
+            )
+        with col_btn:
+            ask_clicked = st.button("🚀 Ask", use_container_width=True)
         
-        # Chat input
-        question = st.chat_input("Ask a question about your data...")
-        
-        # Handle pending question from sample buttons
+        # Clear pending question after it's been used
         if st.session_state.pending_question:
-            question = st.session_state.pending_question
             st.session_state.pending_question = None
         
-        if question:
-            # Show user message
-            with st.chat_message("user"):
-                st.write(question)
-            
-            # Process with Cortex
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    # Step 1: Generate SQL using Cortex
-                    gen_result = ask_cortex_analyst(selected_view, question)
+        # Process question
+        if ask_clicked and question:
+            with st.spinner("🤔 Generating query..."):
+                # Step 1: Generate SQL using Cortex
+                gen_result = ask_cortex_analyst(selected_view, question)
+                
+                if gen_result["error"]:
+                    st.error(f"Error generating query: {gen_result['error']}")
+                    st.session_state.cortex_history.append({
+                        "question": question,
+                        "error": gen_result["error"],
+                        "sql": None,
+                        "data": None
+                    })
+                else:
+                    generated_sql = gen_result["sql"]
                     
-                    if gen_result["error"]:
-                        st.error(f"Error generating query: {gen_result['error']}")
-                        st.session_state.cortex_history.append({
-                            "question": question,
-                            "error": gen_result["error"],
-                            "sql": None,
-                            "data": None
-                        })
-                    else:
-                        generated_sql = gen_result["sql"]
+                    # Step 2: Execute the generated SQL
+                    with st.spinner("⚙️ Executing query..."):
+                        exec_result = execute_generated_sql(generated_sql)
                         
-                        with st.expander("📝 Generated SQL", expanded=True):
-                            st.code(generated_sql, language="sql")
-                        
-                        # Step 2: Execute the generated SQL
-                        with st.spinner("Executing query..."):
-                            exec_result = execute_generated_sql(generated_sql)
-                            
-                            if exec_result["error"]:
-                                st.error(f"Error executing query: {exec_result['error']}")
-                                st.info("The generated SQL may need adjustment. Try rephrasing your question.")
-                                st.session_state.cortex_history.append({
-                                    "question": question,
-                                    "error": exec_result["error"],
-                                    "sql": generated_sql,
-                                    "data": None
-                                })
-                            else:
-                                df = exec_result["data"]
-                                st.dataframe(df, use_container_width=True)
-                                
-                                # Show summary
-                                st.caption(f"Returned {len(df)} rows")
-                                
-                                st.session_state.cortex_history.append({
-                                    "question": question,
-                                    "error": None,
-                                    "sql": generated_sql,
-                                    "data": df
-                                })
+                        if exec_result["error"]:
+                            st.session_state.cortex_history.append({
+                                "question": question,
+                                "error": exec_result["error"],
+                                "sql": generated_sql,
+                                "data": None
+                            })
+                        else:
+                            st.session_state.cortex_history.append({
+                                "question": question,
+                                "error": None,
+                                "sql": generated_sql,
+                                "data": exec_result["data"]
+                            })
+            
+            st.experimental_rerun()
+        
+        # Display chat history (most recent first)
+        if st.session_state.cortex_history:
+            st.divider()
+            st.markdown("#### 📜 Query History")
+            
+            for i, entry in enumerate(reversed(st.session_state.cortex_history[-5:])):  # Last 5 entries
+                with st.expander(f"❓ {entry['question'][:50]}..." if len(entry['question']) > 50 else f"❓ {entry['question']}", expanded=(i == 0)):
+                    st.markdown(f"**Question:** {entry['question']}")
+                    
+                    if entry.get("error"):
+                        st.error(f"Error: {entry['error']}")
+                    
+                    if entry.get("sql"):
+                        st.markdown("**Generated SQL:**")
+                        st.code(entry["sql"], language="sql")
+                    
+                    if entry.get("data") is not None:
+                        st.markdown(f"**Results:** ({len(entry['data'])} rows)")
+                        st.dataframe(entry["data"], use_container_width=True)
     else:
         st.warning("No semantic views found. Run BUILD_SEMANTIC_LAYER() first.")
         
