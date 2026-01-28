@@ -1125,32 +1125,77 @@ METRICS: {', '.join(metrics)}"""
     except Exception:
         return ""
 
+def get_underlying_tables_for_semantic_view(semantic_view: str) -> list:
+    """Get the underlying curated tables for a semantic view."""
+    session = get_session()
+    try:
+        parts = semantic_view.split('.')
+        if len(parts) >= 2:
+            source_system = parts[0]
+            view_name = parts[-1]
+        else:
+            return []
+        
+        result = session.sql(f"""
+            SELECT VIEW_SQL 
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG 
+            WHERE SOURCE_SYSTEM = '{source_system}' 
+              AND VIEW_NAME = '{view_name}'
+              AND IS_ACTIVE = TRUE
+        """).to_pandas()
+        
+        if not result.empty:
+            view_sql = result['VIEW_SQL'].iloc[0]
+            import re
+            tables = re.findall(r'(CURATED_DEV\.\w+\.\w+)', view_sql)
+            return list(set(tables))
+        return []
+    except:
+        return []
+
 def call_cortex_complete_fallback(prompt: str, semantic_view: str):
-    """Fallback using CORTEX.COMPLETE SQL function to generate SQL."""
+    """Fallback using CORTEX.COMPLETE SQL function to generate SQL against curated tables."""
     session = get_session()
     
     try:
-        # Get metadata about the semantic view
-        view_metadata = get_semantic_view_metadata(semantic_view)
+        # Get the underlying curated tables for this semantic view
+        underlying_tables = get_underlying_tables_for_semantic_view(semantic_view)
+        
+        if not underlying_tables:
+            return None, "Could not find underlying tables for this semantic view."
+        
+        # Use the first (primary) table
+        primary_table = underlying_tables[0]
+        
+        # Get column info for the primary table
+        try:
+            cols_df = session.sql(f"DESCRIBE TABLE {primary_table}").to_pandas()
+            columns = cols_df['name'].tolist() if 'name' in cols_df.columns else []
+            columns_str = ', '.join(columns[:20])  # Limit to first 20 columns
+        except:
+            columns_str = "*"
         
         # Escape single quotes for SQL
         escaped_prompt = prompt.replace("'", "''")
-        escaped_view = semantic_view.replace("'", "''")
-        escaped_metadata = view_metadata.replace("'", "''")
+        escaped_table = primary_table.replace("'", "''")
         
-        # Build a better prompt with schema info
+        # Build prompt to query the underlying curated table
         system_prompt = f"""You are a SQL expert. Generate a Snowflake SQL query for this question.
 
-The data is in the semantic view SEM_DEV.{escaped_view}.
+Query the table: {escaped_table}
 
-{escaped_metadata}
-
-IMPORTANT: Use exact column names as shown above (they are case-sensitive).
-For semantic views, query them like regular tables: SELECT columns FROM SEM_DEV.{escaped_view}
+Available columns: {columns_str}
 
 Question: {escaped_prompt}
 
-Return ONLY the SQL query. No explanation, no markdown code blocks."""
+RULES:
+1. Use the exact table name: {escaped_table}
+2. Write a complete, valid SQL query
+3. For counts, use COUNT(*) or COUNT(column_name)
+4. For summaries, SELECT relevant columns with GROUP BY if needed
+5. Always include a LIMIT clause (max 100 rows)
+
+Return ONLY the SQL query. No explanation, no markdown."""
         
         # Use CORTEX.COMPLETE via SQL to generate SQL
         result = session.sql(f"""
