@@ -233,9 +233,27 @@ def get_curated_stats(source_system: str):
 
 @st.cache_data(ttl=60)
 def get_semantic_views(source_system: str = None):
-    """Get available semantic views"""
+    """Get available semantic views (Native Semantic Views)"""
     session = get_session()
     try:
+        # Try SEMANTIC_VIEWS first (for Native Semantic Views)
+        where_clause = f"WHERE SCHEMA_NAME = '{source_system}'" if source_system else ""
+        where_clause += " AND SCHEMA_NAME NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND SCHEMA_NAME NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
+        
+        df = session.sql(f"""
+            SELECT 
+                SCHEMA_NAME AS SOURCE_SYSTEM,
+                SEMANTIC_VIEW_NAME AS VIEW_NAME,
+                COMMENT AS DESCRIPTION
+            FROM SEM_DEV.INFORMATION_SCHEMA.SEMANTIC_VIEWS
+            {where_clause}
+            ORDER BY SCHEMA_NAME, SEMANTIC_VIEW_NAME
+        """).to_pandas()
+        
+        if not df.empty:
+            return df
+            
+        # Fallback to regular views if no semantic views found
         where_clause = f"WHERE TABLE_SCHEMA = '{source_system}'" if source_system else ""
         where_clause += " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
         
@@ -249,8 +267,24 @@ def get_semantic_views(source_system: str = None):
             ORDER BY TABLE_SCHEMA, TABLE_NAME
         """).to_pandas()
         return df
-    except:
-        return pd.DataFrame()
+    except Exception as e:
+        # If SEMANTIC_VIEWS doesn't exist, try regular views
+        try:
+            where_clause = f"WHERE TABLE_SCHEMA = '{source_system}'" if source_system else ""
+            where_clause += " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
+            
+            df = session.sql(f"""
+                SELECT 
+                    TABLE_SCHEMA AS SOURCE_SYSTEM,
+                    TABLE_NAME AS VIEW_NAME,
+                    COMMENT AS DESCRIPTION
+                FROM SEM_DEV.INFORMATION_SCHEMA.VIEWS
+                {where_clause}
+                ORDER BY TABLE_SCHEMA, TABLE_NAME
+            """).to_pandas()
+            return df
+        except:
+            return pd.DataFrame()
 
 def sample_table_data(source_system: str, table_name: str, limit: int = 100):
     """Sample data from a table"""
@@ -459,7 +493,7 @@ def render_sidebar():
                 if switch_role(selected_role):
                     st.success(f"Switched to {selected_role}")
                     st.cache_data.clear()
-                    st.rerun()
+                    st.experimental_rerun()
         
         st.divider()
         
@@ -641,7 +675,7 @@ def render_cortex_page():
         with col2:
             if st.button("🔄 Clear Chat"):
                 st.session_state.cortex_history = []
-                st.rerun()
+                st.experimental_rerun()
         
         # Initialize chat
         if "cortex_history" not in st.session_state:
@@ -666,7 +700,7 @@ def render_cortex_page():
             with cols[i]:
                 if st.button(f"💬 {q}", key=f"q_{i}", use_container_width=True):
                     st.session_state.pending_question = q
-                    st.rerun()
+                    st.experimental_rerun()
         
         st.divider()
         
@@ -750,7 +784,7 @@ def render_governance_page():
 # ============================================================================
 
 def render_contracts_page():
-    """Render contracts dashboard"""
+    """Render contracts dashboard with drill-to-detail"""
     st.markdown("""
     <div class="main-header">
         <h1>📋 Data Contracts</h1>
@@ -758,10 +792,17 @@ def render_contracts_page():
     </div>
     """, unsafe_allow_html=True)
     
+    # Initialize session state for drill-down
+    if "selected_contract" not in st.session_state:
+        st.session_state.selected_contract = None
+    if "selected_source_filter" not in st.session_state:
+        st.session_state.selected_source_filter = None
+    
     health = get_contract_health()
     
     if not health.empty:
         st.markdown("### Contract Health by Source System")
+        st.caption("Click a source system card to filter contracts")
         
         cols = st.columns(len(health))
         for i, row in health.iterrows():
@@ -775,48 +816,262 @@ def render_contracts_page():
                 
                 color = "#18794E" if pct >= 90 else "#AD5700" if pct >= 70 else "#CD2B31"
                 
+                # Highlight if selected
+                border_width = "4px" if st.session_state.selected_source_filter == source else "4px"
+                opacity = "1" if st.session_state.selected_source_filter in [None, source] else "0.5"
+                
                 st.markdown(f"""
-                <div class="metric-card" style="border-left-color: {color};">
+                <div class="metric-card" style="border-left-color: {color}; border-left-width: {border_width}; opacity: {opacity};">
                     <div style="font-size: 1.5rem;">{config['icon']}</div>
                     <strong>{source}</strong>
                     <div style="font-size: 1.5rem; font-weight: 700; color: {color};">{pct:.0f}%</div>
                     <small>{healthy}/{total} contracts healthy</small>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                if st.button(f"View {source}", key=f"filter_{source}", use_container_width=True):
+                    if st.session_state.selected_source_filter == source:
+                        st.session_state.selected_source_filter = None
+                    else:
+                        st.session_state.selected_source_filter = source
+                    st.session_state.selected_contract = None
+                    st.experimental_rerun()
     else:
         st.info("No contracts found. Generate contracts using GENERATE_CONTRACTS_FOR_SOURCE().")
+        return
     
     st.divider()
     
-    st.markdown("### 📝 Contract Components")
+    # Contract Details Section
+    col_list, col_detail = st.columns([1, 2])
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.markdown("""
-        **Schema Contract**
-        - Column names and types
-        - Required vs optional fields
-        - Data format specifications
+    with col_list:
+        st.markdown("### 📋 Contract List")
         
-        **Quality Contract**
-        - Null rate thresholds
-        - Uniqueness constraints
-        - Referential integrity
+        # Clear filter button
+        if st.session_state.selected_source_filter:
+            if st.button(f"🔄 Clear Filter ({st.session_state.selected_source_filter})", use_container_width=True):
+                st.session_state.selected_source_filter = None
+                st.session_state.selected_contract = None
+                st.experimental_rerun()
+        
+        # Get contracts with optional filter
+        contracts = get_contract_details(st.session_state.selected_source_filter)
+        
+        if not contracts.empty:
+            for _, contract in contracts.iterrows():
+                contract_id = contract['CONTRACT_ID']
+                status = contract['HEALTH_STATUS']
+                source = contract['SOURCE_SYSTEM']
+                table = contract['SOURCE_TABLE']
+                
+                # Status icons and colors
+                status_config = {
+                    'HEALTHY': ('✅', '#18794E'),
+                    'SLA_DEGRADED': ('⚠️', '#AD5700'),
+                    'QUALITY_ISSUES': ('🔶', '#E65100'),
+                    'CRITICAL': ('❌', '#CD2B31'),
+                    'NOT_VALIDATED': ('⏳', '#64748B')
+                }
+                icon, color = status_config.get(status, ('❓', '#64748B'))
+                
+                # Highlight selected
+                bg_color = "#1E293B" if st.session_state.selected_contract == contract_id else "transparent"
+                
+                st.markdown(f"""
+                <div style="padding: 0.5rem; margin: 0.25rem 0; border-radius: 4px; 
+                            border-left: 3px solid {color}; background: {bg_color};">
+                    <span style="font-size: 0.9rem;">{icon} <strong>{table}</strong></span><br/>
+                    <small style="color: #94A3B8;">{source} • {status}</small>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"Details", key=f"detail_{contract_id}", use_container_width=True):
+                    st.session_state.selected_contract = contract_id
+                    st.experimental_rerun()
+        else:
+            st.info("No contracts found for filter.")
+    
+    with col_detail:
+        if st.session_state.selected_contract:
+            render_contract_detail(st.session_state.selected_contract)
+        else:
+            st.markdown("### 📝 Contract Components")
+            st.info("Select a contract from the list to view details")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("""
+                **Schema Contract**
+                - Column names and types
+                - Required vs optional fields
+                - Data format specifications
+                
+                **Quality Contract**
+                - Null rate thresholds
+                - Uniqueness constraints
+                - Referential integrity
+                """)
+            
+            with col2:
+                st.markdown("""
+                **SLA Contract**
+                - Freshness requirements
+                - Availability targets
+                - Row count minimums
+                
+                **Governance Contract**
+                - Classification level
+                - PII requirements
+                - Retention policies
+                """)
+
+def render_contract_detail(contract_id: str):
+    """Render detailed view for a specific contract"""
+    st.markdown("### 🔍 Contract Details")
+    
+    # Get contract registry info
+    registry = get_contract_registry_detail(contract_id)
+    
+    if registry.empty:
+        st.warning(f"Contract not found: {contract_id}")
+        return
+    
+    contract = registry.iloc[0]
+    
+    # Header with status
+    contracts_df = get_contract_details()
+    contract_health = contracts_df[contracts_df['CONTRACT_ID'] == contract_id]
+    
+    if not contract_health.empty:
+        health = contract_health.iloc[0]
+        status = health['HEALTH_STATUS']
+        
+        status_config = {
+            'HEALTHY': ('✅', '#18794E', 'All checks passing'),
+            'SLA_DEGRADED': ('⚠️', '#AD5700', 'SLA target missed'),
+            'QUALITY_ISSUES': ('🔶', '#E65100', 'Quality checks failing'),
+            'CRITICAL': ('❌', '#CD2B31', 'Critical issues detected'),
+            'NOT_VALIDATED': ('⏳', '#64748B', 'Awaiting validation')
+        }
+        icon, color, desc = status_config.get(status, ('❓', '#64748B', 'Unknown'))
+        
+        st.markdown(f"""
+        <div style="padding: 1rem; background: linear-gradient(135deg, {color}22, {color}11); 
+                    border-radius: 8px; border-left: 4px solid {color}; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">{icon} {contract['CONTRACT_NAME']}</h3>
+            <p style="margin: 0.5rem 0 0 0; color: #94A3B8;">
+                {contract['SOURCE_SYSTEM']} • {contract['SOURCE_TABLE']} • {desc}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Validation status cards
+        st.markdown("#### Validation Status")
+        cols = st.columns(4)
+        
+        with cols[0]:
+            schema_icon = "✅" if health['SCHEMA_PASSED'] else "❌" if health['SCHEMA_PASSED'] is False else "⏳"
+            st.metric("Schema", schema_icon)
+        with cols[1]:
+            quality_icon = "✅" if health['QUALITY_PASSED'] else "❌" if health['QUALITY_PASSED'] is False else "⏳"
+            st.metric("Quality", quality_icon)
+        with cols[2]:
+            sla_icon = "✅" if health['SLA_PASSED'] else "❌" if health['SLA_PASSED'] is False else "⏳"
+            st.metric("SLA", sla_icon)
+        with cols[3]:
+            overall_icon = "✅" if health['LAST_PASSED'] else "❌" if health['LAST_PASSED'] is False else "⏳"
+            st.metric("Overall", overall_icon)
+    
+    # Tabs for different aspects
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 SLA", "🔄 History", "📋 Schema", "⚙️ Actions"])
+    
+    with tab1:
+        st.markdown("##### SLA Definition")
+        sla = get_sla_definition(contract_id)
+        
+        if not sla.empty:
+            sla_def = sla.iloc[0]
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Freshness Target", f"{sla_def['FRESHNESS_TARGET_HOURS']}h")
+                st.metric("Freshness Max", f"{sla_def['FRESHNESS_MAX_HOURS']}h")
+            with col2:
+                st.metric("Availability Target", f"{sla_def['AVAILABILITY_TARGET_PCT']}%")
+                min_rows = sla_def['MIN_ROW_COUNT']
+                max_rows = sla_def['MAX_ROW_COUNT']
+                st.metric("Row Count Range", f"{min_rows:,} - {max_rows:,}" if max_rows else f"{min_rows:,}+")
+        else:
+            st.info("No SLA definition found for this contract.")
+    
+    with tab2:
+        st.markdown("##### Validation History")
+        history = get_validation_history(contract_id)
+        
+        if not history.empty:
+            for _, val in history.iterrows():
+                passed = val['OVERALL_PASSED']
+                icon = "✅" if passed else "❌"
+                timestamp = val['VALIDATION_START']
+                rows = val['TOTAL_ROWS']
+                
+                st.markdown(f"""
+                <div style="padding: 0.5rem; margin: 0.25rem 0; border-radius: 4px; 
+                            border-left: 3px solid {'#18794E' if passed else '#CD2B31'}; 
+                            background: {'#18794E11' if passed else '#CD2B3111'};">
+                    <span>{icon} <strong>{timestamp}</strong></span><br/>
+                    <small>Schema: {'✓' if val['SCHEMA_PASSED'] else '✗'} | 
+                           Quality: {'✓' if val['QUALITY_PASSED'] else '✗'} | 
+                           SLA: {'✓' if val['SLA_PASSED'] else '✗'} | 
+                           Rows: {rows:,}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No validation history found. Run validation to see results.")
+    
+    with tab3:
+        st.markdown("##### Contract Metadata")
+        
+        st.markdown(f"""
+        | Property | Value |
+        |----------|-------|
+        | **Contract ID** | `{contract['CONTRACT_ID']}` |
+        | **Version** | {contract['CONTRACT_VERSION']} |
+        | **Table Path** | `{contract['FULL_TABLE_PATH']}` |
+        | **Producer** | {contract['PRODUCER_TEAM']} |
+        | **Effective From** | {contract['EFFECTIVE_FROM']} |
+        | **Active** | {'Yes' if contract['IS_ACTIVE'] else 'No'} |
         """)
     
-    with col2:
-        st.markdown("""
-        **SLA Contract**
-        - Freshness requirements
-        - Availability targets
-        - Row count minimums
+    with tab4:
+        st.markdown("##### Contract Actions")
         
-        **Governance Contract**
-        - Classification level
-        - PII requirements
-        - Retention policies
-        """)
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🔄 Run Validation", use_container_width=True):
+                with st.spinner("Validating contract..."):
+                    result = validate_contract(contract_id)
+                    if result and not str(result).startswith("Error"):
+                        st.success("Validation complete!")
+                        st.json(result)
+                        # Clear cache to refresh data
+                        get_contract_details.clear()
+                        get_validation_history.clear()
+                    else:
+                        st.error(f"Validation failed: {result}")
+        
+        with col2:
+            if st.button("📋 Copy Contract ID", use_container_width=True):
+                st.code(contract_id)
+        
+        st.divider()
+        
+        if st.button("← Back to List", use_container_width=True):
+            st.session_state.selected_contract = None
+            st.experimental_rerun()
 
 # ============================================================================
 # PAGE: ABOUT
