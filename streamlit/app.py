@@ -470,22 +470,12 @@ def render_source_explorer():
             tab1, tab2, tab3 = st.tabs(["📋 RAW Tables", "⚙️ Curated Layer", "📊 Sample Data"])
             
             with tab1:
-                st.dataframe(
-                    tables_df,
-                    column_config={
-                        "TABLE_NAME": "Table",
-                        "ROW_COUNT": st.column_config.NumberColumn("Rows", format="%d"),
-                        "CREATED_AT": "Created",
-                        "LAST_MODIFIED": "Modified"
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
+                st.dataframe(tables_df, use_container_width=True)
             
             with tab2:
                 curated_df = get_curated_stats(selected_source)
                 if not curated_df.empty:
-                    st.dataframe(curated_df, use_container_width=True, hide_index=True)
+                    st.dataframe(curated_df, use_container_width=True)
                 else:
                     st.info("No curated tables found. Run BUILD_CURATED_LAYER() first.")
             
