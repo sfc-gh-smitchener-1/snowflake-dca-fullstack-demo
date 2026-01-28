@@ -623,16 +623,118 @@ def sample_curated_data(source_system: str, table_name: str, limit: int = 50):
         return None
 
 def sample_semantic_data(source_system: str, view_name: str, limit: int = 50):
-    """Sample data from a semantic view"""
+    """
+    Sample data from a semantic view's underlying tables.
+    Native Semantic Views can't be queried directly with SELECT *.
+    We query the primary table referenced in the semantic view definition.
+    """
+    session = get_session()
+    
+    try:
+        # First, get the semantic view definition to find the primary table
+        config_df = session.sql(f"""
+            SELECT VIEW_SQL 
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG 
+            WHERE SOURCE_SYSTEM = '{source_system}' 
+              AND VIEW_NAME = '{view_name}'
+              AND IS_ACTIVE = TRUE
+        """).to_pandas()
+        
+        if not config_df.empty:
+            view_sql = config_df['VIEW_SQL'].iloc[0]
+            
+            # Extract the first table reference (pattern: "AS CURATED_DEV.SOURCE.TABLE")
+            import re
+            table_match = re.search(r'AS\s+(CURATED_DEV\.\w+\.\w+)', view_sql)
+            
+            if table_match:
+                primary_table = table_match.group(1)
+                
+                # Query the underlying curated table
+                df = session.sql(f"""
+                    SELECT * 
+                    FROM {primary_table}
+                    LIMIT {limit}
+                """).to_pandas()
+                return df
+        
+        # Fallback: try to query a likely curated table based on view name
+        # e.g., SALES_ANALYTICS -> try FACT_SALES_ORDERS or DIM_CUSTOMER
+        if 'ANALYTICS' in view_name:
+            base_name = view_name.replace('_ANALYTICS', '')
+            
+            # Try fact table first
+            try:
+                df = session.sql(f"""
+                    SELECT * 
+                    FROM CURATED_DEV.{source_system}.FACT_{base_name}
+                    LIMIT {limit}
+                """).to_pandas()
+                return df
+            except:
+                pass
+            
+            # Try without prefix
+            try:
+                df = session.sql(f"""
+                    SELECT * 
+                    FROM CURATED_DEV.{source_system}.{base_name}
+                    LIMIT {limit}
+                """).to_pandas()
+                return df
+            except:
+                pass
+        
+        return None
+        
+    except Exception as e:
+        return None
+
+def get_semantic_view_info(source_system: str, view_name: str):
+    """Get information about a semantic view including its dimensions and metrics."""
     session = get_session()
     try:
-        df = session.sql(f"""
-            SELECT * 
-            FROM SEM_DEV.{source_system}.{view_name}
-            LIMIT {limit}
+        config_df = session.sql(f"""
+            SELECT VIEW_SQL, VIEW_COMMENT 
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG 
+            WHERE SOURCE_SYSTEM = '{source_system}' 
+              AND VIEW_NAME = '{view_name}'
+              AND IS_ACTIVE = TRUE
         """).to_pandas()
-        return df
-    except Exception as e:
+        
+        if not config_df.empty:
+            view_sql = config_df['VIEW_SQL'].iloc[0]
+            comment = config_df['VIEW_COMMENT'].iloc[0] if 'VIEW_COMMENT' in config_df.columns else ''
+            
+            # Extract dimensions
+            import re
+            dimensions = []
+            if 'DIMENSIONS' in view_sql:
+                dim_section = re.search(r'DIMENSIONS\s*\((.*?)\)\s*(?:METRICS|COMMENT|$)', view_sql, re.DOTALL)
+                if dim_section:
+                    dim_matches = re.findall(r'AS\s+(\w+)', dim_section.group(1))
+                    dimensions = dim_matches
+            
+            # Extract metrics
+            metrics = []
+            if 'METRICS' in view_sql:
+                met_section = re.search(r'METRICS\s*\((.*?)\)\s*(?:COMMENT|$)', view_sql, re.DOTALL)
+                if met_section:
+                    met_matches = re.findall(r'(\w+)\s+AS\s+', met_section.group(1))
+                    metrics = met_matches
+            
+            # Extract tables
+            tables = re.findall(r'(CURATED_DEV\.\w+\.\w+)', view_sql)
+            
+            return {
+                'dimensions': dimensions,
+                'metrics': metrics,
+                'tables': list(set(tables)),
+                'comment': comment
+            }
+        
+        return None
+    except:
         return None
 
 def render_source_explorer():
@@ -804,19 +906,50 @@ def render_source_explorer():
                         key="semantic_view_select"
                     )
                     
+                    # Show semantic view metadata
+                    view_info = get_semantic_view_info(selected_source, selected_object)
+                    if view_info:
+                        with st.expander("📋 Semantic View Details", expanded=False):
+                            if view_info.get('comment'):
+                                st.caption(view_info['comment'])
+                            
+                            col_d, col_m = st.columns(2)
+                            with col_d:
+                                st.markdown("**Dimensions:**")
+                                if view_info.get('dimensions'):
+                                    for dim in view_info['dimensions']:
+                                        st.markdown(f"- `{dim}`")
+                                else:
+                                    st.caption("None defined")
+                            with col_m:
+                                st.markdown("**Metrics:**")
+                                if view_info.get('metrics'):
+                                    for met in view_info['metrics']:
+                                        st.markdown(f"- `{met}`")
+                                else:
+                                    st.caption("None defined")
+                            
+                            if view_info.get('tables'):
+                                st.markdown("**Underlying Tables:**")
+                                for tbl in view_info['tables']:
+                                    st.markdown(f"- `{tbl}`")
+                    
+                    st.divider()
+                    
                     col1, col2 = st.columns([1, 4])
                     with col1:
                         sample_limit = st.number_input("Rows", min_value=10, max_value=500, value=50, step=10, key="sem_limit")
                     with col2:
                         st.write("")
-                        if st.button("🔍 Load Sample Data", key="load_semantic"):
-                            with st.spinner("Loading SEMANTIC data..."):
+                        if st.button("🔍 Load Underlying Data", key="load_semantic"):
+                            with st.spinner("Loading data from underlying curated table..."):
                                 sample_df = sample_semantic_data(selected_source, selected_object, sample_limit)
                                 if sample_df is not None:
-                                    st.success(f"Loaded {len(sample_df)} rows from SEM_DEV.{selected_source}.{selected_object}")
+                                    st.success(f"Loaded {len(sample_df)} rows from underlying curated table")
                                     st.dataframe(sample_df, use_container_width=True)
                                 else:
-                                    st.error("Could not load sample data. The semantic view may not be built yet.")
+                                    st.warning("Could not load underlying data. Use Cortex Analyst to query this semantic view.")
+                                    st.info("Navigate to 🤖 Cortex Analyst to query semantic views with natural language.")
                 else:
                     st.info("No SEMANTIC views available. Run BUILD_SEMANTIC_LAYER() first.")
 
