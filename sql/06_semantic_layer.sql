@@ -100,12 +100,12 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     
     customers.CUSTOMER_ID AS customer_id,
     customers.CUSTOMER_NAME AS customer_name,
-    customers.CITY AS city,
-    customers.STATE AS state,
-    customers.COUNTRY AS country,
+    customers.CITY AS customer_city,
+    customers.STATE AS customer_state,
+    customers.COUNTRY AS customer_country,
     customers.INDUSTRY_CODE AS industry_code,
     customers.CUSTOMER_CLASS AS customer_class,
-    customers.IS_ACTIVE AS is_active_customer,
+    customers.IS_ACTIVE AS customer_is_active,
     
     orders.ORDER_NUMBER AS order_number,
     orders.SALES_ORG AS sales_organization,
@@ -144,8 +144,8 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.PROCUREMENT_ANALYTICS
     
     vendors.VENDOR_ID AS vendor_id,
     vendors.VENDOR_NAME AS vendor_name,
-    vendors.COUNTRY AS vendor_country,
-    vendors.IS_ACTIVE AS is_active_vendor,
+    vendors.COUNTRY AS country,
+    vendors.IS_ACTIVE AS vendor_is_active,
     
     purchase_orders.PO_NUMBER AS po_number,
     purchase_orders.PURCHASING_ORG AS purchasing_org,
