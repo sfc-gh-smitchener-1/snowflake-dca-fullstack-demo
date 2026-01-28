@@ -591,12 +591,56 @@ def render_dashboard():
 # PAGE: SOURCE EXPLORER
 # ============================================================================
 
+def get_semantic_views_for_source(source_system: str):
+    """Get semantic views for a specific source system"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT 
+                VIEW_NAME,
+                VIEW_TYPE,
+                COALESCE(VIEW_COMMENT, '') AS DESCRIPTION
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG
+            WHERE SOURCE_SYSTEM = '{source_system}'
+              AND IS_ACTIVE = TRUE
+            ORDER BY VIEW_NAME
+        """).to_pandas()
+        return df
+    except:
+        return pd.DataFrame()
+
+def sample_curated_data(source_system: str, table_name: str, limit: int = 50):
+    """Sample data from a curated table"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT * 
+            FROM CURATED_DEV.{source_system}.{table_name}
+            LIMIT {limit}
+        """).to_pandas()
+        return df
+    except Exception as e:
+        return None
+
+def sample_semantic_data(source_system: str, view_name: str, limit: int = 50):
+    """Sample data from a semantic view"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT * 
+            FROM SEM_DEV.{source_system}.{view_name}
+            LIMIT {limit}
+        """).to_pandas()
+        return df
+    except Exception as e:
+        return None
+
 def render_source_explorer():
-    """Render source system explorer"""
+    """Render source system explorer with all three layers"""
     st.markdown("""
     <div class="main-header">
         <h1>🔍 Source System Explorer</h1>
-        <p>Browse data from all integrated enterprise systems</p>
+        <p>Browse data across RAW, CURATED, and SEMANTIC layers</p>
     </div>
     """, unsafe_allow_html=True)
     
@@ -620,33 +664,161 @@ def render_source_explorer():
         {config['description']}
         """)
         
-        # Get tables
-        tables_df = get_tables_for_source(selected_source)
+        # Get data for all layers
+        raw_tables = get_tables_for_source(selected_source)
+        curated_tables = get_curated_stats(selected_source)
+        semantic_views = get_semantic_views_for_source(selected_source)
         
-        if not tables_df.empty:
-            tab1, tab2, tab3 = st.tabs(["📋 RAW Tables", "⚙️ Curated Layer", "📊 Sample Data"])
-            
-            with tab1:
-                st.dataframe(tables_df, use_container_width=True)
-            
-            with tab2:
-                curated_df = get_curated_stats(selected_source)
-                if not curated_df.empty:
-                    st.dataframe(curated_df, use_container_width=True)
-                else:
-                    st.info("No curated tables found. Run BUILD_CURATED_LAYER() first.")
-            
-            with tab3:
-                table_options = tables_df['TABLE_NAME'].tolist()
-                selected_table = st.selectbox("Select Table", table_options)
+        # Layer overview metrics
+        col_raw, col_cur, col_sem = st.columns(3)
+        with col_raw:
+            raw_count = len(raw_tables) if not raw_tables.empty else 0
+            st.metric("📦 RAW Tables", raw_count)
+        with col_cur:
+            cur_count = len(curated_tables) if not curated_tables.empty else 0
+            st.metric("⚙️ Curated Tables", cur_count)
+        with col_sem:
+            sem_count = len(semantic_views) if not semantic_views.empty else 0
+            st.metric("📊 Semantic Views", sem_count)
+        
+        st.divider()
+        
+        # Tabs for each layer
+        tab_raw, tab_curated, tab_semantic, tab_sample = st.tabs([
+            "📦 RAW Layer", 
+            "⚙️ Curated Layer", 
+            "📊 Semantic Layer",
+            "🔍 Sample Data"
+        ])
+        
+        with tab_raw:
+            st.markdown("#### RAW Tables (SCD Type 2)")
+            if not raw_tables.empty:
+                st.dataframe(raw_tables, use_container_width=True)
+            else:
+                st.info("No RAW tables found. Run data load scripts first.")
+        
+        with tab_curated:
+            st.markdown("#### Curated Tables (Dynamic Tables)")
+            if not curated_tables.empty:
+                # Show dimensions and facts separately
+                dims = curated_tables[curated_tables['TABLE_TYPE'] == 'DIMENSION']
+                facts = curated_tables[curated_tables['TABLE_TYPE'] == 'FACT']
                 
-                if st.button("🔍 Load Sample Data"):
-                    with st.spinner("Loading..."):
-                        sample_df = sample_table_data(selected_source, selected_table, 50)
-                        if sample_df is not None and not sample_df.empty:
-                            st.dataframe(sample_df, use_container_width=True)
-                        else:
-                            st.error("Could not load sample data")
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Dimensions**")
+                    if not dims.empty:
+                        st.dataframe(dims[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("No dimensions")
+                with col2:
+                    st.markdown("**Facts**")
+                    if not facts.empty:
+                        st.dataframe(facts[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True, hide_index=True)
+                    else:
+                        st.caption("No facts")
+            else:
+                st.info("No curated tables found. Run BUILD_CURATED_LAYER() first.")
+        
+        with tab_semantic:
+            st.markdown("#### Semantic Views (Cortex Analyst Ready)")
+            if not semantic_views.empty:
+                st.dataframe(semantic_views, use_container_width=True, hide_index=True)
+                
+                st.divider()
+                st.markdown("**Use with Cortex Analyst:**")
+                st.code(f"SELECT * FROM SEM_DEV.{selected_source}.<VIEW_NAME>", language="sql")
+            else:
+                st.info("No semantic views found. Run BUILD_SEMANTIC_LAYER() first.")
+        
+        with tab_sample:
+            st.markdown("#### Sample Data Explorer")
+            
+            # Layer filter
+            layer_options = ["RAW", "CURATED", "SEMANTIC"]
+            selected_layer = st.radio(
+                "Select Layer",
+                layer_options,
+                horizontal=True,
+                key="sample_layer"
+            )
+            
+            # Table/View selector based on layer
+            if selected_layer == "RAW":
+                if not raw_tables.empty:
+                    table_options = raw_tables['TABLE_NAME'].tolist()
+                    selected_object = st.selectbox(
+                        "Select Table",
+                        table_options,
+                        key="raw_table_select"
+                    )
+                    
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        sample_limit = st.number_input("Rows", min_value=10, max_value=500, value=50, step=10)
+                    with col2:
+                        st.write("")
+                        if st.button("🔍 Load Sample Data", key="load_raw"):
+                            with st.spinner("Loading RAW data..."):
+                                sample_df = sample_table_data(selected_source, selected_object, sample_limit)
+                                if sample_df is not None and not isinstance(sample_df, tuple):
+                                    st.success(f"Loaded {len(sample_df)} rows from RAW_DEV.{selected_source}.{selected_object}")
+                                    st.dataframe(sample_df, use_container_width=True)
+                                else:
+                                    st.error("Could not load sample data")
+                else:
+                    st.info("No RAW tables available")
+            
+            elif selected_layer == "CURATED":
+                if not curated_tables.empty:
+                    table_options = curated_tables['TABLE_NAME'].tolist()
+                    selected_object = st.selectbox(
+                        "Select Table",
+                        table_options,
+                        key="curated_table_select"
+                    )
+                    
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        sample_limit = st.number_input("Rows", min_value=10, max_value=500, value=50, step=10, key="cur_limit")
+                    with col2:
+                        st.write("")
+                        if st.button("🔍 Load Sample Data", key="load_curated"):
+                            with st.spinner("Loading CURATED data..."):
+                                sample_df = sample_curated_data(selected_source, selected_object, sample_limit)
+                                if sample_df is not None:
+                                    st.success(f"Loaded {len(sample_df)} rows from CURATED_DEV.{selected_source}.{selected_object}")
+                                    st.dataframe(sample_df, use_container_width=True)
+                                else:
+                                    st.error("Could not load sample data")
+                else:
+                    st.info("No CURATED tables available. Run BUILD_CURATED_LAYER() first.")
+            
+            elif selected_layer == "SEMANTIC":
+                if not semantic_views.empty:
+                    view_options = semantic_views['VIEW_NAME'].tolist()
+                    selected_object = st.selectbox(
+                        "Select Semantic View",
+                        view_options,
+                        key="semantic_view_select"
+                    )
+                    
+                    col1, col2 = st.columns([1, 4])
+                    with col1:
+                        sample_limit = st.number_input("Rows", min_value=10, max_value=500, value=50, step=10, key="sem_limit")
+                    with col2:
+                        st.write("")
+                        if st.button("🔍 Load Sample Data", key="load_semantic"):
+                            with st.spinner("Loading SEMANTIC data..."):
+                                sample_df = sample_semantic_data(selected_source, selected_object, sample_limit)
+                                if sample_df is not None:
+                                    st.success(f"Loaded {len(sample_df)} rows from SEM_DEV.{selected_source}.{selected_object}")
+                                    st.dataframe(sample_df, use_container_width=True)
+                                else:
+                                    st.error("Could not load sample data. The semantic view may not be built yet.")
+                else:
+                    st.info("No SEMANTIC views available. Run BUILD_SEMANTIC_LAYER() first.")
         else:
             st.warning(f"No tables found for {selected_source}. Load data first.")
 
