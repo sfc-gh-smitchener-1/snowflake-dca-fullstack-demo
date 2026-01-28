@@ -1218,7 +1218,6 @@ WHERE "_IS_CURRENT" = TRUE
 SELECT
     "sys_id" AS CHANGE_KEY,
     "number" AS CHANGE_NUMBER,
-    "sys_created_by" AS REQUESTED_BY_KEY,
     "assigned_to" AS ASSIGNED_TO_KEY,
     "short_description" AS SHORT_DESCRIPTION,
     "description" AS DESCRIPTION,
@@ -1243,7 +1242,7 @@ WHERE "_IS_CURRENT" = TRUE
 SELECT
     "sys_id" AS PROBLEM_KEY,
     "number" AS PROBLEM_NUMBER,
-    "sys_created_by" AS OPENED_BY_KEY,
+    "opened_by" AS OPENED_BY_KEY,
     "assigned_to" AS ASSIGNED_TO_KEY,
     "assignment_group" AS ASSIGNMENT_GROUP,
     "short_description" AS SHORT_DESCRIPTION,
@@ -1270,7 +1269,7 @@ SELECT
     "sys_id" AS REQUEST_KEY,
     "number" AS REQUEST_NUMBER,
     "requested_for" AS REQUESTED_FOR_KEY,
-    "sys_created_by" AS OPENED_BY_KEY,
+    "opened_by" AS OPENED_BY_KEY,
     "short_description" AS SHORT_DESCRIPTION,
     "request_state" AS STATE,
     "stage" AS STAGE,
