@@ -654,6 +654,45 @@ def render_source_explorer():
 # PAGE: CORTEX ANALYST
 # ============================================================================
 
+def ask_cortex_analyst(semantic_view: str, question: str):
+    """Query Cortex Analyst with a natural language question"""
+    session = get_session()
+    try:
+        # Use Cortex Analyst to generate and execute SQL against the semantic view
+        result = session.sql(f"""
+            SELECT SNOWFLAKE.CORTEX.COMPLETE(
+                'claude-3-5-sonnet',
+                CONCAT(
+                    'You are a helpful data analyst. Based on the semantic view SEM_DEV.{semantic_view}, ',
+                    'generate a SQL query to answer the following question. ',
+                    'Return ONLY the SQL query, no explanations. ',
+                    'The semantic view contains business data. ',
+                    'Question: {question}'
+                )
+            ) AS response
+        """).collect()
+        
+        if result:
+            generated_sql = result[0]['RESPONSE']
+            # Clean up the response - remove markdown code blocks if present
+            generated_sql = generated_sql.strip()
+            if generated_sql.startswith('```'):
+                lines = generated_sql.split('\n')
+                generated_sql = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+            
+            return {"sql": generated_sql, "error": None}
+    except Exception as e:
+        return {"sql": None, "error": str(e)}
+
+def execute_generated_sql(sql: str):
+    """Execute the generated SQL and return results"""
+    session = get_session()
+    try:
+        df = session.sql(sql).to_pandas()
+        return {"data": df, "error": None}
+    except Exception as e:
+        return {"data": None, "error": str(e)}
+
 def render_cortex_page():
     """Render Cortex Analyst interface"""
     st.markdown("""
@@ -680,45 +719,128 @@ def render_cortex_page():
         with col2:
             if st.button("🔄 Clear Chat"):
                 st.session_state.cortex_history = []
+                st.session_state.pending_question = None
                 st.experimental_rerun()
         
-        # Initialize chat
+        # Initialize chat history
         if "cortex_history" not in st.session_state:
             st.session_state.cortex_history = []
+        if "pending_question" not in st.session_state:
+            st.session_state.pending_question = None
         
         # Sample questions based on source
         source = selected_view.split('.')[0] if selected_view else ""
         
         sample_questions = {
-            "SAP": ["Total sales orders by region", "Top vendors by purchase volume", "Customer count by country"],
-            "SALESFORCE": ["Opportunities by stage", "Lead conversion rate", "Accounts by industry"],
-            "ORACLE": ["Open invoices by vendor", "Revenue by period", "Order backlog"],
-            "FHIR": ["Patients by condition", "Encounters by type", "Claims by status"],
-            "WORKDAY": ["Headcount by department", "Compensation by level", "Time off requests"],
-            "SERVICENOW": ["Incidents by priority", "Change requests by status", "MTTR by category"]
+            "SAP": ["Show total sales by customer country", "List top 10 vendors by purchase amount", "Count customers by region"],
+            "SALESFORCE": ["Show opportunities by stage", "Count accounts by industry", "List top opportunities by amount"],
+            "ORACLE": ["Show invoices by vendor", "Total order amount by period", "Count orders by status"],
+            "FHIR": ["Count patients by gender", "Show encounters by type", "List claims by status"],
+            "WORKDAY": ["Count employees by department", "Show average compensation by job level", "List time off by type"],
+            "SERVICENOW": ["Count incidents by priority", "Show changes by status", "Average resolution time by category"]
         }
         
         st.markdown("#### 💡 Sample Questions")
-        questions = sample_questions.get(source, ["Show me summary statistics"])
+        questions = sample_questions.get(source, ["Show me a summary of the data"])
         cols = st.columns(len(questions))
         for i, q in enumerate(questions):
             with cols[i]:
                 if st.button(f"💬 {q}", key=f"q_{i}", use_container_width=True):
                     st.session_state.pending_question = q
-                    st.experimental_rerun()
         
         st.divider()
         
-        # Chat input
-        question = st.text_input("Ask a question about your data", placeholder="Type your question here...")
+        # Display chat history
+        for entry in st.session_state.cortex_history:
+            with st.chat_message("user"):
+                st.write(entry["question"])
+            with st.chat_message("assistant"):
+                if entry.get("error"):
+                    st.error(entry["error"])
+                else:
+                    if entry.get("sql"):
+                        with st.expander("📝 Generated SQL"):
+                            st.code(entry["sql"], language="sql")
+                    if entry.get("data") is not None:
+                        st.dataframe(entry["data"], use_container_width=True)
         
-        if st.button("🚀 Ask Cortex", use_container_width=False):
-            if question:
-                st.info(f"Processing: {question}")
-                st.info(f"Using semantic view: SEM_DEV.{selected_view}")
-                st.warning("Note: Full Cortex Analyst integration requires semantic model YAML configuration.")
+        # Chat input
+        question = st.chat_input("Ask a question about your data...")
+        
+        # Handle pending question from sample buttons
+        if st.session_state.pending_question:
+            question = st.session_state.pending_question
+            st.session_state.pending_question = None
+        
+        if question:
+            # Show user message
+            with st.chat_message("user"):
+                st.write(question)
+            
+            # Process with Cortex
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    # Step 1: Generate SQL using Cortex
+                    gen_result = ask_cortex_analyst(selected_view, question)
+                    
+                    if gen_result["error"]:
+                        st.error(f"Error generating query: {gen_result['error']}")
+                        st.session_state.cortex_history.append({
+                            "question": question,
+                            "error": gen_result["error"],
+                            "sql": None,
+                            "data": None
+                        })
+                    else:
+                        generated_sql = gen_result["sql"]
+                        
+                        with st.expander("📝 Generated SQL", expanded=True):
+                            st.code(generated_sql, language="sql")
+                        
+                        # Step 2: Execute the generated SQL
+                        with st.spinner("Executing query..."):
+                            exec_result = execute_generated_sql(generated_sql)
+                            
+                            if exec_result["error"]:
+                                st.error(f"Error executing query: {exec_result['error']}")
+                                st.info("The generated SQL may need adjustment. Try rephrasing your question.")
+                                st.session_state.cortex_history.append({
+                                    "question": question,
+                                    "error": exec_result["error"],
+                                    "sql": generated_sql,
+                                    "data": None
+                                })
+                            else:
+                                df = exec_result["data"]
+                                st.dataframe(df, use_container_width=True)
+                                
+                                # Show summary
+                                st.caption(f"Returned {len(df)} rows")
+                                
+                                st.session_state.cortex_history.append({
+                                    "question": question,
+                                    "error": None,
+                                    "sql": generated_sql,
+                                    "data": df
+                                })
     else:
         st.warning("No semantic views found. Run BUILD_SEMANTIC_LAYER() first.")
+        
+        st.markdown("""
+        ### Setup Instructions
+        
+        To enable Cortex Analyst, run the following SQL:
+        
+        ```sql
+        -- Build semantic layer for all sources
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('SAP');
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('SALESFORCE');
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('ORACLE');
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('FHIR');
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('WORKDAY');
+        CALL SEM_DEV.CONFIG.BUILD_SEMANTIC_LAYER('SERVICENOW');
+        ```
+        """)
 
 # ============================================================================
 # PAGE: GOVERNANCE
