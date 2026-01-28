@@ -201,83 +201,64 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.PIPELINE_ANALYTICS
     dates.QUARTER AS quarter,
     dates.MONTH_NAME AS month,
     dates.FISCAL_YEAR AS fiscal_year,
-    
     accounts.ACCOUNT_ID AS account_id,
     accounts.ACCOUNT_NAME AS account_name,
     accounts.ACCOUNT_TYPE AS account_type,
     accounts.INDUSTRY AS industry,
     accounts.ACCOUNT_TIER AS account_tier,
-    accounts.BILLING_STATE AS state,
-    accounts.BILLING_COUNTRY AS country,
-    
+    accounts.BILLING_STATE AS billing_state,
+    accounts.BILLING_COUNTRY AS billing_country,
     opportunities.OPPORTUNITY_ID AS opportunity_id,
     opportunities.OPPORTUNITY_NAME AS opportunity_name,
-    opportunities.STAGE_NAME AS stage,
+    opportunities.STAGE_NAME AS stage_name,
     opportunities.OPPORTUNITY_TYPE AS opportunity_type,
     opportunities.LEAD_SOURCE AS lead_source,
-    opportunities.FORECAST_CATEGORY AS forecast_category,
-    opportunities.IS_CLOSED AS is_closed,
-    opportunities.IS_WON AS is_won
+    opportunities.FORECAST_CATEGORY AS forecast_category
   )
   METRICS (
     opportunities.total_pipeline AS SUM(opportunities.AMOUNT),
     opportunities.avg_deal_size AS AVG(opportunities.AMOUNT),
     opportunities.opportunity_count AS COUNT(opportunities.OPPORTUNITY_KEY),
-    opportunities.won_deals AS SUM(CASE WHEN opportunities.IS_WON THEN 1 ELSE 0 END),
-    opportunities.closed_deals AS SUM(CASE WHEN opportunities.IS_CLOSED THEN 1 ELSE 0 END),
-    opportunities.win_rate AS opportunities.won_deals / NULLIF(opportunities.closed_deals, 0) * 100,
     accounts.account_count AS COUNT(DISTINCT accounts.ACCOUNT_KEY)
   )
   COMMENT = ''Salesforce Pipeline Analytics - Opportunities and Accounts''
 ', 'Salesforce Opportunity pipeline with accounts'),
 
--- CUSTOMER_360
+-- CUSTOMER_360 (simplified)
 ('SALESFORCE', 'CUSTOMER_360', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.CUSTOMER_360
   TABLES (
     accounts AS CURATED_DEV.SALESFORCE.DIM_ACCOUNT PRIMARY KEY (ACCOUNT_KEY),
     contacts AS CURATED_DEV.SALESFORCE.DIM_CONTACT PRIMARY KEY (CONTACT_KEY),
-    leads AS CURATED_DEV.SALESFORCE.DIM_LEAD PRIMARY KEY (LEAD_KEY),
-    opportunities AS CURATED_DEV.SALESFORCE.FACT_OPPORTUNITIES PRIMARY KEY (OPPORTUNITY_KEY),
-    cases AS CURATED_DEV.SALESFORCE.FACT_CASES PRIMARY KEY (CASE_KEY)
+    opportunities AS CURATED_DEV.SALESFORCE.FACT_OPPORTUNITIES PRIMARY KEY (OPPORTUNITY_KEY)
   )
   RELATIONSHIPS (
     contacts(ACCOUNT_KEY) REFERENCES accounts(ACCOUNT_KEY),
-    opportunities(ACCOUNT_KEY) REFERENCES accounts(ACCOUNT_KEY),
-    cases(ACCOUNT_KEY) REFERENCES accounts(ACCOUNT_KEY)
+    opportunities(ACCOUNT_KEY) REFERENCES accounts(ACCOUNT_KEY)
   )
   DIMENSIONS (
     accounts.ACCOUNT_NAME AS account_name,
     accounts.ACCOUNT_TYPE AS account_type,
     accounts.INDUSTRY AS industry,
-    accounts.ACCOUNT_TIER AS tier,
+    accounts.ACCOUNT_TIER AS account_tier,
     accounts.ANNUAL_REVENUE AS annual_revenue,
     accounts.EMPLOYEE_COUNT AS employee_count,
-    accounts.BILLING_CITY AS city,
-    accounts.BILLING_COUNTRY AS country,
-    
-    contacts.FIRST_NAME AS contact_first_name,
-    contacts.LAST_NAME AS contact_last_name,
-    contacts.TITLE AS contact_title,
-    
-    leads.STATUS AS lead_status,
-    leads.RATING AS lead_rating,
-    leads.IS_CONVERTED AS is_converted
+    accounts.BILLING_CITY AS billing_city,
+    accounts.BILLING_COUNTRY AS billing_country,
+    contacts.FIRST_NAME AS first_name,
+    contacts.LAST_NAME AS last_name,
+    contacts.TITLE AS title
   )
   METRICS (
     accounts.total_accounts AS COUNT(DISTINCT accounts.ACCOUNT_KEY),
     contacts.contact_count AS COUNT(DISTINCT contacts.CONTACT_KEY),
-    leads.lead_count AS COUNT(DISTINCT leads.LEAD_KEY),
-    leads.converted_leads AS SUM(CASE WHEN leads.IS_CONVERTED THEN 1 ELSE 0 END),
     opportunities.total_opportunity_value AS SUM(opportunities.AMOUNT),
-    opportunities.opportunity_count AS COUNT(DISTINCT opportunities.OPPORTUNITY_KEY),
-    cases.case_count AS COUNT(DISTINCT cases.CASE_KEY),
-    cases.closed_cases AS SUM(CASE WHEN cases.IS_CLOSED THEN 1 ELSE 0 END)
+    opportunities.opportunity_count AS COUNT(DISTINCT opportunities.OPPORTUNITY_KEY)
   )
-  COMMENT = ''Salesforce Customer 360 - Accounts, Contacts, Leads, Opportunities, Cases''
+  COMMENT = ''Salesforce Customer 360 - Accounts, Contacts, Opportunities''
 ', 'Complete customer view across Salesforce objects'),
 
--- MARKETING_ANALYTICS
+-- MARKETING_ANALYTICS (simplified)
 ('SALESFORCE', 'MARKETING_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
   TABLES (
@@ -287,12 +268,10 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
   DIMENSIONS (
     campaigns.CAMPAIGN_NAME AS campaign_name,
     campaigns.CAMPAIGN_TYPE AS campaign_type,
-    campaigns.STATUS AS campaign_status,
-    campaigns.IS_ACTIVE AS is_active,
-    
+    campaigns.STATUS AS status,
     leads.LEAD_SOURCE AS lead_source,
-    leads.STATUS AS lead_status,
-    leads.RATING AS lead_rating,
+    leads.STATUS AS status2,
+    leads.RATING AS rating,
     leads.INDUSTRY AS industry
   )
   METRICS (
@@ -300,9 +279,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
     campaigns.total_budget AS SUM(campaigns.BUDGETED_COST),
     campaigns.total_actual_cost AS SUM(campaigns.ACTUAL_COST),
     campaigns.total_expected_revenue AS SUM(campaigns.EXPECTED_REVENUE),
-    leads.lead_count AS COUNT(DISTINCT leads.LEAD_KEY),
-    leads.converted_leads AS SUM(CASE WHEN leads.IS_CONVERTED THEN 1 ELSE 0 END),
-    leads.conversion_rate AS leads.converted_leads / NULLIF(leads.lead_count, 0) * 100
+    leads.lead_count AS COUNT(DISTINCT leads.LEAD_KEY)
   )
   COMMENT = ''Salesforce Marketing Analytics - Campaigns and Leads''
 ', 'Marketing campaign and lead analytics');
