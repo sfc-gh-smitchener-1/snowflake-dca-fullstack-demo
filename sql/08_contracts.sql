@@ -150,6 +150,8 @@ DECLARE
     v_contract_id VARCHAR;
     v_contract_name VARCHAR;
     v_full_path VARCHAR;
+    v_source_upper VARCHAR;
+    v_table_upper VARCHAR;
     v_schema_def VARIANT;
     v_quality_def VARIANT;
     v_sla_def VARIANT;
@@ -157,70 +159,70 @@ DECLARE
     v_freshness_hours NUMBER;
     v_classification VARCHAR;
 BEGIN
-    v_contract_id := 'CONTRACT-' || UPPER(p_source_system) || '-' || UPPER(p_table_name) || '-001';
-    v_contract_name := UPPER(p_source_system) || ' ' || UPPER(p_table_name) || ' Data Contract';
-    v_full_path := 'RAW_DEV.' || UPPER(p_source_system) || '.' || UPPER(p_table_name);
+    v_source_upper := UPPER(p_source_system);
+    v_table_upper := UPPER(p_table_name);
+    v_contract_id := 'CONTRACT-' || v_source_upper || '-' || v_table_upper || '-001';
+    v_contract_name := v_source_upper || ' ' || v_table_upper || ' Data Contract';
+    v_full_path := 'RAW_DEV.' || v_source_upper || '.' || v_table_upper;
     
     -- Set defaults based on source system
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN
-            v_freshness_hours := 4;
-            v_classification := 'CONFIDENTIAL';
-        WHEN 'SALESFORCE' THEN
-            v_freshness_hours := 1;
-            v_classification := 'CONFIDENTIAL';
-        WHEN 'FHIR' THEN
-            v_freshness_hours := 1;
-            v_classification := 'RESTRICTED';
-        WHEN 'WORKDAY' THEN
-            v_freshness_hours := 4;
-            v_classification := 'RESTRICTED';
-        WHEN 'SERVICENOW' THEN
-            v_freshness_hours := 0.5;
-            v_classification := 'INTERNAL';
-        ELSE
-            v_freshness_hours := 24;
-            v_classification := 'INTERNAL';
-    END CASE;
+    IF (v_source_upper = 'SAP') THEN
+        v_freshness_hours := 4;
+        v_classification := 'CONFIDENTIAL';
+    ELSEIF (v_source_upper = 'SALESFORCE') THEN
+        v_freshness_hours := 1;
+        v_classification := 'CONFIDENTIAL';
+    ELSEIF (v_source_upper = 'FHIR') THEN
+        v_freshness_hours := 1;
+        v_classification := 'RESTRICTED';
+    ELSEIF (v_source_upper = 'WORKDAY') THEN
+        v_freshness_hours := 4;
+        v_classification := 'RESTRICTED';
+    ELSEIF (v_source_upper = 'SERVICENOW') THEN
+        v_freshness_hours := 0.5;
+        v_classification := 'INTERNAL';
+    ELSE
+        v_freshness_hours := 24;
+        v_classification := 'INTERNAL';
+    END IF;
     
     -- Build schema definition
     v_schema_def := PARSE_JSON('{
-        "source_system": "' || p_source_system || '",
-        "table_name": "' || p_table_name || '",
+        "source_system": "' || v_source_upper || '",
+        "table_name": "' || v_table_upper || '",
         "auto_generated": true
     }');
     
     -- Build quality definition based on source system
-    CASE UPPER(p_source_system)
-        WHEN 'SAP' THEN
-            v_quality_def := PARSE_JSON('{
-                "rules": [
-                    {"name": "primary_key_not_null", "threshold": 100},
-                    {"name": "valid_client", "threshold": 100},
-                    {"name": "no_deletion_flag", "threshold": 99}
-                ]
-            }');
-        WHEN 'SALESFORCE' THEN
-            v_quality_def := PARSE_JSON('{
-                "rules": [
-                    {"name": "id_format_valid", "threshold": 100},
-                    {"name": "not_deleted", "threshold": 99.9}
-                ]
-            }');
-        WHEN 'FHIR' THEN
-            v_quality_def := PARSE_JSON('{
-                "rules": [
-                    {"name": "resource_id_valid", "threshold": 100},
-                    {"name": "resource_type_valid", "threshold": 100}
-                ]
-            }');
-        ELSE
-            v_quality_def := PARSE_JSON('{
-                "rules": [
-                    {"name": "row_hash_not_null", "threshold": 100}
-                ]
-            }');
-    END CASE;
+    IF (v_source_upper = 'SAP') THEN
+        v_quality_def := PARSE_JSON('{
+            "rules": [
+                {"name": "primary_key_not_null", "threshold": 100},
+                {"name": "valid_client", "threshold": 100},
+                {"name": "no_deletion_flag", "threshold": 99}
+            ]
+        }');
+    ELSEIF (v_source_upper = 'SALESFORCE') THEN
+        v_quality_def := PARSE_JSON('{
+            "rules": [
+                {"name": "id_format_valid", "threshold": 100},
+                {"name": "not_deleted", "threshold": 99.9}
+            ]
+        }');
+    ELSEIF (v_source_upper = 'FHIR') THEN
+        v_quality_def := PARSE_JSON('{
+            "rules": [
+                {"name": "resource_id_valid", "threshold": 100},
+                {"name": "resource_type_valid", "threshold": 100}
+            ]
+        }');
+    ELSE
+        v_quality_def := PARSE_JSON('{
+            "rules": [
+                {"name": "row_hash_not_null", "threshold": 100}
+            ]
+        }');
+    END IF;
     
     -- Build SLA definition
     v_sla_def := PARSE_JSON('{
@@ -233,7 +235,7 @@ BEGIN
     -- Build governance definition
     v_governance_def := PARSE_JSON('{
         "classification": "' || v_classification || '",
-        "source_system": "' || p_source_system || '"
+        "source_system": "' || v_source_upper || '"
     }');
     
     -- Insert contract
@@ -245,7 +247,7 @@ BEGIN
         DESCRIPTION
     ) VALUES (
         v_contract_id, v_contract_name, '1.0.0', 'ACTIVE',
-        UPPER(p_source_system), UPPER(p_table_name), v_full_path,
+        v_source_upper, v_table_upper, v_full_path,
         p_producer_team, p_producer_email,
         v_schema_def, v_quality_def, v_sla_def, v_governance_def,
         'Auto-generated contract for ' || v_full_path
@@ -256,9 +258,9 @@ BEGIN
         SLA_ID, CONTRACT_ID, SOURCE_SYSTEM,
         FRESHNESS_TARGET_HOURS, FRESHNESS_MAX_HOURS, AVAILABILITY_TARGET_PCT, MIN_ROW_COUNT
     ) VALUES (
-        'SLA-' || UPPER(p_source_system) || '-' || UPPER(p_table_name) || '-001',
+        'SLA-' || v_source_upper || '-' || v_table_upper || '-001',
         v_contract_id,
-        UPPER(p_source_system),
+        v_source_upper,
         v_freshness_hours,
         v_freshness_hours * 6,
         99.9,
