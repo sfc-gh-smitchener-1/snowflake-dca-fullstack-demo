@@ -1152,10 +1152,10 @@ SELECT
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.SYS_USER
 WHERE _IS_CURRENT = TRUE
-', ''24 hours'', ''ServiceNow User dimension from sys_user''),
+', '24 hours', 'ServiceNow User dimension from sys_user'),
 
 -- DIM_CMDB_CI
-(''SERVICENOW'', ''DIM_CMDB_CI'', ''DIMENSION'', ''CMDB_CI'', ''
+('SERVICENOW', 'DIM_CMDB_CI', 'DIMENSION', 'CMDB_CI', '
 SELECT
     sys_id AS CI_KEY,
     sys_id AS CI_ID,
@@ -1182,10 +1182,10 @@ SELECT
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.CMDB_CI
 WHERE _IS_CURRENT = TRUE
-'', ''24 hours'', ''ServiceNow CMDB Configuration Item dimension''),
+', '24 hours', 'ServiceNow CMDB Configuration Item dimension'),
 
 -- FACT_INCIDENTS
-(''SERVICENOW'', ''FACT_INCIDENTS'', ''FACT'', ''INCIDENT'', ''
+('SERVICENOW', 'FACT_INCIDENTS', 'FACT', 'INCIDENT', '
 SELECT
     sys_id AS INCIDENT_KEY,
     number AS INCIDENT_NUMBER,
@@ -1204,17 +1204,17 @@ SELECT
     opened_at AS OPENED_AT,
     resolved_at AS RESOLVED_AT,
     closed_at AS CLOSED_AT,
-    DATEDIFF(''''minute'''', opened_at, COALESCE(resolved_at, CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
+    DATEDIFF(''minute'', opened_at, COALESCE(resolved_at, CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
     active AS IS_ACTIVE,
     _LOADED_AT AS _SOURCE_LOADED_AT,
     _SOURCE_SYSTEM,
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.INCIDENT
 WHERE _IS_CURRENT = TRUE
-'', ''15 minutes'', ''ServiceNow Incident fact''),
+', '15 minutes', 'ServiceNow Incident fact'),
 
 -- FACT_CHANGES
-(''SERVICENOW'', ''FACT_CHANGES'', ''FACT'', ''CHANGE_REQUEST'', ''
+('SERVICENOW', 'FACT_CHANGES', 'FACT', 'CHANGE_REQUEST', '
 SELECT
     sys_id AS CHANGE_KEY,
     number AS CHANGE_NUMBER,
@@ -1236,10 +1236,10 @@ SELECT
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.CHANGE_REQUEST
 WHERE _IS_CURRENT = TRUE
-'', ''30 minutes'', ''ServiceNow Change Request fact''),
+', '30 minutes', 'ServiceNow Change Request fact'),
 
 -- FACT_PROBLEMS
-(''SERVICENOW'', ''FACT_PROBLEMS'', ''FACT'', ''PROBLEM'', ''
+('SERVICENOW', 'FACT_PROBLEMS', 'FACT', 'PROBLEM', '
 SELECT
     sys_id AS PROBLEM_KEY,
     number AS PROBLEM_NUMBER,
@@ -1262,10 +1262,10 @@ SELECT
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.PROBLEM
 WHERE _IS_CURRENT = TRUE
-'', ''30 minutes'', ''ServiceNow Problem fact''),
+', '30 minutes', 'ServiceNow Problem fact'),
 
 -- FACT_REQUESTS
-(''SERVICENOW'', ''FACT_REQUESTS'', ''FACT'', ''SC_REQUEST'', ''
+('SERVICENOW', 'FACT_REQUESTS', 'FACT', 'SC_REQUEST', '
 SELECT
     sys_id AS REQUEST_KEY,
     number AS REQUEST_NUMBER,
@@ -1281,7 +1281,7 @@ SELECT
     _IS_CURRENT
 FROM RAW_DEV.SERVICENOW.SC_REQUEST
 WHERE _IS_CURRENT = TRUE
-'', ''30 minutes'', ''ServiceNow Service Catalog Request fact'');
+', '30 minutes', 'ServiceNow Service Catalog Request fact');
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- BUILD PROCEDURE: Creates all curated objects from configuration
