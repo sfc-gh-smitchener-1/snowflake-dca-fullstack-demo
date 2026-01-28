@@ -285,56 +285,38 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- ORDER_ANALYTICS
+-- ORDER_ANALYTICS (simplified)
 ('ORACLE', 'ORDER_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.ORDER_ANALYTICS
   TABLES (
     orders AS CURATED_DEV.ORACLE.FACT_ORDER_HEADERS PRIMARY KEY (ORDER_KEY),
-    order_lines AS CURATED_DEV.ORACLE.FACT_ORDER_LINES PRIMARY KEY (LINE_KEY),
     parties AS CURATED_DEV.ORACLE.DIM_PARTY PRIMARY KEY (PARTY_KEY),
-    items AS CURATED_DEV.ORACLE.DIM_ITEM PRIMARY KEY (ITEM_KEY),
     dates AS CURATED_DEV.SHARED.DIM_DATE PRIMARY KEY (DATE_KEY)
   )
   RELATIONSHIPS (
     orders(CUSTOMER_KEY) REFERENCES parties(PARTY_KEY),
-    orders(ORDER_DATE) REFERENCES dates(DATE_KEY),
-    order_lines(ORDER_KEY) REFERENCES orders(ORDER_KEY),
-    order_lines(ITEM_KEY) REFERENCES items(ITEM_KEY)
+    orders(ORDER_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
     dates.YEAR AS year,
     dates.QUARTER AS quarter,
     dates.MONTH_NAME AS month,
-    
-    parties.PARTY_NAME AS customer_name,
-    parties.PARTY_TYPE AS customer_type,
+    parties.PARTY_NAME AS party_name,
+    parties.PARTY_TYPE AS party_type,
     parties.CITY AS city,
     parties.COUNTRY AS country,
-    parties.CATEGORY AS customer_category,
-    
-    items.ITEM_NUMBER AS item_number,
-    items.ITEM_DESCRIPTION AS item_description,
-    items.ITEM_TYPE AS item_type,
-    
     orders.ORDER_NUMBER AS order_number,
-    orders.STATUS AS order_status,
-    orders.IS_BOOKED AS is_booked,
-    orders.IS_CANCELLED AS is_cancelled,
+    orders.STATUS AS status,
     orders.SHIPPING_METHOD AS shipping_method
   )
   METRICS (
     orders.order_count AS COUNT(DISTINCT orders.ORDER_KEY),
-    orders.booked_orders AS SUM(CASE WHEN orders.IS_BOOKED THEN 1 ELSE 0 END),
-    order_lines.line_count AS COUNT(order_lines.LINE_KEY),
-    order_lines.total_revenue AS SUM(order_lines.LINE_AMOUNT),
-    order_lines.avg_line_value AS AVG(order_lines.LINE_AMOUNT),
-    order_lines.total_quantity AS SUM(order_lines.ORDERED_QUANTITY),
     parties.customer_count AS COUNT(DISTINCT parties.PARTY_KEY)
   )
-  COMMENT = ''Oracle EBS Order Analytics - Orders, Lines, Customers, Items''
+  COMMENT = ''Oracle EBS Order Analytics - Orders and Customers''
 ', 'Oracle order management analytics'),
 
--- AP_ANALYTICS
+-- AP_ANALYTICS (simplified)
 ('ORACLE', 'AP_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AP_ANALYTICS
   TABLES (
@@ -350,18 +332,14 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AP_ANALYTICS
     dates.YEAR AS year,
     dates.QUARTER AS quarter,
     dates.MONTH_NAME AS month,
-    
     vendors.VENDOR_NAME AS vendor_name,
     vendors.VENDOR_TYPE AS vendor_type,
     vendors.PAYMENT_METHOD AS payment_method,
-    vendors.IS_ACTIVE AS is_active_vendor,
-    
     invoices.INVOICE_NUMBER AS invoice_number,
     invoices.INVOICE_TYPE AS invoice_type,
     invoices.CURRENCY AS currency,
     invoices.PAYMENT_STATUS AS payment_status,
-    invoices.APPROVAL_STATUS AS approval_status,
-    invoices.IS_CANCELLED AS is_cancelled
+    invoices.APPROVAL_STATUS AS approval_status
   )
   METRICS (
     invoices.invoice_count AS COUNT(invoices.INVOICE_KEY),
@@ -372,7 +350,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AP_ANALYTICS
   COMMENT = ''Oracle AP Analytics - Payables Invoices and Vendors''
 ', 'Oracle Accounts Payable analytics'),
 
--- AR_ANALYTICS
+-- AR_ANALYTICS (simplified)
 ('ORACLE', 'AR_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AR_ANALYTICS
   TABLES (
@@ -388,14 +366,11 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AR_ANALYTICS
     dates.YEAR AS year,
     dates.QUARTER AS quarter,
     dates.MONTH_NAME AS month,
-    
-    parties.PARTY_NAME AS customer_name,
-    parties.PARTY_TYPE AS customer_type,
-    
+    parties.PARTY_NAME AS party_name,
+    parties.PARTY_TYPE AS party_type,
     invoices.INVOICE_NUMBER AS invoice_number,
     invoices.CURRENCY AS currency,
-    invoices.STATUS AS invoice_status,
-    invoices.IS_COMPLETE AS is_complete
+    invoices.STATUS AS status
   )
   METRICS (
     invoices.invoice_count AS COUNT(invoices.INVOICE_KEY),
