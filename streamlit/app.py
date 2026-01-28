@@ -235,25 +235,46 @@ def get_curated_stats(source_system: str):
 def get_semantic_views(source_system: str = None):
     """Get available semantic views (Native Semantic Views)"""
     session = get_session()
+    
+    # Method 1: Try SHOW SEMANTIC VIEWS (most reliable for native semantic views)
     try:
-        # Try SEMANTIC_VIEWS first (for Native Semantic Views)
-        where_clause = f"WHERE SCHEMA_NAME = '{source_system}'" if source_system else ""
-        where_clause += " AND SCHEMA_NAME NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND SCHEMA_NAME NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
-        
+        df = session.sql("SHOW SEMANTIC VIEWS IN DATABASE SEM_DEV").to_pandas()
+        if not df.empty:
+            # SHOW command returns columns like: name, schema_name, database_name, etc.
+            result = df[['schema_name', 'name']].copy()
+            result.columns = ['SOURCE_SYSTEM', 'VIEW_NAME']
+            result['DESCRIPTION'] = ''
+            
+            # Filter out system schemas
+            result = result[~result['SOURCE_SYSTEM'].isin(['INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG'])]
+            
+            # Apply source system filter if provided
+            if source_system:
+                result = result[result['SOURCE_SYSTEM'] == source_system]
+            
+            return result.sort_values(['SOURCE_SYSTEM', 'VIEW_NAME']).reset_index(drop=True)
+    except:
+        pass
+    
+    # Method 2: Try querying the semantic config table directly
+    try:
+        where_clause = f"WHERE SOURCE_SYSTEM = '{source_system}'" if source_system else ""
         df = session.sql(f"""
-            SELECT 
-                SCHEMA_NAME AS SOURCE_SYSTEM,
-                SEMANTIC_VIEW_NAME AS VIEW_NAME,
-                COMMENT AS DESCRIPTION
-            FROM SEM_DEV.INFORMATION_SCHEMA.SEMANTIC_VIEWS
+            SELECT DISTINCT
+                SOURCE_SYSTEM,
+                TARGET_VIEW AS VIEW_NAME,
+                '' AS DESCRIPTION
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG
             {where_clause}
-            ORDER BY SCHEMA_NAME, SEMANTIC_VIEW_NAME
+            ORDER BY SOURCE_SYSTEM, TARGET_VIEW
         """).to_pandas()
-        
         if not df.empty:
             return df
-            
-        # Fallback to regular views if no semantic views found
+    except:
+        pass
+    
+    # Method 3: Fallback to regular views in INFORMATION_SCHEMA
+    try:
         where_clause = f"WHERE TABLE_SCHEMA = '{source_system}'" if source_system else ""
         where_clause += " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
         
@@ -267,24 +288,8 @@ def get_semantic_views(source_system: str = None):
             ORDER BY TABLE_SCHEMA, TABLE_NAME
         """).to_pandas()
         return df
-    except Exception as e:
-        # If SEMANTIC_VIEWS doesn't exist, try regular views
-        try:
-            where_clause = f"WHERE TABLE_SCHEMA = '{source_system}'" if source_system else ""
-            where_clause += " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')" if not where_clause else " AND TABLE_SCHEMA NOT IN ('INFORMATION_SCHEMA', 'STREAMLIT', 'CONFIG')"
-            
-            df = session.sql(f"""
-                SELECT 
-                    TABLE_SCHEMA AS SOURCE_SYSTEM,
-                    TABLE_NAME AS VIEW_NAME,
-                    COMMENT AS DESCRIPTION
-                FROM SEM_DEV.INFORMATION_SCHEMA.VIEWS
-                {where_clause}
-                ORDER BY TABLE_SCHEMA, TABLE_NAME
-            """).to_pandas()
-            return df
-        except:
-            return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 def sample_table_data(source_system: str, table_name: str, limit: int = 100):
     """Sample data from a table"""
