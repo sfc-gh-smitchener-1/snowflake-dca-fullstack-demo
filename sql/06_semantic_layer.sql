@@ -258,31 +258,25 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.CUSTOMER_360
   COMMENT = ''Salesforce Customer 360 - Accounts, Contacts, Opportunities''
 ', 'Complete customer view across Salesforce objects'),
 
--- MARKETING_ANALYTICS (simplified)
+-- MARKETING_ANALYTICS (simplified - campaigns only)
 ('SALESFORCE', 'MARKETING_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
   TABLES (
-    campaigns AS CURATED_DEV.SALESFORCE.DIM_CAMPAIGN PRIMARY KEY (CAMPAIGN_KEY),
-    leads AS CURATED_DEV.SALESFORCE.DIM_LEAD PRIMARY KEY (LEAD_KEY)
+    campaigns AS CURATED_DEV.SALESFORCE.DIM_CAMPAIGN PRIMARY KEY (CAMPAIGN_KEY)
   )
   DIMENSIONS (
     campaigns.CAMPAIGN_NAME AS campaign_name,
     campaigns.CAMPAIGN_TYPE AS campaign_type,
-    campaigns.STATUS AS status,
-    leads.LEAD_SOURCE AS lead_source,
-    leads.STATUS AS status2,
-    leads.RATING AS rating,
-    leads.INDUSTRY AS industry
+    campaigns.STATUS AS status
   )
   METRICS (
     campaigns.campaign_count AS COUNT(DISTINCT campaigns.CAMPAIGN_KEY),
     campaigns.total_budget AS SUM(campaigns.BUDGETED_COST),
     campaigns.total_actual_cost AS SUM(campaigns.ACTUAL_COST),
-    campaigns.total_expected_revenue AS SUM(campaigns.EXPECTED_REVENUE),
-    leads.lead_count AS COUNT(DISTINCT leads.LEAD_KEY)
+    campaigns.total_expected_revenue AS SUM(campaigns.EXPECTED_REVENUE)
   )
-  COMMENT = ''Salesforce Marketing Analytics - Campaigns and Leads''
-', 'Marketing campaign and lead analytics');
+  COMMENT = ''Salesforce Marketing Analytics - Campaigns''
+', 'Marketing campaign analytics');
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- ORACLE EBS SEMANTIC VIEWS
