@@ -298,114 +298,142 @@ $$;
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(
-    p_contract_id VARCHAR
+    P_CONTRACT_ID VARCHAR
 )
 RETURNS VARIANT
-LANGUAGE SQL
+LANGUAGE JAVASCRIPT
+EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_result VARIANT;
-    v_schema_passed BOOLEAN DEFAULT TRUE;
-    v_quality_passed BOOLEAN DEFAULT TRUE;
-    v_sla_passed BOOLEAN DEFAULT TRUE;
-    v_overall_passed BOOLEAN;
-    v_full_path VARCHAR;
-    v_source_system VARCHAR;
-    v_row_count NUMBER;
-    v_freshness_hours NUMBER;
-    v_sla_max_hours NUMBER;
-    v_start_time TIMESTAMP_NTZ;
-    v_validation_id VARCHAR;
-BEGIN
-    v_start_time := CURRENT_TIMESTAMP();
-    v_validation_id := UUID_STRING();
+    var validationId = '';
+    var startTime = new Date().toISOString();
+    var schemaPassed = true;
+    var qualityPassed = true;  // Always true for now
+    var slaPassed = true;
+    var overallPassed = false;
+    var fullPath = '';
+    var sourceSystem = '';
+    var rowCount = 0;
+    var freshnessHours = 0;
+    var slaMaxHours = 9999;
     
-    -- Get contract details
-    SELECT FULL_TABLE_PATH, SOURCE_SYSTEM 
-    INTO v_full_path, v_source_system
-    FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY
-    WHERE CONTRACT_ID = :p_contract_id AND CONTRACT_STATUS = 'ACTIVE'
-    LIMIT 1;
+    // Generate UUID
+    var uuidSql = "SELECT UUID_STRING()";
+    var uuidStmt = snowflake.createStatement({sqlText: uuidSql});
+    var uuidRs = uuidStmt.execute();
+    if (uuidRs.next()) {
+        validationId = uuidRs.getColumnValue(1);
+    }
     
-    IF (v_full_path IS NULL) THEN
-        RETURN OBJECT_CONSTRUCT(
-            'success', FALSE,
-            'error', 'Contract not found or not active',
-            'contract_id', p_contract_id
-        );
-    END IF;
+    // Get contract details
+    var contractSql = "SELECT FULL_TABLE_PATH, SOURCE_SYSTEM " +
+                      "FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY " +
+                      "WHERE CONTRACT_ID = '" + P_CONTRACT_ID + "' AND CONTRACT_STATUS = 'ACTIVE' LIMIT 1";
     
-    -- 1. Schema Validation (check table exists)
-    BEGIN
-        EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || v_full_path || ' WHERE 1=0';
-        v_schema_passed := TRUE;
-    EXCEPTION
-        WHEN OTHER THEN
-            v_schema_passed := FALSE;
-    END;
+    try {
+        var contractStmt = snowflake.createStatement({sqlText: contractSql});
+        var contractRs = contractStmt.execute();
+        if (contractRs.next()) {
+            fullPath = contractRs.getColumnValue(1);
+            sourceSystem = contractRs.getColumnValue(2);
+        } else {
+            return {
+                success: false,
+                error: 'Contract not found or not active',
+                contract_id: P_CONTRACT_ID
+            };
+        }
+    } catch (err) {
+        return {success: false, error: 'Error fetching contract: ' + err.message};
+    }
     
-    -- 2. Get row count
-    IF (v_schema_passed) THEN
-        LET row_count_rs RESULTSET := (EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || v_full_path || ' WHERE "_IS_CURRENT" = TRUE');
-        LET row_count_cur CURSOR FOR row_count_rs;
-        OPEN row_count_cur;
-        FETCH row_count_cur INTO v_row_count;
-        CLOSE row_count_cur;
-    ELSE
-        v_row_count := 0;
-    END IF;
+    // 1. Schema Validation (check table exists)
+    try {
+        var schemaSql = "SELECT COUNT(*) FROM " + fullPath + " WHERE 1=0";
+        snowflake.execute({sqlText: schemaSql});
+        schemaPassed = true;
+    } catch (err) {
+        schemaPassed = false;
+    }
     
-    -- 3. SLA Validation (freshness)
-    IF (v_schema_passed AND v_row_count > 0) THEN
-        LET freshness_rs RESULTSET := (EXECUTE IMMEDIATE 'SELECT DATEDIFF(''hour'', MAX("_LOADED_AT"), CURRENT_TIMESTAMP()) FROM ' || v_full_path);
-        LET freshness_cur CURSOR FOR freshness_rs;
-        OPEN freshness_cur;
-        FETCH freshness_cur INTO v_freshness_hours;
-        CLOSE freshness_cur;
+    // 2. Get row count
+    if (schemaPassed) {
+        try {
+            var countSql = "SELECT COUNT(*) FROM " + fullPath + " WHERE \"_IS_CURRENT\" = TRUE";
+            var countStmt = snowflake.createStatement({sqlText: countSql});
+            var countRs = countStmt.execute();
+            if (countRs.next()) {
+                rowCount = countRs.getColumnValue(1);
+            }
+        } catch (err) {
+            rowCount = 0;
+        }
+    }
+    
+    // 3. SLA Validation (freshness)
+    if (schemaPassed && rowCount > 0) {
+        try {
+            var freshSql = "SELECT DATEDIFF('hour', MAX(\"_LOADED_AT\"), CURRENT_TIMESTAMP()) FROM " + fullPath;
+            var freshStmt = snowflake.createStatement({sqlText: freshSql});
+            var freshRs = freshStmt.execute();
+            if (freshRs.next()) {
+                freshnessHours = freshRs.getColumnValue(1) || 0;
+            }
+            
+            // Get SLA max hours
+            var slaSql = "SELECT FRESHNESS_MAX_HOURS FROM GOVERNANCE.CONTRACTS.SLA_DEFINITIONS " +
+                         "WHERE CONTRACT_ID = '" + P_CONTRACT_ID + "' AND IS_ACTIVE = TRUE LIMIT 1";
+            var slaStmt = snowflake.createStatement({sqlText: slaSql});
+            var slaRs = slaStmt.execute();
+            if (slaRs.next()) {
+                slaMaxHours = slaRs.getColumnValue(1) || 9999;
+            }
+            
+            slaPassed = (freshnessHours <= slaMaxHours);
+        } catch (err) {
+            slaPassed = false;
+        }
+    }
+    
+    // Overall result
+    overallPassed = schemaPassed && qualityPassed && slaPassed;
+    
+    // Record validation in history
+    try {
+        var insertSql = "INSERT INTO GOVERNANCE.CONTRACTS.VALIDATION_HISTORY " +
+            "(VALIDATION_ID, CONTRACT_ID, SOURCE_SYSTEM, VALIDATION_START, VALIDATION_END, " +
+            "SCHEMA_PASSED, QUALITY_PASSED, SLA_PASSED, OVERALL_PASSED, TOTAL_ROWS, VALIDATION_DETAILS) " +
+            "SELECT '" + validationId + "', '" + P_CONTRACT_ID + "', '" + sourceSystem + "', " +
+            "'" + startTime + "'::TIMESTAMP_NTZ, CURRENT_TIMESTAMP(), " +
+            slaPassed + ", " + qualityPassed + ", " + slaPassed + ", " + overallPassed + ", " +
+            rowCount + ", PARSE_JSON('" + JSON.stringify({
+                validation_id: validationId,
+                contract_id: P_CONTRACT_ID,
+                schema_passed: schemaPassed,
+                quality_passed: qualityPassed,
+                sla_passed: slaPassed,
+                overall_passed: overallPassed
+            }).replace(/'/g, "''") + "')";
         
-        SELECT FRESHNESS_MAX_HOURS INTO v_sla_max_hours
-        FROM GOVERNANCE.CONTRACTS.SLA_DEFINITIONS
-        WHERE CONTRACT_ID = :p_contract_id AND IS_ACTIVE = TRUE
-        LIMIT 1;
-        
-        v_sla_passed := (v_freshness_hours <= COALESCE(v_sla_max_hours, 9999));
-    END IF;
+        snowflake.execute({sqlText: insertSql});
+    } catch (err) {
+        // Continue even if insert fails
+    }
     
-    -- Overall result
-    v_overall_passed := v_schema_passed AND v_quality_passed AND v_sla_passed;
-    
-    -- Build result
-    v_result := OBJECT_CONSTRUCT(
-        'validation_id', v_validation_id,
-        'contract_id', p_contract_id,
-        'source_system', v_source_system,
-        'table_path', v_full_path,
-        'validation_time', v_start_time,
-        'schema_passed', v_schema_passed,
-        'quality_passed', v_quality_passed,
-        'sla_passed', v_sla_passed,
-        'overall_passed', v_overall_passed,
-        'row_count', v_row_count,
-        'freshness_hours', v_freshness_hours,
-        'sla_max_hours', v_sla_max_hours
-    );
-    
-    -- Record validation
-    INSERT INTO GOVERNANCE.CONTRACTS.VALIDATION_HISTORY (
-        VALIDATION_ID, CONTRACT_ID, SOURCE_SYSTEM,
-        VALIDATION_START, VALIDATION_END,
-        SCHEMA_PASSED, QUALITY_PASSED, SLA_PASSED, OVERALL_PASSED,
-        TOTAL_ROWS, VALIDATION_DETAILS
-    ) VALUES (
-        v_validation_id, p_contract_id, v_source_system,
-        v_start_time, CURRENT_TIMESTAMP(),
-        v_schema_passed, v_quality_passed, v_sla_passed, v_overall_passed,
-        v_row_count, v_result
-    );
-    
-    RETURN v_result;
-END;
+    return {
+        validation_id: validationId,
+        contract_id: P_CONTRACT_ID,
+        source_system: sourceSystem,
+        table_path: fullPath,
+        validation_time: startTime,
+        schema_passed: schemaPassed,
+        quality_passed: qualityPassed,
+        sla_passed: slaPassed,
+        overall_passed: overallPassed,
+        row_count: rowCount,
+        freshness_hours: freshnessHours,
+        sla_max_hours: slaMaxHours
+    };
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -479,6 +507,7 @@ SELECT
     v.TOTAL_ROWS,
     
     CASE 
+        WHEN v.VALIDATION_START IS NULL THEN 'NOT_VALIDATED'
         WHEN v.OVERALL_PASSED THEN 'HEALTHY'
         WHEN v.SCHEMA_PASSED AND v.QUALITY_PASSED THEN 'SLA_DEGRADED'
         WHEN v.SCHEMA_PASSED THEN 'QUALITY_ISSUES'
