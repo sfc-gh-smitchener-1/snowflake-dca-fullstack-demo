@@ -92,32 +92,23 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     orders(ORDER_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
-    dates.YEAR,
-    dates.QUARTER,
-    dates.MONTH_NAME,
-    dates.FISCAL_YEAR,
-    
-    customers.CUSTOMER_ID,
-    customers.CUSTOMER_NAME,
-    customers.CITY,
-    customers.STATE,
-    customers.COUNTRY,
-    customers.INDUSTRY_CODE,
-    customers.CUSTOMER_CLASS,
-    customers.IS_ACTIVE,
-    
-    orders.ORDER_NUMBER,
-    orders.SALES_ORG,
-    orders.DISTRIBUTION_CHANNEL,
-    orders.ORDER_TYPE,
-    orders.ORDER_STATUS,
-    orders.IS_COMPLETED
+    dates.YEAR AS year,
+    dates.QUARTER AS quarter,
+    dates.MONTH_NAME AS month,
+    dates.FISCAL_YEAR AS fiscal_year,
+    customers.CUSTOMER_ID AS customer_id,
+    customers.CUSTOMER_NAME AS customer_name,
+    customers.CITY AS city,
+    customers.COUNTRY AS country,
+    customers.INDUSTRY_CODE AS industry_code,
+    orders.ORDER_NUMBER AS order_number,
+    orders.SALES_ORG AS sales_org,
+    orders.ORDER_TYPE AS order_type,
+    orders.ORDER_STATUS AS order_status
   )
   METRICS (
     orders.total_revenue AS SUM(orders.NET_VALUE),
-    orders.avg_order_value AS AVG(orders.NET_VALUE),
     orders.order_count AS COUNT(orders.ORDER_KEY),
-    orders.completed_orders AS SUM(CASE WHEN orders.IS_COMPLETED THEN 1 ELSE 0 END),
     customers.customer_count AS COUNT(DISTINCT customers.CUSTOMER_KEY)
   )
   COMMENT = ''SAP Sales Analytics - Orders and Customers''
@@ -136,20 +127,17 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.PROCUREMENT_ANALYTICS
     purchase_orders(PO_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
-    dates.YEAR,
-    dates.QUARTER,
-    dates.MONTH_NAME,
-    dates.FISCAL_YEAR,
-    
-    vendors.VENDOR_ID,
-    vendors.VENDOR_NAME,
-    vendors.COUNTRY,
-    vendors.IS_ACTIVE,
-    
-    purchase_orders.PO_NUMBER,
-    purchase_orders.PURCHASING_ORG,
-    purchase_orders.PO_TYPE,
-    purchase_orders.STATUS
+    dates.YEAR AS year,
+    dates.QUARTER AS quarter,
+    dates.MONTH_NAME AS month,
+    dates.FISCAL_YEAR AS fiscal_year,
+    vendors.VENDOR_ID AS vendor_id,
+    vendors.VENDOR_NAME AS vendor_name,
+    vendors.COUNTRY AS country,
+    purchase_orders.PO_NUMBER AS po_number,
+    purchase_orders.PURCHASING_ORG AS purchasing_org,
+    purchase_orders.PO_TYPE AS po_type,
+    purchase_orders.STATUS AS status
   )
   METRICS (
     purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY),
