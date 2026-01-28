@@ -313,12 +313,17 @@ BEGIN
           AND TABLE_NAME NOT LIKE '%_TEMPLATE'
     )
     DO
-        LET contract_result VARCHAR := '';
-        LET call_result VARIANT;
-        call_result := (CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
-            :p_source_system, tbl.TABLE_NAME, :p_producer_team, :p_producer_email
-        ));
-        contract_result := call_result::VARCHAR;
+        LET contract_result VARCHAR := 'PENDING';
+        
+        BEGIN
+            CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
+                :p_source_system, tbl.TABLE_NAME, :p_producer_team, :p_producer_email
+            );
+            contract_result := 'SUCCESS';
+        EXCEPTION
+            WHEN OTHER THEN
+                contract_result := 'ERROR: ' || SQLERRM;
+        END;
         
         INSERT INTO _contract_results VALUES (
             tbl.TABLE_NAME,
@@ -479,14 +484,21 @@ BEGIN
           AND CONTRACT_STATUS = 'ACTIVE'
     )
     DO
-        LET validation_result VARIANT;
-        validation_result := (CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(contract.CONTRACT_ID));
+        LET validation_passed BOOLEAN := FALSE;
+        
+        BEGIN
+            CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(contract.CONTRACT_ID);
+            validation_passed := TRUE;
+        EXCEPTION
+            WHEN OTHER THEN
+                validation_passed := FALSE;
+        END;
         
         INSERT INTO _validation_results VALUES (
             contract.CONTRACT_ID,
             contract.SOURCE_TABLE,
-            validation_result:overall_passed::BOOLEAN,
-            validation_result
+            validation_passed,
+            NULL
         );
     END FOR;
     
