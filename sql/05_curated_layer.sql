@@ -1302,19 +1302,11 @@ $$
     var targetSchema = 'CURATED_DEV.' + sourceSystem;
     
     // Get all configurations for this source system
-    var configSql = `
-        SELECT 
-            TARGET_TABLE,
-            TABLE_TYPE,
-            SOURCE_TABLE,
-            SELECT_SQL,
-            TARGET_LAG,
-            TABLE_COMMENT
-        FROM CURATED_DEV.SHARED.CURATED_CONFIG
-        WHERE SOURCE_SYSTEM = '${sourceSystem}'
-          AND IS_ACTIVE = TRUE
-        ORDER BY TABLE_TYPE DESC, TARGET_TABLE
-    `;
+    var configSql = "SELECT TARGET_TABLE, TABLE_TYPE, SOURCE_TABLE, SELECT_SQL, TARGET_LAG, TABLE_COMMENT " +
+                    "FROM CURATED_DEV.SHARED.CURATED_CONFIG " +
+                    "WHERE SOURCE_SYSTEM = '" + sourceSystem + "' " +
+                    "AND IS_ACTIVE = TRUE " +
+                    "ORDER BY TABLE_TYPE DESC, TARGET_TABLE";
     
     try {
         var configStmt = snowflake.createStatement({sqlText: configSql});
@@ -1332,13 +1324,11 @@ $$
             // Escape single quotes in comment for SQL
             comment = comment.replace(/'/g, "''");
             
-            var createSql = `
-                CREATE OR REPLACE DYNAMIC TABLE ${targetSchema}.${tableName}
-                    TARGET_LAG = '${targetLag}'
-                    WAREHOUSE = TRANSFORM_WH
-                    COMMENT = '${comment}'
-                AS ${selectSql}
-            `;
+            var createSql = "CREATE OR REPLACE DYNAMIC TABLE " + targetSchema + "." + tableName +
+                            " TARGET_LAG = '" + targetLag + "'" +
+                            " WAREHOUSE = TRANSFORM_WH" +
+                            " COMMENT = '" + comment + "'" +
+                            " AS " + selectSql;
             
             try {
                 snowflake.createStatement({sqlText: createSql}).execute();
@@ -1358,7 +1348,7 @@ $$
             }
         }
         
-        if (tableCount === 0) {
+        if (tableCount === 0 && results.length === 0) {
             return {
                 status: 'WARNING',
                 message: 'No configurations found for source system: ' + sourceSystem,
