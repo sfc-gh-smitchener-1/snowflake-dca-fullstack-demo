@@ -1221,7 +1221,6 @@ SELECT
     "assigned_to" AS ASSIGNED_TO_KEY,
     "short_description" AS SHORT_DESCRIPTION,
     "description" AS DESCRIPTION,
-    "priority" AS PRIORITY,
     "risk" AS RISK,
     "impact" AS IMPACT,
     "state" AS STATE,
@@ -1242,7 +1241,6 @@ WHERE "_IS_CURRENT" = TRUE
 SELECT
     "sys_id" AS PROBLEM_KEY,
     "number" AS PROBLEM_NUMBER,
-    "opened_by" AS OPENED_BY_KEY,
     "assigned_to" AS ASSIGNED_TO_KEY,
     "assignment_group" AS ASSIGNMENT_GROUP,
     "short_description" AS SHORT_DESCRIPTION,
