@@ -309,10 +309,12 @@ BEGIN
           AND TABLE_NAME NOT LIKE '%_TEMPLATE'
     )
     DO
-        LET contract_result VARCHAR;
-        CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
+        LET contract_result VARCHAR := '';
+        LET call_result VARIANT;
+        call_result := (CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
             p_source_system, tbl.TABLE_NAME, p_producer_team, p_producer_email
-        ) INTO contract_result;
+        ));
+        contract_result := call_result::VARCHAR;
         
         INSERT INTO _contract_results VALUES (
             tbl.TABLE_NAME,
@@ -379,16 +381,22 @@ BEGIN
     
     -- 2. Get row count
     IF (v_schema_passed) THEN
-        EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || v_full_path || ' WHERE "_IS_CURRENT" = TRUE' INTO v_row_count;
+        LET row_count_rs RESULTSET := (EXECUTE IMMEDIATE 'SELECT COUNT(*) FROM ' || v_full_path || ' WHERE "_IS_CURRENT" = TRUE');
+        LET row_count_cur CURSOR FOR row_count_rs;
+        OPEN row_count_cur;
+        FETCH row_count_cur INTO v_row_count;
+        CLOSE row_count_cur;
     ELSE
         v_row_count := 0;
     END IF;
     
     -- 3. SLA Validation (freshness)
     IF (v_schema_passed AND v_row_count > 0) THEN
-        EXECUTE IMMEDIATE 
-            'SELECT DATEDIFF(''hour'', MAX("_LOADED_AT"), CURRENT_TIMESTAMP()) FROM ' || v_full_path
-            INTO v_freshness_hours;
+        LET freshness_rs RESULTSET := (EXECUTE IMMEDIATE 'SELECT DATEDIFF(''hour'', MAX("_LOADED_AT"), CURRENT_TIMESTAMP()) FROM ' || v_full_path);
+        LET freshness_cur CURSOR FOR freshness_rs;
+        OPEN freshness_cur;
+        FETCH freshness_cur INTO v_freshness_hours;
+        CLOSE freshness_cur;
         
         SELECT FRESHNESS_MAX_HOURS INTO v_sla_max_hours
         FROM GOVERNANCE.CONTRACTS.SLA_DEFINITIONS
@@ -464,7 +472,7 @@ BEGIN
     )
     DO
         LET validation_result VARIANT;
-        CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(contract.CONTRACT_ID) INTO validation_result;
+        validation_result := (CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(contract.CONTRACT_ID));
         
         INSERT INTO _validation_results VALUES (
             contract.CONTRACT_ID,
