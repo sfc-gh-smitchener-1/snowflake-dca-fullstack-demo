@@ -548,9 +548,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.COMPENSATION_ANALYTICS
   )
   METRICS (
     compensation.total_base_pay AS SUM(compensation.BASE_PAY_AMOUNT),
-    compensation.avg_base_pay AS AVG(compensation.BASE_PAY_AMOUNT),
     compensation.total_compensation AS SUM(compensation.TOTAL_COMPENSATION),
-    compensation.avg_total_comp AS AVG(compensation.TOTAL_COMPENSATION),
     employees.employee_count AS COUNT(DISTINCT employees.EMPLOYEE_KEY)
   )
   COMMENT = ''Workday Compensation Analytics - Pay and Grade''
@@ -594,8 +592,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.BENEFITS_ANALYTICS
   DIMENSIONS (
     employees.EMPLOYEE_ID AS employee_id,
     employees.DEPARTMENT AS department,
-    benefits.BENEFIT_PLAN_TYPE AS plan_type,
-    benefits.BENEFIT_PLAN_NAME AS plan_name,
+    benefits.BENEFIT_PLAN_TYPE AS benefit_plan_type,
     benefits.COVERAGE_LEVEL AS coverage_level
   )
   METRICS (
