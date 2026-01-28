@@ -709,13 +709,13 @@ def render_source_explorer():
                 with col1:
                     st.markdown("**Dimensions**")
                     if not dims.empty:
-                        st.dataframe(dims[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True, hide_index=True)
+                        st.dataframe(dims[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True)
                     else:
                         st.caption("No dimensions")
                 with col2:
                     st.markdown("**Facts**")
                     if not facts.empty:
-                        st.dataframe(facts[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True, hide_index=True)
+                        st.dataframe(facts[['TABLE_NAME', 'ROW_COUNT']], use_container_width=True)
                     else:
                         st.caption("No facts")
             else:
@@ -724,7 +724,7 @@ def render_source_explorer():
         with tab_semantic:
             st.markdown("#### Semantic Views (Cortex Analyst Ready)")
             if not semantic_views.empty:
-                st.dataframe(semantic_views, use_container_width=True, hide_index=True)
+                st.dataframe(semantic_views, use_container_width=True)
                 
                 st.divider()
                 st.markdown("**Use with Cortex Analyst:**")
