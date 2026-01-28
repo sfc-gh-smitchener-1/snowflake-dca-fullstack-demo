@@ -651,7 +651,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.CHANGE_ANALYTICS
     users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY)
   )
   RELATIONSHIPS (
-    changes(REQUESTED_BY_KEY) REFERENCES users(USER_KEY)
+    changes(ASSIGNED_TO_KEY) REFERENCES users(USER_KEY)
   )
   DIMENSIONS (
     users.USERNAME AS username,
@@ -660,9 +660,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.CHANGE_ANALYTICS
     changes.CHANGE_TYPE AS change_type,
     changes.RISK AS risk,
     changes.IMPACT AS impact,
-    changes.STATE AS state,
-    changes.CATEGORY AS category,
-    changes.ASSIGNMENT_GROUP AS assignment_group
+    changes.STATE AS state
   )
   METRICS (
     changes.change_count AS COUNT(changes.CHANGE_KEY),
@@ -679,7 +677,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.PROBLEM_ANALYTICS
     users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY)
   )
   RELATIONSHIPS (
-    problems(OPENED_BY_KEY) REFERENCES users(USER_KEY)
+    problems(ASSIGNED_TO_KEY) REFERENCES users(USER_KEY)
   )
   DIMENSIONS (
     users.USERNAME AS username,
@@ -695,7 +693,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.PROBLEM_ANALYTICS
     problems.problem_count AS COUNT(problems.PROBLEM_KEY),
     users.user_count AS COUNT(DISTINCT users.USER_KEY)
   )
-  COMMENT = ''ServiceNow Problem Analytics - Problems, Users, CIs''
+  COMMENT = ''ServiceNow Problem Analytics - Problems and Users''
 ', 'ServiceNow problem management analytics');
 
 -- ═══════════════════════════════════════════════════════════════════════════
