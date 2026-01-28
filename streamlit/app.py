@@ -284,6 +284,124 @@ def get_contract_health():
     except:
         return pd.DataFrame()
 
+@st.cache_data(ttl=30)
+def get_contract_details(source_system: str = None):
+    """Get detailed contract information for drill-down"""
+    session = get_session()
+    try:
+        where_clause = f"WHERE SOURCE_SYSTEM = '{source_system}'" if source_system else ""
+        df = session.sql(f"""
+            SELECT 
+                CONTRACT_ID,
+                CONTRACT_NAME,
+                SOURCE_SYSTEM,
+                SOURCE_TABLE,
+                HEALTH_STATUS,
+                LAST_VALIDATED,
+                LAST_PASSED,
+                SCHEMA_PASSED,
+                QUALITY_PASSED,
+                SLA_PASSED,
+                VALIDATION_COUNT
+            FROM GOVERNANCE.CONTRACTS.VW_CONTRACT_HEALTH
+            {where_clause}
+            ORDER BY 
+                CASE HEALTH_STATUS 
+                    WHEN 'CRITICAL' THEN 1 
+                    WHEN 'QUALITY_ISSUES' THEN 2
+                    WHEN 'SLA_DEGRADED' THEN 3
+                    WHEN 'NOT_VALIDATED' THEN 4
+                    WHEN 'HEALTHY' THEN 5
+                END,
+                SOURCE_SYSTEM, SOURCE_TABLE
+        """).to_pandas()
+        return df
+    except Exception as e:
+        st.warning(f"Could not load contract details: {str(e)}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=30)
+def get_validation_history(contract_id: str):
+    """Get validation history for a specific contract"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT 
+                VALIDATION_ID,
+                VALIDATION_START,
+                VALIDATION_END,
+                SCHEMA_PASSED,
+                QUALITY_PASSED,
+                SLA_PASSED,
+                OVERALL_PASSED,
+                TOTAL_ROWS,
+                VALIDATION_DETAILS
+            FROM GOVERNANCE.CONTRACTS.VALIDATION_HISTORY
+            WHERE CONTRACT_ID = '{contract_id}'
+            ORDER BY VALIDATION_START DESC
+            LIMIT 20
+        """).to_pandas()
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=30)
+def get_contract_registry_detail(contract_id: str):
+    """Get full contract details from registry"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT 
+                CONTRACT_ID,
+                CONTRACT_NAME,
+                CONTRACT_VERSION,
+                SOURCE_SYSTEM,
+                SOURCE_TABLE,
+                FULL_TABLE_PATH,
+                PRODUCER_TEAM,
+                CONSUMER_TEAMS,
+                EFFECTIVE_FROM,
+                EFFECTIVE_TO,
+                IS_ACTIVE,
+                SCHEMA_DEFINITION,
+                QUALITY_DEFINITION,
+                SLA_DEFINITION,
+                GOVERNANCE_DEFINITION
+            FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY
+            WHERE CONTRACT_ID = '{contract_id}'
+        """).to_pandas()
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=30)
+def get_sla_definition(contract_id: str):
+    """Get SLA definition for a contract"""
+    session = get_session()
+    try:
+        df = session.sql(f"""
+            SELECT 
+                FRESHNESS_TARGET_HOURS,
+                FRESHNESS_MAX_HOURS,
+                AVAILABILITY_TARGET_PCT,
+                MIN_ROW_COUNT,
+                MAX_ROW_COUNT
+            FROM GOVERNANCE.CONTRACTS.SLA_DEFINITIONS
+            WHERE CONTRACT_ID = '{contract_id}'
+        """).to_pandas()
+        return df
+    except Exception as e:
+        return pd.DataFrame()
+
+def validate_contract(contract_id: str):
+    """Run validation for a specific contract"""
+    session = get_session()
+    try:
+        result = session.sql(f"CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT('{contract_id}')").collect()
+        return result[0][0] if result else None
+    except Exception as e:
+        return f"Error: {str(e)}"
+
 # ============================================================================
 # ROLE DEFINITIONS
 # ============================================================================
