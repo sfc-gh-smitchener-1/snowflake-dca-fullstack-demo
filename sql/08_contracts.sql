@@ -136,143 +136,105 @@ CREATE TABLE IF NOT EXISTS VALIDATION_HISTORY (
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
-    p_source_system VARCHAR,
-    p_table_name VARCHAR,
-    p_producer_team VARCHAR,
-    p_producer_email VARCHAR
+    P_SOURCE_SYSTEM VARCHAR,
+    P_TABLE_NAME VARCHAR,
+    P_PRODUCER_TEAM VARCHAR,
+    P_PRODUCER_EMAIL VARCHAR
 )
 RETURNS VARCHAR
-LANGUAGE SQL
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_contract_id VARCHAR;
-    v_contract_name VARCHAR;
-    v_full_path VARCHAR;
-    v_source_upper VARCHAR;
-    v_table_upper VARCHAR;
-    v_schema_def VARIANT;
-    v_quality_def VARIANT;
-    v_sla_def VARIANT;
-    v_governance_def VARIANT;
-    v_freshness_hours NUMBER;
-    v_classification VARCHAR;
-BEGIN
-    v_source_upper := UPPER(p_source_system);
-    v_table_upper := UPPER(p_table_name);
-    v_contract_id := 'CONTRACT-' || v_source_upper || '-' || v_table_upper || '-001';
-    v_contract_name := v_source_upper || ' ' || v_table_upper || ' Data Contract';
-    v_full_path := 'RAW_DEV.' || v_source_upper || '.' || v_table_upper;
+    var sourceUpper = P_SOURCE_SYSTEM.toUpperCase();
+    var tableUpper = P_TABLE_NAME.toUpperCase();
+    var contractId = 'CONTRACT-' + sourceUpper + '-' + tableUpper + '-001';
+    var contractName = sourceUpper + ' ' + tableUpper + ' Data Contract';
+    var fullPath = 'RAW_DEV.' + sourceUpper + '.' + tableUpper;
     
-    -- Set defaults based on source system
-    IF (v_source_upper = 'SAP') THEN
-        v_freshness_hours := 4;
-        v_classification := 'CONFIDENTIAL';
-    ELSEIF (v_source_upper = 'SALESFORCE') THEN
-        v_freshness_hours := 1;
-        v_classification := 'CONFIDENTIAL';
-    ELSEIF (v_source_upper = 'FHIR') THEN
-        v_freshness_hours := 1;
-        v_classification := 'RESTRICTED';
-    ELSEIF (v_source_upper = 'WORKDAY') THEN
-        v_freshness_hours := 4;
-        v_classification := 'RESTRICTED';
-    ELSEIF (v_source_upper = 'SERVICENOW') THEN
-        v_freshness_hours := 0.5;
-        v_classification := 'INTERNAL';
-    ELSE
-        v_freshness_hours := 24;
-        v_classification := 'INTERNAL';
-    END IF;
+    // Set defaults based on source system
+    var freshnessHours = 24;
+    var classification = 'INTERNAL';
     
-    -- Build schema definition
-    v_schema_def := PARSE_JSON('{
-        "source_system": "' || v_source_upper || '",
-        "table_name": "' || v_table_upper || '",
-        "auto_generated": true
-    }');
+    if (sourceUpper === 'SAP') {
+        freshnessHours = 4;
+        classification = 'CONFIDENTIAL';
+    } else if (sourceUpper === 'SALESFORCE') {
+        freshnessHours = 1;
+        classification = 'CONFIDENTIAL';
+    } else if (sourceUpper === 'FHIR') {
+        freshnessHours = 1;
+        classification = 'RESTRICTED';
+    } else if (sourceUpper === 'WORKDAY') {
+        freshnessHours = 4;
+        classification = 'RESTRICTED';
+    } else if (sourceUpper === 'SERVICENOW') {
+        freshnessHours = 0.5;
+        classification = 'INTERNAL';
+    } else if (sourceUpper === 'ORACLE') {
+        freshnessHours = 4;
+        classification = 'CONFIDENTIAL';
+    }
     
-    -- Build quality definition based on source system
-    IF (v_source_upper = 'SAP') THEN
-        v_quality_def := PARSE_JSON('{
-            "rules": [
-                {"name": "primary_key_not_null", "threshold": 100},
-                {"name": "valid_client", "threshold": 100},
-                {"name": "no_deletion_flag", "threshold": 99}
-            ]
-        }');
-    ELSEIF (v_source_upper = 'SALESFORCE') THEN
-        v_quality_def := PARSE_JSON('{
-            "rules": [
-                {"name": "id_format_valid", "threshold": 100},
-                {"name": "not_deleted", "threshold": 99.9}
-            ]
-        }');
-    ELSEIF (v_source_upper = 'FHIR') THEN
-        v_quality_def := PARSE_JSON('{
-            "rules": [
-                {"name": "resource_id_valid", "threshold": 100},
-                {"name": "resource_type_valid", "threshold": 100}
-            ]
-        }');
-    ELSE
-        v_quality_def := PARSE_JSON('{
-            "rules": [
-                {"name": "row_hash_not_null", "threshold": 100}
-            ]
-        }');
-    END IF;
+    // Build JSON definitions
+    var schemaDef = JSON.stringify({
+        source_system: sourceUpper,
+        table_name: tableUpper,
+        auto_generated: true
+    });
     
-    -- Build SLA definition
-    v_sla_def := PARSE_JSON('{
-        "freshness_target_hours": ' || v_freshness_hours || ',
-        "freshness_max_hours": ' || (v_freshness_hours * 6) || ',
-        "availability_target_pct": 99.9,
-        "min_row_count": 1
-    }');
+    var qualityDef = JSON.stringify({
+        rules: [
+            {name: "row_hash_not_null", threshold: 100}
+        ]
+    });
     
-    -- Build governance definition
-    v_governance_def := PARSE_JSON('{
-        "classification": "' || v_classification || '",
-        "source_system": "' || v_source_upper || '"
-    }');
+    var slaDef = JSON.stringify({
+        freshness_target_hours: freshnessHours,
+        freshness_max_hours: freshnessHours * 6,
+        availability_target_pct: 99.9,
+        min_row_count: 1
+    });
     
-    -- Insert contract
-    INSERT INTO GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY (
-        CONTRACT_ID, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_STATUS,
-        SOURCE_SYSTEM, SOURCE_TABLE, FULL_TABLE_PATH,
-        PRODUCER_TEAM, PRODUCER_OWNER_EMAIL,
-        SCHEMA_DEFINITION, QUALITY_DEFINITION, SLA_DEFINITION, GOVERNANCE_DEFINITION,
-        DESCRIPTION
-    ) VALUES (
-        v_contract_id, v_contract_name, '1.0.0', 'ACTIVE',
-        v_source_upper, v_table_upper, v_full_path,
-        p_producer_team, p_producer_email,
-        v_schema_def, v_quality_def, v_sla_def, v_governance_def,
-        'Auto-generated contract for ' || v_full_path
-    );
+    var govDef = JSON.stringify({
+        classification: classification,
+        source_system: sourceUpper
+    });
     
-    -- Insert SLA definition
-    INSERT INTO GOVERNANCE.CONTRACTS.SLA_DEFINITIONS (
-        SLA_ID, CONTRACT_ID, SOURCE_SYSTEM,
-        FRESHNESS_TARGET_HOURS, FRESHNESS_MAX_HOURS, AVAILABILITY_TARGET_PCT, MIN_ROW_COUNT
-    ) VALUES (
-        'SLA-' || v_source_upper || '-' || v_table_upper || '-001',
-        v_contract_id,
-        v_source_upper,
-        v_freshness_hours,
-        v_freshness_hours * 6,
-        99.9,
-        1
-    );
-    
-    RETURN 'SUCCESS: Created contract ' || v_contract_id;
-    
-EXCEPTION
-    WHEN OTHER THEN
-        RETURN 'ERROR: ' || SQLERRM;
-END;
+    try {
+        // Insert contract
+        var insertContractSql = "INSERT INTO GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY " +
+            "(CONTRACT_ID, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_STATUS, " +
+            "SOURCE_SYSTEM, SOURCE_TABLE, FULL_TABLE_PATH, " +
+            "PRODUCER_TEAM, PRODUCER_OWNER_EMAIL, " +
+            "SCHEMA_DEFINITION, QUALITY_DEFINITION, SLA_DEFINITION, GOVERNANCE_DEFINITION, " +
+            "DESCRIPTION) VALUES ('" +
+            contractId + "', '" + contractName + "', '1.0.0', 'ACTIVE', '" +
+            sourceUpper + "', '" + tableUpper + "', '" + fullPath + "', '" +
+            P_PRODUCER_TEAM + "', '" + P_PRODUCER_EMAIL + "', " +
+            "PARSE_JSON('" + schemaDef + "'), " +
+            "PARSE_JSON('" + qualityDef + "'), " +
+            "PARSE_JSON('" + slaDef + "'), " +
+            "PARSE_JSON('" + govDef + "'), " +
+            "'Auto-generated contract for " + fullPath + "')";
+        
+        snowflake.execute({sqlText: insertContractSql});
+        
+        // Insert SLA definition
+        var insertSlaSql = "INSERT INTO GOVERNANCE.CONTRACTS.SLA_DEFINITIONS " +
+            "(SLA_ID, CONTRACT_ID, SOURCE_SYSTEM, " +
+            "FRESHNESS_TARGET_HOURS, FRESHNESS_MAX_HOURS, AVAILABILITY_TARGET_PCT, MIN_ROW_COUNT) VALUES ('" +
+            "SLA-" + sourceUpper + "-" + tableUpper + "-001', '" +
+            contractId + "', '" + sourceUpper + "', " +
+            freshnessHours + ", " + (freshnessHours * 6) + ", 99.9, 1)";
+        
+        snowflake.execute({sqlText: insertSlaSql});
+        
+        return 'SUCCESS: Created contract ' + contractId;
+        
+    } catch (err) {
+        return 'ERROR: ' + err.message;
+    }
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
