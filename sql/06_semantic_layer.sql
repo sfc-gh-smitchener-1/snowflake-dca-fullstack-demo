@@ -79,7 +79,7 @@ CREATE TABLE SEM_DEV.CONFIG.SEMANTIC_CONFIG (
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- SALES_ANALYTICS (simplified - no product/order_items joins initially)
+-- SALES_ANALYTICS
 ('SAP', 'SALES_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
   TABLES (
@@ -92,27 +92,26 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     orders(ORDER_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
-    dates.YEAR AS year,
-    dates.QUARTER AS quarter,
-    dates.MONTH_NAME AS month,
-    dates.FISCAL_YEAR AS fiscal_year,
-    dates.IS_WEEKEND AS is_weekend,
+    dates.YEAR,
+    dates.QUARTER,
+    dates.MONTH_NAME,
+    dates.FISCAL_YEAR,
     
-    customers.CUSTOMER_ID AS customer_id,
-    customers.CUSTOMER_NAME AS customer_name,
-    customers.CITY AS customer_city,
-    customers.STATE AS customer_state,
-    customers.COUNTRY AS customer_country,
-    customers.INDUSTRY_CODE AS industry_code,
-    customers.CUSTOMER_CLASS AS customer_class,
-    customers.IS_ACTIVE AS customer_is_active,
+    customers.CUSTOMER_ID,
+    customers.CUSTOMER_NAME,
+    customers.CITY,
+    customers.STATE,
+    customers.COUNTRY,
+    customers.INDUSTRY_CODE,
+    customers.CUSTOMER_CLASS,
+    customers.IS_ACTIVE,
     
-    orders.ORDER_NUMBER AS order_number,
-    orders.SALES_ORG AS sales_organization,
-    orders.DISTRIBUTION_CHANNEL AS channel,
-    orders.ORDER_TYPE AS order_type,
-    orders.ORDER_STATUS AS order_status,
-    orders.IS_COMPLETED AS is_completed
+    orders.ORDER_NUMBER,
+    orders.SALES_ORG,
+    orders.DISTRIBUTION_CHANNEL,
+    orders.ORDER_TYPE,
+    orders.ORDER_STATUS,
+    orders.IS_COMPLETED
   )
   METRICS (
     orders.total_revenue AS SUM(orders.NET_VALUE),
@@ -137,20 +136,20 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.PROCUREMENT_ANALYTICS
     purchase_orders(PO_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
-    dates.YEAR AS year,
-    dates.QUARTER AS quarter,
-    dates.MONTH_NAME AS month,
-    dates.FISCAL_YEAR AS fiscal_year,
+    dates.YEAR,
+    dates.QUARTER,
+    dates.MONTH_NAME,
+    dates.FISCAL_YEAR,
     
-    vendors.VENDOR_ID AS vendor_id,
-    vendors.VENDOR_NAME AS vendor_name,
-    vendors.COUNTRY AS country,
-    vendors.IS_ACTIVE AS vendor_is_active,
+    vendors.VENDOR_ID,
+    vendors.VENDOR_NAME,
+    vendors.COUNTRY,
+    vendors.IS_ACTIVE,
     
-    purchase_orders.PO_NUMBER AS po_number,
-    purchase_orders.PURCHASING_ORG AS purchasing_org,
-    purchase_orders.PO_TYPE AS po_type,
-    purchase_orders.STATUS AS status
+    purchase_orders.PO_NUMBER,
+    purchase_orders.PURCHASING_ORG,
+    purchase_orders.PO_TYPE,
+    purchase_orders.STATUS
   )
   METRICS (
     purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY),
