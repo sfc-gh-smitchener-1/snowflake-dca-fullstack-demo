@@ -658,29 +658,47 @@ def ask_cortex_analyst(semantic_view: str, question: str):
     """Query Cortex Analyst with a natural language question"""
     session = get_session()
     try:
-        # Use Cortex Analyst to generate and execute SQL against the semantic view
-        result = session.sql(f"""
+        # Escape single quotes in question to prevent SQL injection
+        safe_question = question.replace("'", "''")
+        safe_view = semantic_view.replace("'", "''")
+        
+        # Build prompt for Cortex
+        prompt = f"""You are a SQL expert. Generate a Snowflake SQL query to answer this question.
+
+The data is in SEM_DEV.{safe_view} which is a semantic view.
+
+Question: {safe_question}
+
+Return ONLY the SQL query, nothing else. No explanations, no markdown."""
+        
+        # Use Cortex Complete to generate SQL
+        sql = f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
                 'claude-3-5-sonnet',
-                CONCAT(
-                    'You are a helpful data analyst. Based on the semantic view SEM_DEV.{semantic_view}, ',
-                    'generate a SQL query to answer the following question. ',
-                    'Return ONLY the SQL query, no explanations. ',
-                    'The semantic view contains business data. ',
-                    'Question: {question}'
-                )
+                '{prompt.replace("'", "''")}'
             ) AS response
-        """).collect()
+        """
         
-        if result:
+        result = session.sql(sql).collect()
+        
+        if result and len(result) > 0:
             generated_sql = result[0]['RESPONSE']
-            # Clean up the response - remove markdown code blocks if present
-            generated_sql = generated_sql.strip()
-            if generated_sql.startswith('```'):
-                lines = generated_sql.split('\n')
-                generated_sql = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
-            
-            return {"sql": generated_sql, "error": None}
+            if generated_sql:
+                # Clean up the response - remove markdown code blocks if present
+                generated_sql = generated_sql.strip()
+                if generated_sql.startswith('```'):
+                    lines = generated_sql.split('\n')
+                    # Remove first line (```sql) and last line (```)
+                    if lines[-1].strip() == '```':
+                        generated_sql = '\n'.join(lines[1:-1])
+                    else:
+                        generated_sql = '\n'.join(lines[1:])
+                
+                return {"sql": generated_sql.strip(), "error": None}
+            else:
+                return {"sql": None, "error": "Empty response from Cortex"}
+        else:
+            return {"sql": None, "error": "No response from Cortex"}
     except Exception as e:
         return {"sql": None, "error": str(e)}
 
@@ -767,63 +785,39 @@ def render_cortex_page():
         if st.session_state.pending_question:
             st.session_state.pending_question = None
         
+        # Results container
+        results_container = st.container()
+        
         # Process question
         if ask_clicked and question:
-            with st.spinner("🤔 Generating query..."):
-                # Step 1: Generate SQL using Cortex
-                gen_result = ask_cortex_analyst(selected_view, question)
+            with results_container:
+                st.markdown(f"**Question:** {question}")
+                
+                with st.spinner("🤔 Generating query..."):
+                    # Step 1: Generate SQL using Cortex
+                    gen_result = ask_cortex_analyst(selected_view, question)
                 
                 if gen_result["error"]:
                     st.error(f"Error generating query: {gen_result['error']}")
-                    st.session_state.cortex_history.append({
-                        "question": question,
-                        "error": gen_result["error"],
-                        "sql": None,
-                        "data": None
-                    })
-                else:
+                elif gen_result["sql"]:
                     generated_sql = gen_result["sql"]
+                    
+                    st.markdown("**Generated SQL:**")
+                    st.code(generated_sql, language="sql")
                     
                     # Step 2: Execute the generated SQL
                     with st.spinner("⚙️ Executing query..."):
                         exec_result = execute_generated_sql(generated_sql)
-                        
-                        if exec_result["error"]:
-                            st.session_state.cortex_history.append({
-                                "question": question,
-                                "error": exec_result["error"],
-                                "sql": generated_sql,
-                                "data": None
-                            })
-                        else:
-                            st.session_state.cortex_history.append({
-                                "question": question,
-                                "error": None,
-                                "sql": generated_sql,
-                                "data": exec_result["data"]
-                            })
-            
-            st.experimental_rerun()
+                    
+                    if exec_result["error"]:
+                        st.error(f"Error executing query: {exec_result['error']}")
+                        st.info("Try rephrasing your question or check the generated SQL.")
+                    elif exec_result["data"] is not None:
+                        st.markdown(f"**Results:** ({len(exec_result['data'])} rows)")
+                        st.dataframe(exec_result["data"], use_container_width=True)
+                else:
+                    st.warning("No SQL was generated. Try a different question.")
         
-        # Display chat history (most recent first)
-        if st.session_state.cortex_history:
-            st.divider()
-            st.markdown("#### 📜 Query History")
-            
-            for i, entry in enumerate(reversed(st.session_state.cortex_history[-5:])):  # Last 5 entries
-                with st.expander(f"❓ {entry['question'][:50]}..." if len(entry['question']) > 50 else f"❓ {entry['question']}", expanded=(i == 0)):
-                    st.markdown(f"**Question:** {entry['question']}")
-                    
-                    if entry.get("error"):
-                        st.error(f"Error: {entry['error']}")
-                    
-                    if entry.get("sql"):
-                        st.markdown("**Generated SQL:**")
-                        st.code(entry["sql"], language="sql")
-                    
-                    if entry.get("data") is not None:
-                        st.markdown(f"**Results:** ({len(entry['data'])} rows)")
-                        st.dataframe(entry["data"], use_container_width=True)
     else:
         st.warning("No semantic views found. Run BUILD_SEMANTIC_LAYER() first.")
         
