@@ -934,58 +934,66 @@ def render_contract_detail(contract_id: str):
     """Render detailed view for a specific contract"""
     st.markdown("### 🔍 Contract Details")
     
-    # Get contract registry info
-    registry = get_contract_registry_detail(contract_id)
-    
-    if registry.empty:
-        st.warning(f"Contract not found: {contract_id}")
-        return
-    
-    contract = registry.iloc[0]
-    
-    # Header with status
+    # Get contract health info first (this is the source of truth from VW_CONTRACT_HEALTH)
     contracts_df = get_contract_details()
     contract_health = contracts_df[contracts_df['CONTRACT_ID'] == contract_id]
     
-    if not contract_health.empty:
-        health = contract_health.iloc[0]
-        status = health['HEALTH_STATUS']
-        
-        status_config = {
-            'HEALTHY': ('✅', '#18794E', 'All checks passing'),
-            'SLA_DEGRADED': ('⚠️', '#AD5700', 'SLA target missed'),
-            'QUALITY_ISSUES': ('🔶', '#E65100', 'Quality checks failing'),
-            'CRITICAL': ('❌', '#CD2B31', 'Critical issues detected'),
-            'NOT_VALIDATED': ('⏳', '#64748B', 'Awaiting validation')
-        }
-        icon, color, desc = status_config.get(status, ('❓', '#64748B', 'Unknown'))
-        
-        st.markdown(f"""
-        <div style="padding: 1rem; background: linear-gradient(135deg, {color}22, {color}11); 
-                    border-radius: 8px; border-left: 4px solid {color}; margin-bottom: 1rem;">
-            <h3 style="margin: 0;">{icon} {contract['CONTRACT_NAME']}</h3>
-            <p style="margin: 0.5rem 0 0 0; color: #94A3B8;">
-                {contract['SOURCE_SYSTEM']} • {contract['SOURCE_TABLE']} • {desc}
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Validation status cards
-        st.markdown("#### Validation Status")
-        cols = st.columns(4)
-        
-        with cols[0]:
-            schema_icon = "✅" if health['SCHEMA_PASSED'] else "❌" if health['SCHEMA_PASSED'] is False else "⏳"
-            st.metric("Schema", schema_icon)
-        with cols[1]:
-            quality_icon = "✅" if health['QUALITY_PASSED'] else "❌" if health['QUALITY_PASSED'] is False else "⏳"
-            st.metric("Quality", quality_icon)
-        with cols[2]:
-            sla_icon = "✅" if health['SLA_PASSED'] else "❌" if health['SLA_PASSED'] is False else "⏳"
-            st.metric("SLA", sla_icon)
-        with cols[3]:
-            overall_icon = "✅" if health['LAST_PASSED'] else "❌" if health['LAST_PASSED'] is False else "⏳"
-            st.metric("Overall", overall_icon)
+    if contract_health.empty:
+        st.warning(f"Contract not found: {contract_id}")
+        if st.button("← Back to List"):
+            st.session_state.selected_contract = None
+            st.experimental_rerun()
+        return
+    
+    health = contract_health.iloc[0]
+    
+    # Try to get additional registry info (optional)
+    registry = get_contract_registry_detail(contract_id)
+    has_registry = not registry.empty
+    contract = registry.iloc[0] if has_registry else None
+    
+    # Get display values - prefer registry, fallback to health view
+    contract_name = contract['CONTRACT_NAME'] if has_registry else health['CONTRACT_NAME']
+    source_system = contract['SOURCE_SYSTEM'] if has_registry else health['SOURCE_SYSTEM']
+    source_table = contract['SOURCE_TABLE'] if has_registry else health['SOURCE_TABLE']
+    
+    status = health['HEALTH_STATUS']
+    
+    status_config = {
+        'HEALTHY': ('✅', '#18794E', 'All checks passing'),
+        'SLA_DEGRADED': ('⚠️', '#AD5700', 'SLA target missed'),
+        'QUALITY_ISSUES': ('🔶', '#E65100', 'Quality checks failing'),
+        'CRITICAL': ('❌', '#CD2B31', 'Critical issues detected'),
+        'NOT_VALIDATED': ('⏳', '#64748B', 'Awaiting validation')
+    }
+    icon, color, desc = status_config.get(status, ('❓', '#64748B', 'Unknown'))
+    
+    st.markdown(f"""
+    <div style="padding: 1rem; background: linear-gradient(135deg, {color}22, {color}11); 
+                border-radius: 8px; border-left: 4px solid {color}; margin-bottom: 1rem;">
+        <h3 style="margin: 0;">{icon} {contract_name}</h3>
+        <p style="margin: 0.5rem 0 0 0; color: #94A3B8;">
+            {source_system} • {source_table} • {desc}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Validation status cards
+    st.markdown("#### Validation Status")
+    cols = st.columns(4)
+    
+    with cols[0]:
+        schema_icon = "✅" if health['SCHEMA_PASSED'] else "❌" if health['SCHEMA_PASSED'] is False else "⏳"
+        st.metric("Schema", schema_icon)
+    with cols[1]:
+        quality_icon = "✅" if health['QUALITY_PASSED'] else "❌" if health['QUALITY_PASSED'] is False else "⏳"
+        st.metric("Quality", quality_icon)
+    with cols[2]:
+        sla_icon = "✅" if health['SLA_PASSED'] else "❌" if health['SLA_PASSED'] is False else "⏳"
+        st.metric("SLA", sla_icon)
+    with cols[3]:
+        overall_icon = "✅" if health['LAST_PASSED'] else "❌" if health['LAST_PASSED'] is False else "⏳"
+        st.metric("Overall", overall_icon)
     
     # Tabs for different aspects
     tab1, tab2, tab3, tab4 = st.tabs(["📊 SLA", "🔄 History", "📋 Schema", "⚙️ Actions"])
@@ -1037,16 +1045,28 @@ def render_contract_detail(contract_id: str):
     with tab3:
         st.markdown("##### Contract Metadata")
         
-        st.markdown(f"""
-        | Property | Value |
-        |----------|-------|
-        | **Contract ID** | `{contract['CONTRACT_ID']}` |
-        | **Version** | {contract['CONTRACT_VERSION']} |
-        | **Table Path** | `{contract['FULL_TABLE_PATH']}` |
-        | **Producer** | {contract['PRODUCER_TEAM']} |
-        | **Effective From** | {contract['EFFECTIVE_FROM']} |
-        | **Active** | {'Yes' if contract['IS_ACTIVE'] else 'No'} |
-        """)
+        if has_registry:
+            st.markdown(f"""
+            | Property | Value |
+            |----------|-------|
+            | **Contract ID** | `{contract['CONTRACT_ID']}` |
+            | **Version** | {contract['CONTRACT_VERSION']} |
+            | **Table Path** | `{contract['FULL_TABLE_PATH']}` |
+            | **Producer** | {contract['PRODUCER_TEAM']} |
+            | **Effective From** | {contract['EFFECTIVE_FROM']} |
+            | **Active** | {'Yes' if contract['IS_ACTIVE'] else 'No'} |
+            """)
+        else:
+            st.markdown(f"""
+            | Property | Value |
+            |----------|-------|
+            | **Contract ID** | `{contract_id}` |
+            | **Source System** | {source_system} |
+            | **Source Table** | {source_table} |
+            | **Health Status** | {status} |
+            | **Last Validation** | {health['LAST_VALIDATION']} |
+            """)
+            st.info("Full contract registry details not available.")
     
     with tab4:
         st.markdown("##### Contract Actions")
