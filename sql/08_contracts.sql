@@ -280,61 +280,55 @@ $$;
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE GOVERNANCE.CONTRACTS.GENERATE_CONTRACTS_FOR_SOURCE(
-    p_source_system VARCHAR,
-    p_producer_team VARCHAR,
-    p_producer_email VARCHAR
+    P_SOURCE_SYSTEM VARCHAR,
+    P_PRODUCER_TEAM VARCHAR,
+    P_PRODUCER_EMAIL VARCHAR
 )
-RETURNS TABLE (table_name VARCHAR, contract_id VARCHAR, status VARCHAR)
-LANGUAGE SQL
+RETURNS VARIANT
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_schema_name VARCHAR;
-    v_source_upper VARCHAR;
-    result RESULTSET;
-BEGIN
-    v_source_upper := UPPER(p_source_system);
-    v_schema_name := 'RAW_DEV.' || v_source_upper;
+    var results = [];
+    var sourceSystem = P_SOURCE_SYSTEM.toUpperCase();
     
-    CREATE OR REPLACE TEMPORARY TABLE _contract_results (
-        table_name VARCHAR,
-        contract_id VARCHAR,
-        status VARCHAR
-    );
+    // Get all tables in the source system schema
+    var tablesSql = "SELECT TABLE_NAME FROM RAW_DEV.INFORMATION_SCHEMA.TABLES " +
+                    "WHERE TABLE_CATALOG = 'RAW_DEV' " +
+                    "AND TABLE_SCHEMA = '" + sourceSystem + "' " +
+                    "AND TABLE_TYPE = 'BASE TABLE' " +
+                    "AND TABLE_NAME NOT LIKE '%_TEMPLATE'";
     
-    -- Get all tables in the source system schema
-    FOR tbl IN (
-        SELECT TABLE_NAME
-        FROM RAW_DEV.INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_CATALOG = 'RAW_DEV'
-          AND TABLE_SCHEMA = :v_source_upper
-          AND TABLE_TYPE = 'BASE TABLE'
-          AND TABLE_NAME NOT LIKE '%_TEMPLATE'
-    )
-    DO
-        LET contract_result VARCHAR := 'PENDING';
+    var tablesStmt = snowflake.createStatement({sqlText: tablesSql});
+    var tablesRs = tablesStmt.execute();
+    
+    while (tablesRs.next()) {
+        var tableName = tablesRs.getColumnValue(1);
+        var contractId = 'CONTRACT-' + sourceSystem + '-' + tableName + '-001';
+        var status = 'PENDING';
         
-        BEGIN
-            CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
-                :p_source_system, tbl.TABLE_NAME, :p_producer_team, :p_producer_email
-            );
-            contract_result := 'SUCCESS';
-        EXCEPTION
-            WHEN OTHER THEN
-                contract_result := 'ERROR: ' || SQLERRM;
-        END;
+        try {
+            var callSql = "CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE('" + 
+                          P_SOURCE_SYSTEM + "', '" + tableName + "', '" + 
+                          P_PRODUCER_TEAM + "', '" + P_PRODUCER_EMAIL + "')";
+            snowflake.execute({sqlText: callSql});
+            status = 'SUCCESS';
+        } catch (err) {
+            status = 'ERROR: ' + err.message;
+        }
         
-        INSERT INTO _contract_results VALUES (
-            tbl.TABLE_NAME,
-            'CONTRACT-' || :v_source_upper || '-' || UPPER(tbl.TABLE_NAME) || '-001',
-            contract_result
-        );
-    END FOR;
+        results.push({
+            table_name: tableName,
+            contract_id: contractId,
+            status: status
+        });
+    }
     
-    result := (SELECT * FROM _contract_results);
-    RETURN TABLE(result);
-END;
+    return {
+        source_system: sourceSystem,
+        contracts_generated: results.length,
+        details: results
+    };
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -457,54 +451,49 @@ $$;
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE GOVERNANCE.CONTRACTS.VALIDATE_SOURCE_SYSTEM(
-    p_source_system VARCHAR
+    P_SOURCE_SYSTEM VARCHAR
 )
-RETURNS TABLE (contract_id VARCHAR, table_name VARCHAR, passed BOOLEAN, details VARIANT)
-LANGUAGE SQL
+RETURNS VARIANT
+LANGUAGE JAVASCRIPT
 EXECUTE AS CALLER
 AS
 $$
-DECLARE
-    v_source_upper VARCHAR;
-    result RESULTSET;
-BEGIN
-    v_source_upper := UPPER(p_source_system);
+    var results = [];
+    var sourceSystem = P_SOURCE_SYSTEM.toUpperCase();
     
-    CREATE OR REPLACE TEMPORARY TABLE _validation_results (
-        contract_id VARCHAR,
-        table_name VARCHAR,
-        passed BOOLEAN,
-        details VARIANT
-    );
+    // Get all active contracts for this source system
+    var contractsSql = "SELECT CONTRACT_ID, SOURCE_TABLE FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY " +
+                       "WHERE UPPER(SOURCE_SYSTEM) = '" + sourceSystem + "' " +
+                       "AND CONTRACT_STATUS = 'ACTIVE'";
     
-    FOR contract IN (
-        SELECT CONTRACT_ID, SOURCE_TABLE
-        FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY
-        WHERE UPPER(SOURCE_SYSTEM) = :v_source_upper
-          AND CONTRACT_STATUS = 'ACTIVE'
-    )
-    DO
-        LET validation_passed BOOLEAN := FALSE;
+    var contractsStmt = snowflake.createStatement({sqlText: contractsSql});
+    var contractsRs = contractsStmt.execute();
+    
+    while (contractsRs.next()) {
+        var contractId = contractsRs.getColumnValue(1);
+        var tableName = contractsRs.getColumnValue(2);
+        var passed = false;
         
-        BEGIN
-            CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT(contract.CONTRACT_ID);
-            validation_passed := TRUE;
-        EXCEPTION
-            WHEN OTHER THEN
-                validation_passed := FALSE;
-        END;
+        try {
+            var callSql = "CALL GOVERNANCE.CONTRACTS.VALIDATE_CONTRACT('" + contractId + "')";
+            snowflake.execute({sqlText: callSql});
+            passed = true;
+        } catch (err) {
+            passed = false;
+        }
         
-        INSERT INTO _validation_results VALUES (
-            contract.CONTRACT_ID,
-            contract.SOURCE_TABLE,
-            validation_passed,
-            NULL
-        );
-    END FOR;
+        results.push({
+            contract_id: contractId,
+            table_name: tableName,
+            passed: passed
+        });
+    }
     
-    result := (SELECT * FROM _validation_results);
-    RETURN TABLE(result);
-END;
+    return {
+        source_system: sourceSystem,
+        contracts_validated: results.length,
+        details: results
+    };
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
