@@ -859,7 +859,10 @@ def render_contracts_page():
         contracts = get_contract_details(st.session_state.selected_source_filter)
         
         if not contracts.empty:
-            for _, contract in contracts.iterrows():
+            # Drop duplicates to avoid duplicate widget keys
+            contracts = contracts.drop_duplicates(subset=['CONTRACT_ID'])
+            
+            for idx, (_, contract) in enumerate(contracts.iterrows()):
                 contract_id = contract['CONTRACT_ID']
                 status = contract['HEALTH_STATUS']
                 source = contract['SOURCE_SYSTEM']
@@ -886,7 +889,7 @@ def render_contracts_page():
                 </div>
                 """, unsafe_allow_html=True)
                 
-                if st.button(f"Details", key=f"detail_{contract_id}", use_container_width=True):
+                if st.button(f"Details", key=f"detail_{idx}_{contract_id}", use_container_width=True):
                     st.session_state.selected_contract = contract_id
                     st.experimental_rerun()
         else:
