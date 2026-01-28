@@ -79,21 +79,17 @@ CREATE TABLE SEM_DEV.CONFIG.SEMANTIC_CONFIG (
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- SALES_ANALYTICS
+-- SALES_ANALYTICS (simplified - no product/order_items joins initially)
 ('SAP', 'SALES_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
   TABLES (
     orders AS CURATED_DEV.SAP.FACT_SALES_ORDERS PRIMARY KEY (ORDER_KEY),
-    order_items AS CURATED_DEV.SAP.FACT_SALES_ORDER_ITEMS PRIMARY KEY (ITEM_KEY),
     customers AS CURATED_DEV.SAP.DIM_CUSTOMER PRIMARY KEY (CUSTOMER_KEY),
-    products AS CURATED_DEV.SAP.DIM_PRODUCT PRIMARY KEY (PRODUCT_KEY),
     dates AS CURATED_DEV.SHARED.DIM_DATE PRIMARY KEY (DATE_KEY)
   )
   RELATIONSHIPS (
     orders(CUSTOMER_KEY) REFERENCES customers(CUSTOMER_KEY),
-    orders(ORDER_DATE) REFERENCES dates(DATE_KEY),
-    order_items(ORDER_KEY) REFERENCES orders(ORDER_KEY),
-    order_items(PRODUCT_KEY) REFERENCES products(PRODUCT_KEY)
+    orders(ORDER_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
     dates.YEAR AS year,
@@ -107,20 +103,15 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     customers.CITY AS city,
     customers.STATE AS state,
     customers.COUNTRY AS country,
-    customers.INDUSTRY_CODE AS industry,
+    customers.INDUSTRY_CODE AS industry_code,
     customers.CUSTOMER_CLASS AS customer_class,
     customers.IS_ACTIVE AS is_active_customer,
-    
-    products.MATERIAL_NUMBER AS material_number,
-    products.PRODUCT_NAME AS product_name,
-    products.MATERIAL_TYPE AS material_type,
-    products.MATERIAL_GROUP AS material_group,
     
     orders.ORDER_NUMBER AS order_number,
     orders.SALES_ORG AS sales_organization,
     orders.DISTRIBUTION_CHANNEL AS channel,
     orders.ORDER_TYPE AS order_type,
-    orders.ORDER_STATUS AS status,
+    orders.ORDER_STATUS AS order_status,
     orders.IS_COMPLETED AS is_completed
   )
   METRICS (
@@ -128,12 +119,10 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     orders.avg_order_value AS AVG(orders.NET_VALUE),
     orders.order_count AS COUNT(orders.ORDER_KEY),
     orders.completed_orders AS SUM(CASE WHEN orders.IS_COMPLETED THEN 1 ELSE 0 END),
-    order_items.item_count AS COUNT(order_items.ITEM_KEY),
-    order_items.total_quantity AS SUM(order_items.ORDER_QUANTITY),
     customers.customer_count AS COUNT(DISTINCT customers.CUSTOMER_KEY)
   )
-  COMMENT = ''SAP Sales Analytics - Orders, Items, Customers, Products''
-', 'SAP Sales Orders with line items, customers and products'),
+  COMMENT = ''SAP Sales Analytics - Orders and Customers''
+', 'SAP Sales Orders with customers'),
 
 -- PROCUREMENT_ANALYTICS
 ('SAP', 'PROCUREMENT_ANALYTICS', 'SEMANTIC_VIEW', '
@@ -161,14 +150,14 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.PROCUREMENT_ANALYTICS
     purchase_orders.PO_NUMBER AS po_number,
     purchase_orders.PURCHASING_ORG AS purchasing_org,
     purchase_orders.PO_TYPE AS po_type,
-    purchase_orders.STATUS AS po_status
+    purchase_orders.STATUS AS status
   )
   METRICS (
     purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY),
     purchase_orders.total_value AS SUM(purchase_orders.TOTAL_VALUE),
     vendors.vendor_count AS COUNT(DISTINCT vendors.VENDOR_KEY)
   )
-  COMMENT = ''SAP Procurement Analytics - Purchase Orders, Vendors''
+  COMMENT = ''SAP Procurement Analytics - Purchase Orders and Vendors''
 ', 'SAP Purchase Orders with vendor dimension'),
 
 -- FINANCE_ANALYTICS
@@ -192,7 +181,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.FINANCE_ANALYTICS
     documents.DOCUMENT_TYPE AS document_type,
     documents.FISCAL_PERIOD AS fiscal_period,
     documents.CURRENCY AS currency,
-    documents.DOCUMENT_STATUS AS status,
+    documents.DOCUMENT_STATUS AS document_status,
     documents.CREATED_BY AS created_by
   )
   METRICS (
