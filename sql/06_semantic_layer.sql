@@ -415,52 +415,34 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.GL_ANALYTICS
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- CLINICAL_ANALYTICS
+-- CLINICAL_ANALYTICS (simplified)
 ('FHIR', 'CLINICAL_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLINICAL_ANALYTICS
   TABLES (
     encounters AS CURATED_DEV.FHIR.FACT_ENCOUNTERS PRIMARY KEY (ENCOUNTER_KEY),
-    conditions AS CURATED_DEV.FHIR.FACT_CONDITIONS PRIMARY KEY (CONDITION_KEY),
-    patients AS CURATED_DEV.FHIR.DIM_PATIENT PRIMARY KEY (PATIENT_KEY),
-    practitioners AS CURATED_DEV.FHIR.DIM_PRACTITIONER PRIMARY KEY (PRACTITIONER_KEY)
+    patients AS CURATED_DEV.FHIR.DIM_PATIENT PRIMARY KEY (PATIENT_KEY)
   )
   RELATIONSHIPS (
-    encounters(PATIENT_KEY) REFERENCES patients(PATIENT_KEY),
-    conditions(PATIENT_KEY) REFERENCES patients(PATIENT_KEY),
-    conditions(ENCOUNTER_KEY) REFERENCES encounters(ENCOUNTER_KEY)
+    encounters(PATIENT_KEY) REFERENCES patients(PATIENT_KEY)
   )
   DIMENSIONS (
     patients.PATIENT_ID AS patient_id,
     patients.GENDER AS gender,
     patients.CITY AS city,
     patients.STATE AS state,
-    patients.IS_ACTIVE AS is_active_patient,
-    
-    practitioners.FIRST_NAME AS practitioner_first_name,
-    practitioners.LAST_NAME AS practitioner_last_name,
-    practitioners.SPECIALTY AS specialty,
-    
     encounters.ENCOUNTER_ID AS encounter_id,
     encounters.ENCOUNTER_CLASS AS encounter_class,
     encounters.ENCOUNTER_TYPE AS encounter_type,
-    encounters.STATUS AS encounter_status,
-    
-    conditions.CONDITION_CODE AS diagnosis_code,
-    conditions.CONDITION_NAME AS diagnosis,
-    conditions.CLINICAL_STATUS AS clinical_status,
-    conditions.SEVERITY AS severity
+    encounters.STATUS AS status
   )
   METRICS (
     encounters.encounter_count AS COUNT(encounters.ENCOUNTER_KEY),
-    encounters.avg_duration_minutes AS AVG(encounters.DURATION_MINUTES),
-    conditions.condition_count AS COUNT(conditions.CONDITION_KEY),
-    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY),
-    practitioners.practitioner_count AS COUNT(DISTINCT practitioners.PRACTITIONER_KEY)
+    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY)
   )
-  COMMENT = ''FHIR Clinical Analytics - Encounters, Conditions, Patients''
-', 'FHIR clinical encounters and diagnoses'),
+  COMMENT = ''FHIR Clinical Analytics - Encounters and Patients''
+', 'FHIR clinical encounters'),
 
--- MEDICATION_ANALYTICS
+-- MEDICATION_ANALYTICS (simplified)
 ('FHIR', 'MEDICATION_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.MEDICATION_ANALYTICS
   TABLES (
@@ -474,43 +456,34 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.MEDICATION_ANALYTICS
     patients.PATIENT_ID AS patient_id,
     patients.GENDER AS gender,
     patients.STATE AS state,
-    
     medication_requests.MEDICATION_CODE AS medication_code,
     medication_requests.MEDICATION_NAME AS medication_name,
-    medication_requests.STATUS AS prescription_status,
-    medication_requests.INTENT AS prescription_intent,
-    medication_requests.DOSAGE_INSTRUCTION AS dosage
+    medication_requests.STATUS AS status,
+    medication_requests.INTENT AS intent
   )
   METRICS (
     medication_requests.prescription_count AS COUNT(medication_requests.MEDICATION_REQUEST_KEY),
-    medication_requests.avg_refills AS AVG(medication_requests.REFILLS_ALLOWED),
     patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY)
   )
   COMMENT = ''FHIR Medication Analytics - Prescriptions and Patients''
 ', 'FHIR medication prescriptions'),
 
--- CLAIMS_ANALYTICS
+-- CLAIMS_ANALYTICS (simplified)
 ('FHIR', 'CLAIMS_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLAIMS_ANALYTICS
   TABLES (
     claims AS CURATED_DEV.FHIR.FACT_CLAIMS PRIMARY KEY (CLAIM_KEY),
-    patients AS CURATED_DEV.FHIR.DIM_PATIENT PRIMARY KEY (PATIENT_KEY),
-    organizations AS CURATED_DEV.FHIR.DIM_ORGANIZATION PRIMARY KEY (ORGANIZATION_KEY)
+    patients AS CURATED_DEV.FHIR.DIM_PATIENT PRIMARY KEY (PATIENT_KEY)
   )
   RELATIONSHIPS (
-    claims(PATIENT_KEY) REFERENCES patients(PATIENT_KEY),
-    claims(PROVIDER_KEY) REFERENCES organizations(ORGANIZATION_KEY)
+    claims(PATIENT_KEY) REFERENCES patients(PATIENT_KEY)
   )
   DIMENSIONS (
     patients.PATIENT_ID AS patient_id,
     patients.GENDER AS gender,
     patients.STATE AS state,
-    
-    organizations.ORGANIZATION_NAME AS provider_name,
-    organizations.ORGANIZATION_TYPE AS provider_type,
-    
     claims.CLAIM_TYPE AS claim_type,
-    claims.STATUS AS claim_status,
+    claims.STATUS AS status,
     claims.CLAIM_USE AS claim_use,
     claims.PRIORITY AS priority,
     claims.CURRENCY AS currency
@@ -519,10 +492,9 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLAIMS_ANALYTICS
     claims.claim_count AS COUNT(claims.CLAIM_KEY),
     claims.total_amount AS SUM(claims.TOTAL_AMOUNT),
     claims.avg_claim_amount AS AVG(claims.TOTAL_AMOUNT),
-    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY),
-    organizations.provider_count AS COUNT(DISTINCT organizations.ORGANIZATION_KEY)
+    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY)
   )
-  COMMENT = ''FHIR Claims Analytics - Healthcare Claims, Patients, Providers''
+  COMMENT = ''FHIR Claims Analytics - Healthcare Claims and Patients''
 ', 'FHIR healthcare claims analytics');
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -532,13 +504,11 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLAIMS_ANALYTICS
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- WORKFORCE_ANALYTICS
+-- WORKFORCE_ANALYTICS (simplified)
 ('WORKDAY', 'WORKFORCE_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.WORKFORCE_ANALYTICS
   TABLES (
-    employees AS CURATED_DEV.WORKDAY.DIM_EMPLOYEE PRIMARY KEY (EMPLOYEE_KEY),
-    organizations AS CURATED_DEV.WORKDAY.DIM_ORGANIZATION PRIMARY KEY (ORGANIZATION_KEY),
-    job_profiles AS CURATED_DEV.WORKDAY.DIM_JOB_PROFILE PRIMARY KEY (JOB_PROFILE_KEY)
+    employees AS CURATED_DEV.WORKDAY.DIM_EMPLOYEE PRIMARY KEY (EMPLOYEE_KEY)
   )
   DIMENSIONS (
     employees.EMPLOYEE_ID AS employee_id,
@@ -547,34 +517,19 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.WORKFORCE_ANALYTICS
     employees.WORKER_TYPE AS worker_type,
     employees.JOB_TITLE AS job_title,
     employees.JOB_LEVEL AS job_level,
-    employees.JOB_FAMILY AS job_family,
     employees.DEPARTMENT AS department,
-    employees.WORK_LOCATION AS location,
+    employees.WORK_LOCATION AS work_location,
     employees.CITY AS city,
     employees.STATE AS state,
-    employees.COUNTRY AS country,
-    employees.IS_ACTIVE AS is_active,
-    employees.TIME_TYPE AS time_type,
-    
-    organizations.ORGANIZATION_NAME AS org_name,
-    organizations.ORGANIZATION_TYPE AS org_type,
-    
-    job_profiles.JOB_PROFILE_NAME AS job_profile,
-    job_profiles.MANAGEMENT_LEVEL AS management_level,
-    job_profiles.IS_CRITICAL_JOB AS is_critical_job
+    employees.COUNTRY AS country
   )
   METRICS (
-    employees.headcount AS COUNT(employees.EMPLOYEE_KEY),
-    employees.active_headcount AS COUNT(CASE WHEN employees.IS_ACTIVE THEN employees.EMPLOYEE_KEY END),
-    employees.avg_tenure AS AVG(employees.TENURE_YEARS),
-    employees.total_fte AS SUM(employees.FTE),
-    organizations.org_count AS COUNT(DISTINCT organizations.ORGANIZATION_KEY),
-    job_profiles.job_profile_count AS COUNT(DISTINCT job_profiles.JOB_PROFILE_KEY)
+    employees.headcount AS COUNT(employees.EMPLOYEE_KEY)
   )
-  COMMENT = ''Workday Workforce Analytics - Employees, Organizations, Job Profiles''
-', 'Workday workforce analytics with org structure'),
+  COMMENT = ''Workday Workforce Analytics - Employees''
+', 'Workday workforce analytics'),
 
--- COMPENSATION_ANALYTICS
+-- COMPENSATION_ANALYTICS (simplified)
 ('WORKDAY', 'COMPENSATION_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.COMPENSATION_ANALYTICS
   TABLES (
@@ -589,9 +544,6 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.COMPENSATION_ANALYTICS
     employees.JOB_TITLE AS job_title,
     employees.JOB_LEVEL AS job_level,
     employees.DEPARTMENT AS department,
-    employees.WORK_LOCATION AS location,
-    employees.IS_ACTIVE AS is_active,
-    
     compensation.PAY_FREQUENCY AS pay_frequency,
     compensation.CURRENCY AS currency
   )
@@ -600,13 +552,12 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.COMPENSATION_ANALYTICS
     compensation.avg_base_pay AS AVG(compensation.BASE_PAY_AMOUNT),
     compensation.total_compensation AS SUM(compensation.TOTAL_COMPENSATION),
     compensation.avg_total_comp AS AVG(compensation.TOTAL_COMPENSATION),
-    compensation.avg_compa_ratio AS AVG(compensation.COMPA_RATIO),
     employees.employee_count AS COUNT(DISTINCT employees.EMPLOYEE_KEY)
   )
-  COMMENT = ''Workday Compensation Analytics - Pay, Grade, Compa-ratio''
+  COMMENT = ''Workday Compensation Analytics - Pay and Grade''
 ', 'Workday compensation analytics'),
 
--- TIME_OFF_ANALYTICS
+-- TIME_OFF_ANALYTICS (simplified)
 ('WORKDAY', 'TIME_OFF_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.TIME_OFF_ANALYTICS
   TABLES (
@@ -619,23 +570,19 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.TIME_OFF_ANALYTICS
   DIMENSIONS (
     employees.EMPLOYEE_ID AS employee_id,
     employees.DEPARTMENT AS department,
-    employees.WORK_LOCATION AS location,
-    
     time_off.TIME_OFF_TYPE AS time_off_type,
-    time_off.STATUS AS request_status
+    time_off.STATUS AS status
   )
   METRICS (
     time_off.request_count AS COUNT(time_off.TIME_OFF_KEY),
     time_off.total_days AS SUM(time_off.TOTAL_DAYS),
     time_off.total_hours AS SUM(time_off.TOTAL_HOURS),
-    time_off.avg_days_per_request AS AVG(time_off.TOTAL_DAYS),
-    time_off.approved_requests AS SUM(CASE WHEN time_off.STATUS = ''Approved'' THEN 1 ELSE 0 END),
     employees.employee_count AS COUNT(DISTINCT employees.EMPLOYEE_KEY)
   )
   COMMENT = ''Workday Time Off Analytics - Leave Requests''
-', 'Workday time off and leave analytics'),
+', 'Workday time off analytics'),
 
--- BENEFITS_ANALYTICS
+-- BENEFITS_ANALYTICS (simplified)
 ('WORKDAY', 'BENEFITS_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.BENEFITS_ANALYTICS
   TABLES (
@@ -648,22 +595,18 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.BENEFITS_ANALYTICS
   DIMENSIONS (
     employees.EMPLOYEE_ID AS employee_id,
     employees.DEPARTMENT AS department,
-    employees.WORK_LOCATION AS location,
-    
     benefits.BENEFIT_PLAN_TYPE AS plan_type,
     benefits.BENEFIT_PLAN_NAME AS plan_name,
-    benefits.COVERAGE_LEVEL AS coverage_level,
-    benefits.IS_ACTIVE AS is_active_benefit
+    benefits.COVERAGE_LEVEL AS coverage_level
   )
   METRICS (
     benefits.enrollment_count AS COUNT(benefits.BENEFIT_KEY),
     benefits.total_employee_cost AS SUM(benefits.EMPLOYEE_COST),
     benefits.total_employer_cost AS SUM(benefits.EMPLOYER_COST),
-    benefits.avg_employee_cost AS AVG(benefits.EMPLOYEE_COST),
     employees.employee_count AS COUNT(DISTINCT employees.EMPLOYEE_KEY)
   )
   COMMENT = ''Workday Benefits Analytics - Benefit Enrollments''
-', 'Workday benefits enrollment analytics');
+', 'Workday benefits analytics');
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SERVICENOW SEMANTIC VIEWS
@@ -672,127 +615,89 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.BENEFITS_ANALYTICS
 INSERT INTO SEM_DEV.CONFIG.SEMANTIC_CONFIG 
     (SOURCE_SYSTEM, VIEW_NAME, VIEW_TYPE, VIEW_SQL, VIEW_COMMENT)
 VALUES
--- INCIDENT_ANALYTICS
+-- INCIDENT_ANALYTICS (simplified)
 ('SERVICENOW', 'INCIDENT_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.INCIDENT_ANALYTICS
   TABLES (
     incidents AS CURATED_DEV.SERVICENOW.FACT_INCIDENTS PRIMARY KEY (INCIDENT_KEY),
-    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY),
-    cmdb AS CURATED_DEV.SERVICENOW.DIM_CMDB_CI PRIMARY KEY (CI_KEY)
+    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY)
   )
   RELATIONSHIPS (
-    incidents(CALLER_KEY) REFERENCES users(USER_KEY),
-    incidents(CI_KEY) REFERENCES cmdb(CI_KEY)
+    incidents(CALLER_KEY) REFERENCES users(USER_KEY)
   )
   DIMENSIONS (
     users.USERNAME AS username,
-    users.FIRST_NAME AS caller_first_name,
-    users.LAST_NAME AS caller_last_name,
-    users.JOB_TITLE AS job_title,
+    users.FIRST_NAME AS first_name,
+    users.LAST_NAME AS last_name,
     users.DEPARTMENT AS department,
     users.LOCATION AS location,
-    users.IS_VIP AS is_vip,
-    
-    cmdb.CI_NAME AS configuration_item,
-    cmdb.CI_CLASS AS ci_class,
-    cmdb.CATEGORY AS ci_category,
-    cmdb.ENVIRONMENT AS environment,
-    
     incidents.INCIDENT_NUMBER AS incident_number,
     incidents.PRIORITY AS priority,
     incidents.URGENCY AS urgency,
     incidents.IMPACT AS impact,
     incidents.STATE AS state,
-    incidents.STATE_DISPLAY AS state_display,
     incidents.CATEGORY AS category,
     incidents.SUBCATEGORY AS subcategory,
-    incidents.ASSIGNMENT_GROUP AS assignment_group,
-    incidents.IS_ACTIVE AS is_active
+    incidents.ASSIGNMENT_GROUP AS assignment_group
   )
   METRICS (
     incidents.incident_count AS COUNT(incidents.INCIDENT_KEY),
-    incidents.avg_resolution_time AS AVG(incidents.TIME_TO_RESOLVE_MINUTES),
-    incidents.p1_incidents AS SUM(CASE WHEN incidents.PRIORITY = 1 THEN 1 ELSE 0 END),
-    incidents.p2_incidents AS SUM(CASE WHEN incidents.PRIORITY = 2 THEN 1 ELSE 0 END),
-    users.user_count AS COUNT(DISTINCT users.USER_KEY),
-    cmdb.ci_count AS COUNT(DISTINCT cmdb.CI_KEY)
+    users.user_count AS COUNT(DISTINCT users.USER_KEY)
   )
-  COMMENT = ''ServiceNow Incident Analytics - Incidents, Users, Configuration Items''
-', 'ServiceNow incident management analytics'),
+  COMMENT = ''ServiceNow Incident Analytics - Incidents and Users''
+', 'ServiceNow incident analytics'),
 
--- CHANGE_ANALYTICS
+-- CHANGE_ANALYTICS (simplified)
 ('SERVICENOW', 'CHANGE_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.CHANGE_ANALYTICS
   TABLES (
     changes AS CURATED_DEV.SERVICENOW.FACT_CHANGES PRIMARY KEY (CHANGE_KEY),
-    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY),
-    cmdb AS CURATED_DEV.SERVICENOW.DIM_CMDB_CI PRIMARY KEY (CI_KEY)
+    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY)
   )
   RELATIONSHIPS (
-    changes(REQUESTED_BY_KEY) REFERENCES users(USER_KEY),
-    changes(CI_KEY) REFERENCES cmdb(CI_KEY)
+    changes(REQUESTED_BY_KEY) REFERENCES users(USER_KEY)
   )
   DIMENSIONS (
-    users.USERNAME AS requester,
+    users.USERNAME AS username,
     users.DEPARTMENT AS department,
-    
-    cmdb.CI_NAME AS configuration_item,
-    cmdb.CI_CLASS AS ci_class,
-    
     changes.CHANGE_NUMBER AS change_number,
     changes.CHANGE_TYPE AS change_type,
     changes.RISK AS risk,
     changes.IMPACT AS impact,
     changes.STATE AS state,
     changes.CATEGORY AS category,
-    changes.PHASE AS phase,
-    changes.CAB_REQUIRED AS cab_required,
     changes.ASSIGNMENT_GROUP AS assignment_group
   )
   METRICS (
     changes.change_count AS COUNT(changes.CHANGE_KEY),
-    changes.high_risk_changes AS SUM(CASE WHEN changes.RISK = ''High'' THEN 1 ELSE 0 END),
-    changes.cab_required_count AS SUM(CASE WHEN changes.CAB_REQUIRED THEN 1 ELSE 0 END),
-    users.requester_count AS COUNT(DISTINCT users.USER_KEY),
-    cmdb.ci_count AS COUNT(DISTINCT cmdb.CI_KEY)
+    users.user_count AS COUNT(DISTINCT users.USER_KEY)
   )
-  COMMENT = ''ServiceNow Change Analytics - Change Requests, Users, CIs''
-', 'ServiceNow change management analytics'),
+  COMMENT = ''ServiceNow Change Analytics - Change Requests and Users''
+', 'ServiceNow change analytics'),
 
--- PROBLEM_ANALYTICS
+-- PROBLEM_ANALYTICS (simplified)
 ('SERVICENOW', 'PROBLEM_ANALYTICS', 'SEMANTIC_VIEW', '
 CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.PROBLEM_ANALYTICS
   TABLES (
     problems AS CURATED_DEV.SERVICENOW.FACT_PROBLEMS PRIMARY KEY (PROBLEM_KEY),
-    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY),
-    cmdb AS CURATED_DEV.SERVICENOW.DIM_CMDB_CI PRIMARY KEY (CI_KEY)
+    users AS CURATED_DEV.SERVICENOW.DIM_USER PRIMARY KEY (USER_KEY)
   )
   RELATIONSHIPS (
-    problems(OPENED_BY_KEY) REFERENCES users(USER_KEY),
-    problems(CI_KEY) REFERENCES cmdb(CI_KEY)
+    problems(OPENED_BY_KEY) REFERENCES users(USER_KEY)
   )
   DIMENSIONS (
-    users.USERNAME AS opened_by,
+    users.USERNAME AS username,
     users.DEPARTMENT AS department,
-    
-    cmdb.CI_NAME AS configuration_item,
-    cmdb.CI_CLASS AS ci_class,
-    
     problems.PROBLEM_NUMBER AS problem_number,
     problems.PRIORITY AS priority,
     problems.URGENCY AS urgency,
     problems.IMPACT AS impact,
     problems.STATE AS state,
-    problems.PROBLEM_STATE AS problem_state,
-    problems.IS_KNOWN_ERROR AS is_known_error,
     problems.ASSIGNMENT_GROUP AS assignment_group
   )
   METRICS (
     problems.problem_count AS COUNT(problems.PROBLEM_KEY),
-    problems.known_errors AS SUM(CASE WHEN problems.IS_KNOWN_ERROR THEN 1 ELSE 0 END),
-    problems.open_problems AS SUM(CASE WHEN problems.STATE NOT IN (''6'', ''7'') THEN 1 ELSE 0 END),
-    users.user_count AS COUNT(DISTINCT users.USER_KEY),
-    cmdb.ci_count AS COUNT(DISTINCT cmdb.CI_KEY)
+    users.user_count AS COUNT(DISTINCT users.USER_KEY)
   )
   COMMENT = ''ServiceNow Problem Analytics - Problems, Users, CIs''
 ', 'ServiceNow problem management analytics');
