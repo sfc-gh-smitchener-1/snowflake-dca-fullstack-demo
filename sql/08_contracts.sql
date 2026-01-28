@@ -289,9 +289,11 @@ AS
 $$
 DECLARE
     v_schema_name VARCHAR;
+    v_source_upper VARCHAR;
     result RESULTSET;
 BEGIN
-    v_schema_name := 'RAW_DEV.' || UPPER(p_source_system);
+    v_source_upper := UPPER(p_source_system);
+    v_schema_name := 'RAW_DEV.' || v_source_upper;
     
     CREATE OR REPLACE TEMPORARY TABLE _contract_results (
         table_name VARCHAR,
@@ -302,9 +304,9 @@ BEGIN
     -- Get all tables in the source system schema
     FOR tbl IN (
         SELECT TABLE_NAME
-        FROM INFORMATION_SCHEMA.TABLES
+        FROM RAW_DEV.INFORMATION_SCHEMA.TABLES
         WHERE TABLE_CATALOG = 'RAW_DEV'
-          AND TABLE_SCHEMA = UPPER(p_source_system)
+          AND TABLE_SCHEMA = :v_source_upper
           AND TABLE_TYPE = 'BASE TABLE'
           AND TABLE_NAME NOT LIKE '%_TEMPLATE'
     )
@@ -312,13 +314,13 @@ BEGIN
         LET contract_result VARCHAR := '';
         LET call_result VARIANT;
         call_result := (CALL GOVERNANCE.CONTRACTS.GENERATE_CONTRACT_FOR_TABLE(
-            p_source_system, tbl.TABLE_NAME, p_producer_team, p_producer_email
+            :p_source_system, tbl.TABLE_NAME, :p_producer_team, :p_producer_email
         ));
         contract_result := call_result::VARCHAR;
         
         INSERT INTO _contract_results VALUES (
             tbl.TABLE_NAME,
-            'CONTRACT-' || UPPER(p_source_system) || '-' || UPPER(tbl.TABLE_NAME) || '-001',
+            'CONTRACT-' || :v_source_upper || '-' || UPPER(tbl.TABLE_NAME) || '-001',
             contract_result
         );
     END FOR;
@@ -455,8 +457,11 @@ EXECUTE AS CALLER
 AS
 $$
 DECLARE
+    v_source_upper VARCHAR;
     result RESULTSET;
 BEGIN
+    v_source_upper := UPPER(p_source_system);
+    
     CREATE OR REPLACE TEMPORARY TABLE _validation_results (
         contract_id VARCHAR,
         table_name VARCHAR,
@@ -467,7 +472,7 @@ BEGIN
     FOR contract IN (
         SELECT CONTRACT_ID, SOURCE_TABLE
         FROM GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY
-        WHERE UPPER(SOURCE_SYSTEM) = UPPER(p_source_system)
+        WHERE UPPER(SOURCE_SYSTEM) = :v_source_upper
           AND CONTRACT_STATUS = 'ACTIVE'
     )
     DO
