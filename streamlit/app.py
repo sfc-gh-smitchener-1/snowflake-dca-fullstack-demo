@@ -331,12 +331,12 @@ def get_contract_details(source_system: str = None):
                 SOURCE_SYSTEM,
                 SOURCE_TABLE,
                 HEALTH_STATUS,
-                LAST_VALIDATED,
+                LAST_VALIDATION,
                 LAST_PASSED,
                 SCHEMA_PASSED,
                 QUALITY_PASSED,
                 SLA_PASSED,
-                VALIDATION_COUNT
+                TOTAL_ROWS
             FROM GOVERNANCE.CONTRACTS.VW_CONTRACT_HEALTH
             {where_clause}
             ORDER BY 
