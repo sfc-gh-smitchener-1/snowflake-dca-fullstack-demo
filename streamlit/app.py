@@ -980,38 +980,52 @@ def render_source_explorer():
                         else:
                             st.warning("Please enter a question")
                     
-                    # Also offer quick sample queries
+                    # Quick direct queries (no LLM needed)
                     st.divider()
-                    st.markdown("**Quick Samples:**")
-                    sample_queries = [
-                        "Show me a summary",
-                        "Count by category",
-                        "Show top 10 records"
-                    ]
-                    cols = st.columns(len(sample_queries))
-                    for i, sq in enumerate(sample_queries):
-                        with cols[i]:
-                            if st.button(f"💬 {sq}", key=f"sem_sample_{i}", use_container_width=True):
-                                with st.spinner("Querying..."):
-                                    semantic_view_path = f"{selected_source}.{selected_object}"
-                                    api_response, error = call_cortex_analyst(sq, semantic_view_path)
-                                    
+                    st.markdown("**Quick Data Preview:**")
+                    
+                    # Get underlying table for direct queries
+                    underlying_tables = get_underlying_tables_for_semantic_view(f"{selected_source}.{selected_object}")
+                    
+                    if underlying_tables:
+                        primary_table = underlying_tables[0]
+                        
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            if st.button("📋 Sample Data", key="sem_sample_data", use_container_width=True):
+                                with st.spinner("Loading..."):
+                                    result_df, error = execute_sql(f"SELECT * FROM {primary_table} LIMIT 50")
                                     if error:
                                         st.error(f"Error: {error}")
-                                    elif api_response:
-                                        msg_content = api_response.get("message", {}).get("content", [])
-                                        sql_query = None
-                                        
-                                        for part in msg_content:
-                                            if part.get("type") == "sql":
-                                                sql_query = part.get("statement", "")
-                                        
-                                        if sql_query:
-                                            result_df, sql_error = execute_sql(sql_query)
-                                            if sql_error:
-                                                st.error(f"SQL Error: {sql_error}")
-                                            elif result_df is not None:
-                                                st.dataframe(result_df, use_container_width=True)
+                                    elif result_df is not None:
+                                        st.success(f"Sample from {primary_table}")
+                                        st.dataframe(result_df, use_container_width=True)
+                        
+                        with col_b:
+                            if st.button("🔢 Row Count", key="sem_count", use_container_width=True):
+                                with st.spinner("Counting..."):
+                                    result_df, error = execute_sql(f"SELECT COUNT(*) as TOTAL_ROWS FROM {primary_table}")
+                                    if error:
+                                        st.error(f"Error: {error}")
+                                    elif result_df is not None:
+                                        count = result_df['TOTAL_ROWS'].iloc[0]
+                                        st.metric("Total Rows", f"{count:,}")
+                        
+                        with col_c:
+                            if st.button("📊 Column Info", key="sem_cols", use_container_width=True):
+                                with st.spinner("Loading schema..."):
+                                    try:
+                                        sess = get_session()
+                                        sample = sess.sql(f"SELECT * FROM {primary_table} LIMIT 1").to_pandas()
+                                        col_info = pd.DataFrame({
+                                            'Column': sample.columns,
+                                            'Type': [str(sample[c].dtype) for c in sample.columns]
+                                        })
+                                        st.dataframe(col_info, use_container_width=True)
+                                    except Exception as e:
+                                        st.error(f"Error: {e}")
+                    else:
+                        st.info("Could not find underlying tables for quick queries.")
                 else:
                     st.info("No SEMANTIC views available. Run BUILD_SEMANTIC_LAYER() first.")
 
@@ -1167,35 +1181,36 @@ def call_cortex_complete_fallback(prompt: str, semantic_view: str):
         # Use the first (primary) table
         primary_table = underlying_tables[0]
         
-        # Get column info for the primary table
+        # Get actual column info by sampling the table
         try:
-            cols_df = session.sql(f"DESCRIBE TABLE {primary_table}").to_pandas()
-            columns = cols_df['name'].tolist() if 'name' in cols_df.columns else []
-            columns_str = ', '.join(columns[:20])  # Limit to first 20 columns
+            sample_df = session.sql(f"SELECT * FROM {primary_table} LIMIT 1").to_pandas()
+            columns = list(sample_df.columns)
+            # Format columns for the prompt - these are the exact column names
+            columns_str = ', '.join(columns[:25])  # Limit to first 25 columns
         except:
             columns_str = "*"
+            columns = []
         
         # Escape single quotes for SQL
         escaped_prompt = prompt.replace("'", "''")
         escaped_table = primary_table.replace("'", "''")
         
         # Build prompt to query the underlying curated table
-        system_prompt = f"""You are a SQL expert. Generate a Snowflake SQL query for this question.
+        system_prompt = f"""Generate a Snowflake SQL query.
 
-Query the table: {escaped_table}
-
-Available columns: {columns_str}
+TABLE: {escaped_table}
+COLUMNS: {columns_str}
 
 Question: {escaped_prompt}
 
-RULES:
-1. Use the exact table name: {escaped_table}
-2. Write a complete, valid SQL query
-3. For counts, use COUNT(*) or COUNT(column_name)
-4. For summaries, SELECT relevant columns with GROUP BY if needed
-5. Always include a LIMIT clause (max 100 rows)
+IMPORTANT:
+- Use SELECT with specific columns or COUNT(*)
+- Table name is exactly: {escaped_table}
+- Add LIMIT 100 at the end
+- Return ONLY SQL, nothing else
 
-Return ONLY the SQL query. No explanation, no markdown."""
+Example for "show summary": SELECT * FROM {escaped_table} LIMIT 100
+Example for "count by X": SELECT X, COUNT(*) as cnt FROM {escaped_table} GROUP BY X LIMIT 100"""
         
         # Use CORTEX.COMPLETE via SQL to generate SQL
         result = session.sql(f"""
