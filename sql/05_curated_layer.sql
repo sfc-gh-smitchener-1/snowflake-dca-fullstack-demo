@@ -1130,157 +1130,157 @@ VALUES
 -- DIM_USER
 ('SERVICENOW', 'DIM_USER', 'DIMENSION', 'SYS_USER', '
 SELECT
-    sys_id AS USER_KEY,
-    sys_id AS USER_ID,
-    SHA2(sys_id, 256) AS USER_ID_HASH,
-    user_name AS USERNAME,
-    first_name AS FIRST_NAME,
-    last_name AS LAST_NAME,
-    name AS FULL_NAME,
-    email AS EMAIL,
-    phone AS PHONE,
-    title AS JOB_TITLE,
-    department AS DEPARTMENT,
-    location AS LOCATION,
-    manager AS MANAGER_ID,
-    company AS COMPANY,
-    active AS IS_ACTIVE,
-    vip AS IS_VIP,
-    sys_created_on AS CREATED_DATE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS USER_KEY,
+    "sys_id" AS USER_ID,
+    SHA2("sys_id", 256) AS USER_ID_HASH,
+    "user_name" AS USERNAME,
+    "first_name" AS FIRST_NAME,
+    "last_name" AS LAST_NAME,
+    "name" AS FULL_NAME,
+    "email" AS EMAIL,
+    "phone" AS PHONE,
+    "title" AS JOB_TITLE,
+    "department" AS DEPARTMENT,
+    "location" AS LOCATION,
+    "manager" AS MANAGER_ID,
+    "company" AS COMPANY,
+    "active" AS IS_ACTIVE,
+    "vip" AS IS_VIP,
+    "sys_created_on" AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.SYS_USER
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '24 hours', 'ServiceNow User dimension from sys_user'),
 
 -- DIM_CMDB_CI
 ('SERVICENOW', 'DIM_CMDB_CI', 'DIMENSION', 'CMDB_CI', '
 SELECT
-    sys_id AS CI_KEY,
-    sys_id AS CI_ID,
-    SHA2(sys_id, 256) AS CI_ID_HASH,
-    name AS CI_NAME,
-    sys_class_name AS CI_CLASS,
-    short_description AS DESCRIPTION,
-    manufacturer AS MANUFACTURER,
-    model_id AS MODEL_ID,
-    serial_number AS SERIAL_NUMBER,
-    asset_tag AS ASSET_TAG,
-    ip_address AS IP_ADDRESS,
-    mac_address AS MAC_ADDRESS,
-    install_status AS INSTALL_STATUS,
-    operational_status AS OPERATIONAL_STATUS,
-    location AS LOCATION,
-    department AS DEPARTMENT,
-    assigned_to AS ASSIGNED_TO_KEY,
-    vendor AS VENDOR,
-    cost AS COST,
-    sys_created_on AS CREATED_DATE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS CI_KEY,
+    "sys_id" AS CI_ID,
+    SHA2("sys_id", 256) AS CI_ID_HASH,
+    "name" AS CI_NAME,
+    "sys_class_name" AS CI_CLASS,
+    "short_description" AS DESCRIPTION,
+    "manufacturer" AS MANUFACTURER,
+    "model_id" AS MODEL_ID,
+    "serial_number" AS SERIAL_NUMBER,
+    "asset_tag" AS ASSET_TAG,
+    "ip_address" AS IP_ADDRESS,
+    "mac_address" AS MAC_ADDRESS,
+    "install_status" AS INSTALL_STATUS,
+    "operational_status" AS OPERATIONAL_STATUS,
+    "location" AS LOCATION,
+    "department" AS DEPARTMENT,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "vendor" AS VENDOR,
+    "cost" AS COST,
+    "sys_created_on" AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.CMDB_CI
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '24 hours', 'ServiceNow CMDB Configuration Item dimension'),
 
 -- FACT_INCIDENTS
 ('SERVICENOW', 'FACT_INCIDENTS', 'FACT', 'INCIDENT', '
 SELECT
-    sys_id AS INCIDENT_KEY,
-    number AS INCIDENT_NUMBER,
-    caller_id AS CALLER_KEY,
-    assigned_to AS ASSIGNED_TO_KEY,
-    assignment_group AS ASSIGNMENT_GROUP,
-    short_description AS SHORT_DESCRIPTION,
-    description AS DESCRIPTION,
-    priority AS PRIORITY,
-    urgency AS URGENCY,
-    impact AS IMPACT,
-    state AS STATE,
-    state_display AS STATE_DISPLAY,
-    category AS CATEGORY,
-    subcategory AS SUBCATEGORY,
-    opened_at AS OPENED_AT,
-    resolved_at AS RESOLVED_AT,
-    closed_at AS CLOSED_AT,
-    DATEDIFF(''minute'', opened_at, COALESCE(resolved_at, CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
-    active AS IS_ACTIVE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS INCIDENT_KEY,
+    "number" AS INCIDENT_NUMBER,
+    "caller_id" AS CALLER_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "assignment_group" AS ASSIGNMENT_GROUP,
+    "short_description" AS SHORT_DESCRIPTION,
+    "description" AS DESCRIPTION,
+    "priority" AS PRIORITY,
+    "urgency" AS URGENCY,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "state_display" AS STATE_DISPLAY,
+    "category" AS CATEGORY,
+    "subcategory" AS SUBCATEGORY,
+    "opened_at" AS OPENED_AT,
+    "resolved_at" AS RESOLVED_AT,
+    "closed_at" AS CLOSED_AT,
+    DATEDIFF(''minute'', "opened_at", COALESCE("resolved_at", CURRENT_TIMESTAMP())) AS TIME_TO_RESOLVE_MINUTES,
+    "active" AS IS_ACTIVE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.INCIDENT
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '15 minutes', 'ServiceNow Incident fact'),
 
 -- FACT_CHANGES
 ('SERVICENOW', 'FACT_CHANGES', 'FACT', 'CHANGE_REQUEST', '
 SELECT
-    sys_id AS CHANGE_KEY,
-    number AS CHANGE_NUMBER,
-    sys_created_by AS REQUESTED_BY_KEY,
-    assigned_to AS ASSIGNED_TO_KEY,
-    short_description AS SHORT_DESCRIPTION,
-    description AS DESCRIPTION,
-    priority AS PRIORITY,
-    risk AS RISK,
-    impact AS IMPACT,
-    state AS STATE,
-    type AS CHANGE_TYPE,
-    category AS CATEGORY,
-    start_date AS PLANNED_START_DATE,
-    end_date AS PLANNED_END_DATE,
-    sys_created_on AS CREATED_DATE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS CHANGE_KEY,
+    "number" AS CHANGE_NUMBER,
+    "sys_created_by" AS REQUESTED_BY_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "description" AS DESCRIPTION,
+    "priority" AS PRIORITY,
+    "risk" AS RISK,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "type" AS CHANGE_TYPE,
+    "category" AS CATEGORY,
+    "start_date" AS PLANNED_START_DATE,
+    "end_date" AS PLANNED_END_DATE,
+    "sys_created_on" AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.CHANGE_REQUEST
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '30 minutes', 'ServiceNow Change Request fact'),
 
 -- FACT_PROBLEMS
 ('SERVICENOW', 'FACT_PROBLEMS', 'FACT', 'PROBLEM', '
 SELECT
-    sys_id AS PROBLEM_KEY,
-    number AS PROBLEM_NUMBER,
-    sys_created_by AS OPENED_BY_KEY,
-    assigned_to AS ASSIGNED_TO_KEY,
-    assignment_group AS ASSIGNMENT_GROUP,
-    short_description AS SHORT_DESCRIPTION,
-    priority AS PRIORITY,
-    urgency AS URGENCY,
-    impact AS IMPACT,
-    state AS STATE,
-    problem_state AS PROBLEM_STATE,
-    known_error AS IS_KNOWN_ERROR,
-    opened_at AS OPENED_AT,
-    resolved_at AS RESOLVED_AT,
-    closed_at AS CLOSED_AT,
-    sys_created_on AS CREATED_DATE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS PROBLEM_KEY,
+    "number" AS PROBLEM_NUMBER,
+    "sys_created_by" AS OPENED_BY_KEY,
+    "assigned_to" AS ASSIGNED_TO_KEY,
+    "assignment_group" AS ASSIGNMENT_GROUP,
+    "short_description" AS SHORT_DESCRIPTION,
+    "priority" AS PRIORITY,
+    "urgency" AS URGENCY,
+    "impact" AS IMPACT,
+    "state" AS STATE,
+    "problem_state" AS PROBLEM_STATE,
+    "known_error" AS IS_KNOWN_ERROR,
+    "opened_at" AS OPENED_AT,
+    "resolved_at" AS RESOLVED_AT,
+    "closed_at" AS CLOSED_AT,
+    "sys_created_on" AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.PROBLEM
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '30 minutes', 'ServiceNow Problem fact'),
 
 -- FACT_REQUESTS
 ('SERVICENOW', 'FACT_REQUESTS', 'FACT', 'SC_REQUEST', '
 SELECT
-    sys_id AS REQUEST_KEY,
-    number AS REQUEST_NUMBER,
-    requested_for AS REQUESTED_FOR_KEY,
-    sys_created_by AS OPENED_BY_KEY,
-    short_description AS SHORT_DESCRIPTION,
-    request_state AS STATE,
-    stage AS STAGE,
-    price AS PRICE,
-    sys_created_on AS CREATED_DATE,
-    _LOADED_AT AS _SOURCE_LOADED_AT,
-    _SOURCE_SYSTEM,
-    _IS_CURRENT
+    "sys_id" AS REQUEST_KEY,
+    "number" AS REQUEST_NUMBER,
+    "requested_for" AS REQUESTED_FOR_KEY,
+    "sys_created_by" AS OPENED_BY_KEY,
+    "short_description" AS SHORT_DESCRIPTION,
+    "request_state" AS STATE,
+    "stage" AS STAGE,
+    "price" AS PRICE,
+    "sys_created_on" AS CREATED_DATE,
+    "_LOADED_AT" AS _SOURCE_LOADED_AT,
+    "_SOURCE_SYSTEM",
+    "_IS_CURRENT"
 FROM RAW_DEV.SERVICENOW.SC_REQUEST
-WHERE _IS_CURRENT = TRUE
+WHERE "_IS_CURRENT" = TRUE
 ', '30 minutes', 'ServiceNow Service Catalog Request fact');
 
 -- ═══════════════════════════════════════════════════════════════════════════
