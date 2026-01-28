@@ -819,8 +819,6 @@ def render_source_explorer():
                                     st.error("Could not load sample data. The semantic view may not be built yet.")
                 else:
                     st.info("No SEMANTIC views available. Run BUILD_SEMANTIC_LAYER() first.")
-        else:
-            st.warning(f"No tables found for {selected_source}. Load data first.")
 
 # ============================================================================
 # PAGE: CORTEX ANALYST
