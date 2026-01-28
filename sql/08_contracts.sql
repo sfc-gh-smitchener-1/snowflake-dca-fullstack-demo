@@ -202,31 +202,31 @@ $$
     });
     
     try {
-        // Insert contract
+        // Insert contract using INSERT...SELECT to allow PARSE_JSON
         var insertContractSql = "INSERT INTO GOVERNANCE.CONTRACTS.CONTRACT_REGISTRY " +
             "(CONTRACT_ID, CONTRACT_NAME, CONTRACT_VERSION, CONTRACT_STATUS, " +
             "SOURCE_SYSTEM, SOURCE_TABLE, FULL_TABLE_PATH, " +
             "PRODUCER_TEAM, PRODUCER_OWNER_EMAIL, " +
             "SCHEMA_DEFINITION, QUALITY_DEFINITION, SLA_DEFINITION, GOVERNANCE_DEFINITION, " +
-            "DESCRIPTION) VALUES ('" +
-            contractId + "', '" + contractName + "', '1.0.0', 'ACTIVE', '" +
+            "DESCRIPTION) " +
+            "SELECT '" + contractId + "', '" + contractName + "', '1.0.0', 'ACTIVE', '" +
             sourceUpper + "', '" + tableUpper + "', '" + fullPath + "', '" +
             P_PRODUCER_TEAM + "', '" + P_PRODUCER_EMAIL + "', " +
             "PARSE_JSON('" + schemaDef + "'), " +
             "PARSE_JSON('" + qualityDef + "'), " +
             "PARSE_JSON('" + slaDef + "'), " +
             "PARSE_JSON('" + govDef + "'), " +
-            "'Auto-generated contract for " + fullPath + "')";
+            "'Auto-generated contract for " + fullPath + "'";
         
         snowflake.execute({sqlText: insertContractSql});
         
         // Insert SLA definition
         var insertSlaSql = "INSERT INTO GOVERNANCE.CONTRACTS.SLA_DEFINITIONS " +
             "(SLA_ID, CONTRACT_ID, SOURCE_SYSTEM, " +
-            "FRESHNESS_TARGET_HOURS, FRESHNESS_MAX_HOURS, AVAILABILITY_TARGET_PCT, MIN_ROW_COUNT) VALUES ('" +
-            "SLA-" + sourceUpper + "-" + tableUpper + "-001', '" +
+            "FRESHNESS_TARGET_HOURS, FRESHNESS_MAX_HOURS, AVAILABILITY_TARGET_PCT, MIN_ROW_COUNT) " +
+            "SELECT '" + "SLA-" + sourceUpper + "-" + tableUpper + "-001', '" +
             contractId + "', '" + sourceUpper + "', " +
-            freshnessHours + ", " + (freshnessHours * 6) + ", 99.9, 1)";
+            freshnessHours + ", " + (freshnessHours * 6) + ", 99.9, 1";
         
         snowflake.execute({sqlText: insertSlaSql});
         
