@@ -698,26 +698,100 @@ def call_cortex_analyst(prompt: str, semantic_view: str):
         # Any other error - use fallback
         return call_cortex_complete_fallback(prompt, semantic_view)
 
+def get_semantic_view_metadata(semantic_view: str) -> str:
+    """Get dimensions and metrics for a semantic view from the config table."""
+    session = get_session()
+    
+    try:
+        # Parse source system and view name
+        parts = semantic_view.split('.')
+        if len(parts) >= 2:
+            source_system = parts[0]
+            view_name = parts[1] if len(parts) == 2 else parts[-1]
+        else:
+            return ""
+        
+        # Query the semantic config to get the view definition
+        result = session.sql(f"""
+            SELECT VIEW_SQL 
+            FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG 
+            WHERE SOURCE_SYSTEM = '{source_system}' 
+              AND VIEW_NAME = '{view_name}'
+              AND IS_ACTIVE = TRUE
+        """).to_pandas()
+        
+        if not result.empty:
+            view_sql = result['VIEW_SQL'].iloc[0]
+            
+            # Extract dimensions and metrics from the SQL
+            dimensions = []
+            metrics = []
+            
+            # Parse DIMENSIONS section
+            if 'DIMENSIONS' in view_sql:
+                dim_start = view_sql.find('DIMENSIONS')
+                dim_end = view_sql.find('METRICS', dim_start) if 'METRICS' in view_sql[dim_start:] else view_sql.find(')', dim_start)
+                dim_section = view_sql[dim_start:dim_end]
+                
+                # Extract AS aliases (these are the dimension names to use)
+                import re
+                dim_matches = re.findall(r'AS\s+(\w+)', dim_section)
+                dimensions = dim_matches
+            
+            # Parse METRICS section
+            if 'METRICS' in view_sql:
+                met_start = view_sql.find('METRICS')
+                met_end = view_sql.find('COMMENT', met_start) if 'COMMENT' in view_sql[met_start:] else len(view_sql)
+                met_section = view_sql[met_start:met_end]
+                
+                # Extract metric names (before AS)
+                import re
+                met_matches = re.findall(r'(\w+)\.\w+\s+AS', met_section)
+                # Also get the metric aliases
+                met_aliases = re.findall(r'AS\s+(\w+)', met_section)
+                metrics = met_aliases if met_aliases else met_matches
+            
+            if dimensions or metrics:
+                return f"""Available columns (use exactly as shown, case-sensitive):
+DIMENSIONS: {', '.join(dimensions)}
+METRICS: {', '.join(metrics)}"""
+        
+        return ""
+    except Exception:
+        return ""
+
 def call_cortex_complete_fallback(prompt: str, semantic_view: str):
     """Fallback using CORTEX.COMPLETE SQL function to generate SQL."""
     session = get_session()
     
     try:
+        # Get metadata about the semantic view
+        view_metadata = get_semantic_view_metadata(semantic_view)
+        
         # Escape single quotes for SQL
         escaped_prompt = prompt.replace("'", "''")
         escaped_view = semantic_view.replace("'", "''")
+        escaped_metadata = view_metadata.replace("'", "''")
+        
+        # Build a better prompt with schema info
+        system_prompt = f"""You are a SQL expert. Generate a Snowflake SQL query for this question.
+
+The data is in the semantic view SEM_DEV.{escaped_view}.
+
+{escaped_metadata}
+
+IMPORTANT: Use exact column names as shown above (they are case-sensitive).
+For semantic views, query them like regular tables: SELECT columns FROM SEM_DEV.{escaped_view}
+
+Question: {escaped_prompt}
+
+Return ONLY the SQL query. No explanation, no markdown code blocks."""
         
         # Use CORTEX.COMPLETE via SQL to generate SQL
         result = session.sql(f"""
             SELECT SNOWFLAKE.CORTEX.COMPLETE(
                 'llama3.1-70b',
-                'You are a SQL expert. Generate a Snowflake SQL query for this question.
-
-The data is in the semantic view SEM_DEV.{escaped_view}.
-
-Question: {escaped_prompt}
-
-Return ONLY the SQL query. No explanation, no markdown code blocks.'
+                '{system_prompt.replace("'", "''")}'
             ) AS response
         """).to_pandas()
         
