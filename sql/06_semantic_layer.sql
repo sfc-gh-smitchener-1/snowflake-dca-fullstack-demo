@@ -491,7 +491,6 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLAIMS_ANALYTICS
   METRICS (
     claims.claim_count AS COUNT(claims.CLAIM_KEY),
     claims.total_amount AS SUM(claims.TOTAL_AMOUNT),
-    claims.avg_claim_amount AS AVG(claims.TOTAL_AMOUNT),
     patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY)
   )
   COMMENT = ''FHIR Claims Analytics - Healthcare Claims and Patients''
