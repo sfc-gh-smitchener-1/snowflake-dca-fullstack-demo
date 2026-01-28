@@ -258,15 +258,15 @@ def get_semantic_views(source_system: str = None):
     
     # Method 2: Try querying the semantic config table directly
     try:
-        where_clause = f"WHERE SOURCE_SYSTEM = '{source_system}'" if source_system else ""
+        where_clause = f"WHERE SOURCE_SYSTEM = '{source_system}' AND IS_ACTIVE = TRUE" if source_system else "WHERE IS_ACTIVE = TRUE"
         df = session.sql(f"""
             SELECT DISTINCT
                 SOURCE_SYSTEM,
-                TARGET_VIEW AS VIEW_NAME,
-                '' AS DESCRIPTION
+                VIEW_NAME,
+                COALESCE(VIEW_COMMENT, '') AS DESCRIPTION
             FROM SEM_DEV.CONFIG.SEMANTIC_CONFIG
             {where_clause}
-            ORDER BY SOURCE_SYSTEM, TARGET_VIEW
+            ORDER BY SOURCE_SYSTEM, VIEW_NAME
         """).to_pandas()
         if not df.empty:
             return df
