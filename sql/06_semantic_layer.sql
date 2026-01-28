@@ -63,7 +63,7 @@ CREATE TABLE SEM_DEV.CONFIG.SEMANTIC_CONFIG (
     CONFIG_ID NUMBER AUTOINCREMENT PRIMARY KEY,
     SOURCE_SYSTEM VARCHAR(50) NOT NULL,
     VIEW_NAME VARCHAR(100) NOT NULL,
-    VIEW_TYPE VARCHAR(30) DEFAULT 'SEMANTIC_VIEW',  -- SEMANTIC_VIEW, SECURE_VIEW, MATERIALIZED
+    VIEW_TYPE VARCHAR(30) DEFAULT 'SEMANTIC_VIEW',
     VIEW_SQL VARCHAR(32000) NOT NULL,
     VIEW_COMMENT VARCHAR(1000),
     IS_ACTIVE BOOLEAN DEFAULT TRUE,
@@ -96,14 +96,14 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     order_items(PRODUCT_KEY) REFERENCES products(PRODUCT_KEY)
   )
   DIMENSIONS (
-    dates.YEAR AS year COMMENT ''Calendar year'',
-    dates.QUARTER AS quarter COMMENT ''Quarter (1-4)'',
-    dates.MONTH_NAME AS month COMMENT ''Month name'',
-    dates.FISCAL_YEAR AS fiscal_year COMMENT ''Fiscal year'',
+    dates.YEAR AS year,
+    dates.QUARTER AS quarter,
+    dates.MONTH_NAME AS month,
+    dates.FISCAL_YEAR AS fiscal_year,
     dates.IS_WEEKEND AS is_weekend,
     
-    customers.CUSTOMER_ID AS customer_id COMMENT ''SAP Customer Number (KUNNR)'',
-    customers.CUSTOMER_NAME AS customer_name COMMENT ''Customer name'',
+    customers.CUSTOMER_ID AS customer_id,
+    customers.CUSTOMER_NAME AS customer_name,
     customers.CITY AS city,
     customers.STATE AS state,
     customers.COUNTRY AS country,
@@ -111,12 +111,12 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     customers.CUSTOMER_CLASS AS customer_class,
     customers.IS_ACTIVE AS is_active_customer,
     
-    products.MATERIAL_NUMBER AS material_number COMMENT ''SAP Material (MATNR)'',
+    products.MATERIAL_NUMBER AS material_number,
     products.PRODUCT_NAME AS product_name,
     products.MATERIAL_TYPE AS material_type,
     products.MATERIAL_GROUP AS material_group,
     
-    orders.ORDER_NUMBER AS order_number COMMENT ''Sales document (VBELN)'',
+    orders.ORDER_NUMBER AS order_number,
     orders.SALES_ORG AS sales_organization,
     orders.DISTRIBUTION_CHANNEL AS channel,
     orders.ORDER_TYPE AS order_type,
@@ -124,11 +124,11 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.SALES_ANALYTICS
     orders.IS_COMPLETED AS is_completed
   )
   METRICS (
-    orders.total_revenue AS SUM(orders.NET_VALUE) COMMENT ''Total net value'',
-    orders.avg_order_value AS AVG(orders.NET_VALUE) COMMENT ''Average order value'',
-    orders.order_count AS COUNT(orders.ORDER_KEY) COMMENT ''Number of orders'',
+    orders.total_revenue AS SUM(orders.NET_VALUE),
+    orders.avg_order_value AS AVG(orders.NET_VALUE),
+    orders.order_count AS COUNT(orders.ORDER_KEY),
     orders.completed_orders AS SUM(CASE WHEN orders.IS_COMPLETED THEN 1 ELSE 0 END),
-    order_items.item_count AS COUNT(order_items.ITEM_KEY) COMMENT ''Total line items'',
+    order_items.item_count AS COUNT(order_items.ITEM_KEY),
     order_items.total_quantity AS SUM(order_items.ORDER_QUANTITY),
     customers.customer_count AS COUNT(DISTINCT customers.CUSTOMER_KEY)
   )
@@ -153,20 +153,20 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.PROCUREMENT_ANALYTICS
     dates.MONTH_NAME AS month,
     dates.FISCAL_YEAR AS fiscal_year,
     
-    vendors.VENDOR_ID AS vendor_id COMMENT ''Vendor number (LIFNR)'',
+    vendors.VENDOR_ID AS vendor_id,
     vendors.VENDOR_NAME AS vendor_name,
     vendors.COUNTRY AS vendor_country,
     vendors.IS_ACTIVE AS is_active_vendor,
     
-    purchase_orders.PO_NUMBER AS po_number COMMENT ''Purchase order (EBELN)'',
+    purchase_orders.PO_NUMBER AS po_number,
     purchase_orders.PURCHASING_ORG AS purchasing_org,
     purchase_orders.PO_TYPE AS po_type,
     purchase_orders.STATUS AS po_status
   )
   METRICS (
-    purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY) COMMENT ''Number of POs'',
-    purchase_orders.total_value AS SUM(purchase_orders.TOTAL_VALUE) COMMENT ''Total PO value'',
-    vendors.vendor_count AS COUNT(DISTINCT vendors.VENDOR_KEY) COMMENT ''Unique vendors''
+    purchase_orders.po_count AS COUNT(purchase_orders.PO_KEY),
+    purchase_orders.total_value AS SUM(purchase_orders.TOTAL_VALUE),
+    vendors.vendor_count AS COUNT(DISTINCT vendors.VENDOR_KEY)
   )
   COMMENT = ''SAP Procurement Analytics - Purchase Orders, Vendors''
 ', 'SAP Purchase Orders with vendor dimension'),
@@ -196,7 +196,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SAP.FINANCE_ANALYTICS
     documents.CREATED_BY AS created_by
   )
   METRICS (
-    documents.document_count AS COUNT(documents.DOC_KEY) COMMENT ''Total documents''
+    documents.document_count AS COUNT(documents.DOC_KEY)
   )
   COMMENT = ''SAP Finance Analytics - Accounting Documents''
 ', 'SAP Accounting Documents for financial analysis');
@@ -221,8 +221,8 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.PIPELINE_ANALYTICS
     opportunities(CLOSE_DATE) REFERENCES dates(DATE_KEY)
   )
   DIMENSIONS (
-    dates.YEAR AS year COMMENT ''Close date year'',
-    dates.QUARTER AS quarter COMMENT ''Close date quarter'',
+    dates.YEAR AS year,
+    dates.QUARTER AS quarter,
     dates.MONTH_NAME AS month,
     dates.FISCAL_YEAR AS fiscal_year,
     
@@ -230,13 +230,13 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.PIPELINE_ANALYTICS
     accounts.ACCOUNT_NAME AS account_name,
     accounts.ACCOUNT_TYPE AS account_type,
     accounts.INDUSTRY AS industry,
-    accounts.ACCOUNT_TIER AS account_tier COMMENT ''Customer value tier'',
+    accounts.ACCOUNT_TIER AS account_tier,
     accounts.BILLING_STATE AS state,
     accounts.BILLING_COUNTRY AS country,
     
     opportunities.OPPORTUNITY_ID AS opportunity_id,
     opportunities.OPPORTUNITY_NAME AS opportunity_name,
-    opportunities.STAGE_NAME AS stage COMMENT ''Pipeline Stage'',
+    opportunities.STAGE_NAME AS stage,
     opportunities.OPPORTUNITY_TYPE AS opportunity_type,
     opportunities.LEAD_SOURCE AS lead_source,
     opportunities.FORECAST_CATEGORY AS forecast_category,
@@ -244,15 +244,15 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.PIPELINE_ANALYTICS
     opportunities.IS_WON AS is_won
   )
   METRICS (
-    opportunities.total_pipeline AS SUM(opportunities.AMOUNT) COMMENT ''Total pipeline value'',
-    opportunities.avg_deal_size AS AVG(opportunities.AMOUNT) COMMENT ''Average deal size'',
+    opportunities.total_pipeline AS SUM(opportunities.AMOUNT),
+    opportunities.avg_deal_size AS AVG(opportunities.AMOUNT),
     opportunities.opportunity_count AS COUNT(opportunities.OPPORTUNITY_KEY),
     opportunities.won_deals AS SUM(CASE WHEN opportunities.IS_WON THEN 1 ELSE 0 END),
     opportunities.closed_deals AS SUM(CASE WHEN opportunities.IS_CLOSED THEN 1 ELSE 0 END),
-    opportunities.win_rate AS opportunities.won_deals / NULLIF(opportunities.closed_deals, 0) * 100 COMMENT ''Win rate %'',
+    opportunities.win_rate AS opportunities.won_deals / NULLIF(opportunities.closed_deals, 0) * 100,
     accounts.account_count AS COUNT(DISTINCT accounts.ACCOUNT_KEY)
   )
-  COMMENT = ''Salesforce Pipeline Analytics - Opportunities, Accounts''
+  COMMENT = ''Salesforce Pipeline Analytics - Opportunities and Accounts''
 ', 'Salesforce Opportunity pipeline with accounts'),
 
 -- CUSTOMER_360
@@ -328,7 +328,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SALESFORCE.MARKETING_ANALYTICS
     leads.converted_leads AS SUM(CASE WHEN leads.IS_CONVERTED THEN 1 ELSE 0 END),
     leads.conversion_rate AS leads.converted_leads / NULLIF(leads.lead_count, 0) * 100
   )
-  COMMENT = ''Salesforce Marketing Analytics - Campaigns, Leads''
+  COMMENT = ''Salesforce Marketing Analytics - Campaigns and Leads''
 ', 'Marketing campaign and lead analytics');
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -422,7 +422,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AP_ANALYTICS
     invoices.avg_invoice_amount AS AVG(invoices.INVOICE_AMOUNT),
     vendors.vendor_count AS COUNT(DISTINCT vendors.VENDOR_KEY)
   )
-  COMMENT = ''Oracle AP Analytics - Payables Invoices, Vendors''
+  COMMENT = ''Oracle AP Analytics - Payables Invoices and Vendors''
 ', 'Oracle Accounts Payable analytics'),
 
 -- AR_ANALYTICS
@@ -454,7 +454,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.ORACLE.AR_ANALYTICS
     invoices.invoice_count AS COUNT(invoices.INVOICE_KEY),
     parties.customer_count AS COUNT(DISTINCT parties.PARTY_KEY)
   )
-  COMMENT = ''Oracle AR Analytics - Receivables Invoices, Customers''
+  COMMENT = ''Oracle AR Analytics - Receivables Invoices and Customers''
 ', 'Oracle Accounts Receivable analytics'),
 
 -- GL_ANALYTICS
@@ -508,7 +508,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLINICAL_ANALYTICS
     conditions(ENCOUNTER_KEY) REFERENCES encounters(ENCOUNTER_KEY)
   )
   DIMENSIONS (
-    patients.PATIENT_ID AS patient_id COMMENT ''FHIR Patient ID'',
+    patients.PATIENT_ID AS patient_id,
     patients.GENDER AS gender,
     patients.CITY AS city,
     patients.STATE AS state,
@@ -519,7 +519,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLINICAL_ANALYTICS
     practitioners.SPECIALTY AS specialty,
     
     encounters.ENCOUNTER_ID AS encounter_id,
-    encounters.ENCOUNTER_CLASS AS encounter_class COMMENT ''ambulatory, inpatient, emergency'',
+    encounters.ENCOUNTER_CLASS AS encounter_class,
     encounters.ENCOUNTER_TYPE AS encounter_type,
     encounters.STATUS AS encounter_status,
     
@@ -529,10 +529,10 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.CLINICAL_ANALYTICS
     conditions.SEVERITY AS severity
   )
   METRICS (
-    encounters.encounter_count AS COUNT(encounters.ENCOUNTER_KEY) COMMENT ''Total encounters'',
-    encounters.avg_duration_minutes AS AVG(encounters.DURATION_MINUTES) COMMENT ''Avg duration (min)'',
+    encounters.encounter_count AS COUNT(encounters.ENCOUNTER_KEY),
+    encounters.avg_duration_minutes AS AVG(encounters.DURATION_MINUTES),
     conditions.condition_count AS COUNT(conditions.CONDITION_KEY),
-    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY) COMMENT ''Unique patients'',
+    patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY),
     practitioners.practitioner_count AS COUNT(DISTINCT practitioners.PRACTITIONER_KEY)
   )
   COMMENT = ''FHIR Clinical Analytics - Encounters, Conditions, Patients''
@@ -564,7 +564,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.FHIR.MEDICATION_ANALYTICS
     medication_requests.avg_refills AS AVG(medication_requests.REFILLS_ALLOWED),
     patients.patient_count AS COUNT(DISTINCT patients.PATIENT_KEY)
   )
-  COMMENT = ''FHIR Medication Analytics - Prescriptions, Patients''
+  COMMENT = ''FHIR Medication Analytics - Prescriptions and Patients''
 ', 'FHIR medication prescriptions'),
 
 -- CLAIMS_ANALYTICS
@@ -619,7 +619,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.WORKFORCE_ANALYTICS
     job_profiles AS CURATED_DEV.WORKDAY.DIM_JOB_PROFILE PRIMARY KEY (JOB_PROFILE_KEY)
   )
   DIMENSIONS (
-    employees.EMPLOYEE_ID AS employee_id COMMENT ''Workday Worker ID'',
+    employees.EMPLOYEE_ID AS employee_id,
     employees.FIRST_NAME AS first_name,
     employees.LAST_NAME AS last_name,
     employees.WORKER_TYPE AS worker_type,
@@ -642,10 +642,10 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.WORKFORCE_ANALYTICS
     job_profiles.IS_CRITICAL_JOB AS is_critical_job
   )
   METRICS (
-    employees.headcount AS COUNT(employees.EMPLOYEE_KEY) COMMENT ''Total headcount'',
+    employees.headcount AS COUNT(employees.EMPLOYEE_KEY),
     employees.active_headcount AS COUNT(CASE WHEN employees.IS_ACTIVE THEN employees.EMPLOYEE_KEY END),
-    employees.avg_tenure AS AVG(employees.TENURE_YEARS) COMMENT ''Avg tenure (years)'',
-    employees.total_fte AS SUM(employees.FTE) COMMENT ''Total FTE'',
+    employees.avg_tenure AS AVG(employees.TENURE_YEARS),
+    employees.total_fte AS SUM(employees.FTE),
     organizations.org_count AS COUNT(DISTINCT organizations.ORGANIZATION_KEY),
     job_profiles.job_profile_count AS COUNT(DISTINCT job_profiles.JOB_PROFILE_KEY)
   )
@@ -670,8 +670,6 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.WORKDAY.COMPENSATION_ANALYTICS
     employees.WORK_LOCATION AS location,
     employees.IS_ACTIVE AS is_active,
     
-    compensation.COMPENSATION_PLAN AS comp_plan,
-    compensation.COMPENSATION_GRADE AS comp_grade,
     compensation.PAY_FREQUENCY AS pay_frequency,
     compensation.CURRENCY AS currency
   )
@@ -779,7 +777,7 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.INCIDENT_ANALYTICS
     cmdb.ENVIRONMENT AS environment,
     
     incidents.INCIDENT_NUMBER AS incident_number,
-    incidents.PRIORITY AS priority COMMENT ''Priority (1-5)'',
+    incidents.PRIORITY AS priority,
     incidents.URGENCY AS urgency,
     incidents.IMPACT AS impact,
     incidents.STATE AS state,
@@ -790,8 +788,8 @@ CREATE OR REPLACE SEMANTIC VIEW SEM_DEV.SERVICENOW.INCIDENT_ANALYTICS
     incidents.IS_ACTIVE AS is_active
   )
   METRICS (
-    incidents.incident_count AS COUNT(incidents.INCIDENT_KEY) COMMENT ''Total incidents'',
-    incidents.avg_resolution_time AS AVG(incidents.TIME_TO_RESOLVE_MINUTES) COMMENT ''Avg resolution (min)'',
+    incidents.incident_count AS COUNT(incidents.INCIDENT_KEY),
+    incidents.avg_resolution_time AS AVG(incidents.TIME_TO_RESOLVE_MINUTES),
     incidents.p1_incidents AS SUM(CASE WHEN incidents.PRIORITY = 1 THEN 1 ELSE 0 END),
     incidents.p2_incidents AS SUM(CASE WHEN incidents.PRIORITY = 2 THEN 1 ELSE 0 END),
     users.user_count AS COUNT(DISTINCT users.USER_KEY),
