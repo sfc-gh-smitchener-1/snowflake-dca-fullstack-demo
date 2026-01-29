@@ -469,6 +469,8 @@ EXECUTE AS CALLER
 AS
 $$
 DECLARE
+    v_full_table VARCHAR;
+    v_apply_sql VARCHAR;
     result RESULTSET;
 BEGIN
     CREATE OR REPLACE TEMPORARY TABLE _curated_masking_results (
@@ -487,8 +489,8 @@ BEGIN
     )
     DO
         BEGIN
-            LET v_full_table VARCHAR := 'CURATED_DEV.' || UPPER(p_source_system) || '.' || mapping.SOURCE_TABLE;
-            LET v_apply_sql VARCHAR := 'ALTER TABLE ' || v_full_table || 
+            v_full_table := 'CURATED_DEV.' || UPPER(p_source_system) || '.' || mapping.SOURCE_TABLE;
+            v_apply_sql := 'ALTER TABLE ' || v_full_table || 
                           ' MODIFY COLUMN "' || mapping.COLUMN_NAME || 
                           '" SET MASKING POLICY GOVERNANCE.POLICIES.' || mapping.MASKING_POLICY;
             
