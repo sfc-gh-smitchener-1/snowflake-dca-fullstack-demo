@@ -143,23 +143,28 @@ def get_session():
     return get_active_session()
 
 def get_current_role() -> str:
-    """Get the current active role"""
+    """Get current role (uses demo role from session state if set, otherwise actual role)"""
+    # Check for demo/simulated role first
+    if "demo_role" in st.session_state:
+        return st.session_state.demo_role
+    
+    # Fall back to actual Snowflake role
     session = get_session()
     try:
         result = session.sql("SELECT CURRENT_ROLE() AS ROLE").to_pandas()
-        return result['ROLE'].iloc[0] if not result.empty else "Unknown"
+        return result['ROLE'].iloc[0] if not result.empty else "DATA_ADMIN"
     except:
-        return "Unknown"
+        return "DATA_ADMIN"
 
 def switch_role(role_name: str) -> bool:
-    """Switch to a different role"""
-    session = get_session()
-    try:
-        session.sql(f"USE ROLE {role_name}").collect()
-        return True
-    except Exception as e:
-        st.error(f"Cannot switch to {role_name}: {str(e)}")
-        return False
+    """
+    Simulate role switching for demo purposes.
+    Note: USE ROLE is not supported in Streamlit in Snowflake.
+    In production, users would log in with their assigned role.
+    """
+    # Store the simulated role in session state for demo purposes
+    st.session_state.demo_role = role_name
+    return True
 
 # ============================================================================
 # DATA FUNCTIONS
@@ -496,9 +501,10 @@ def render_sidebar():
         if selected_role != current_role:
             if st.button("🔄 Switch Role", use_container_width=True):
                 if switch_role(selected_role):
-                    st.success(f"Switched to {selected_role}")
-                    st.cache_data.clear()
+                    st.success(f"Demo: Viewing as {selected_role}")
                     st.experimental_rerun()
+        else:
+            st.caption(f"✓ Current: {current_role}")
         
         st.divider()
         
