@@ -984,6 +984,11 @@ SELECT
     "Preferred_First_Name" AS PREFERRED_NAME,
     "Email_Work" AS EMAIL,
     "Phone_Work" AS PHONE,
+    -- Sensitive PII columns (protected by masking policies)
+    TRY_TO_DATE("Date_of_Birth"::VARCHAR) AS DATE_OF_BIRTH,
+    "National_ID" AS NATIONAL_ID,
+    "Gender" AS GENDER,
+    -- Worker classification
     "Worker_Type" AS WORKER_TYPE,
     "Worker_Sub_Type" AS WORKER_SUB_TYPE,
     "Business_Title" AS JOB_TITLE,
