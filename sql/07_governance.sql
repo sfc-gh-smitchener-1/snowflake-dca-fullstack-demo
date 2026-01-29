@@ -471,6 +471,9 @@ $$
 DECLARE
     v_full_table VARCHAR;
     v_apply_sql VARCHAR;
+    v_table_name VARCHAR;
+    v_column_name VARCHAR;
+    v_policy VARCHAR;
     result RESULTSET;
 BEGIN
     CREATE OR REPLACE TEMPORARY TABLE _curated_masking_results (
@@ -488,17 +491,22 @@ BEGIN
           AND (SOURCE_TABLE LIKE 'DIM_%' OR SOURCE_TABLE LIKE 'FACT_%')
     )
     DO
+        -- Store values in local variables for use in exception handler
+        v_table_name := mapping.SOURCE_TABLE;
+        v_column_name := mapping.COLUMN_NAME;
+        v_policy := mapping.MASKING_POLICY;
+        
         BEGIN
-            v_full_table := 'CURATED_DEV.' || UPPER(p_source_system) || '.' || mapping.SOURCE_TABLE;
+            v_full_table := 'CURATED_DEV.' || UPPER(p_source_system) || '.' || v_table_name;
             v_apply_sql := 'ALTER TABLE ' || v_full_table || 
-                          ' MODIFY COLUMN "' || mapping.COLUMN_NAME || 
-                          '" SET MASKING POLICY GOVERNANCE.POLICIES.' || mapping.MASKING_POLICY;
+                          ' MODIFY COLUMN "' || v_column_name || 
+                          '" SET MASKING POLICY GOVERNANCE.POLICIES.' || v_policy;
             
             EXECUTE IMMEDIATE v_apply_sql;
-            INSERT INTO _curated_masking_results VALUES (mapping.SOURCE_TABLE, mapping.COLUMN_NAME, mapping.MASKING_POLICY, 'SUCCESS');
+            INSERT INTO _curated_masking_results VALUES (v_table_name, v_column_name, v_policy, 'SUCCESS');
         EXCEPTION
             WHEN OTHER THEN
-                INSERT INTO _curated_masking_results VALUES (mapping.SOURCE_TABLE, mapping.COLUMN_NAME, mapping.MASKING_POLICY, 'ERROR: ' || SQLERRM);
+                INSERT INTO _curated_masking_results VALUES (v_table_name, v_column_name, v_policy, 'ERROR: ' || SQLERRM);
         END;
     END FOR;
     
