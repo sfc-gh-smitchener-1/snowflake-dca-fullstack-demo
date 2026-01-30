@@ -12,6 +12,16 @@
 -- OWNERSHIP: DATA_ADMIN owns all objects
 -- RUN AS: ACCOUNTADMIN (only this script requires ACCOUNTADMIN)
 --
+-- Deployment Order (after this script):
+--   2. 03_raw_layer.sql  - RAW tables with SCD Type 2
+--   3. 04_load_data.sql  - Load synthetic data (or generate)
+--   4. 05_curated_layer.sql - Dynamic Tables
+--   5. 06_semantic_layer.sql - Semantic Views
+--   6. 07_governance.sql - Masking and row access policies
+--   7. 08_contracts.sql  - Data contracts
+--   8. 09_streamlit.sql  - Streamlit deployment
+--   9. 10_marketplace.sql - Data products
+--
 -- Compliance Frameworks Supported:
 --   - GDPR (EU Data Protection)
 --   - HIPAA (US Healthcare)
@@ -29,10 +39,11 @@
 USE ROLE ACCOUNTADMIN;
 
 SELECT 
-    'Snowflake Data Cloud Architecture Demo' AS DEMO_NAME,
-    CURRENT_TIMESTAMP() AS SETUP_TIME,
+    '=== SNOWFLAKE DCA FULL STACK DEMO ===' AS DEPLOYMENT_START,
+    CURRENT_TIMESTAMP() AS TIMESTAMP,
     CURRENT_ACCOUNT() AS ACCOUNT,
-    CURRENT_REGION() AS REGION;
+    CURRENT_REGION() AS REGION,
+    CURRENT_USER() AS DEPLOYING_USER;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PART 1: ROLE HIERARCHY
@@ -637,3 +648,15 @@ SHOW WAREHOUSES;
 SHOW DATABASES LIKE '%DEV';
 SHOW DATABASES LIKE 'GOVERNANCE';
 SHOW TAGS IN SCHEMA GOVERNANCE.TAGS;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- NEXT STEPS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+SELECT 
+    'Next Steps:' AS INFO,
+    '1. Run 03_raw_layer.sql to create raw tables' AS STEP_1,
+    '2. Generate data: python tools/data_generator.py --system all --domain all --output data' AS STEP_2,
+    '3. Upload data: PUT file://data/*.csv @RAW_DEV.STAGING.DATA_STAGE AUTO_COMPRESS=FALSE' AS STEP_3,
+    '4. Run 04_load_data.sql to load data' AS STEP_4,
+    '5. Run remaining scripts in order (05-10)' AS STEP_5;

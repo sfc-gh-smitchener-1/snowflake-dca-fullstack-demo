@@ -1,12 +1,15 @@
 -- ============================================================================
--- STREAMLIT DDL - Views, Tables, and Procedures for Streamlit App
+-- STREAMLIT DEPLOYMENT - DDL and App Creation
 -- ============================================================================
 -- 
--- This script creates the supporting database objects for the Streamlit app:
+-- This script creates the complete Streamlit deployment:
 --   1. Helper views for source system exploration
 --   2. Configuration tables
 --   3. Stored procedures for data access
+--   4. Stage for Streamlit files
+--   5. Native Streamlit application
 --
+-- PREREQUISITE: Upload app.py to the STREAMLIT_STAGE (see instructions at end)
 -- RUN AS: DATA_ADMIN
 -- ============================================================================
 
@@ -21,7 +24,7 @@ CREATE SCHEMA IF NOT EXISTS SEM_DEV.STREAMLIT
 USE SCHEMA SEM_DEV.STREAMLIT;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- CREATE STAGE FOR STREAMLIT APP
+-- PART 1: CREATE STAGE FOR STREAMLIT APP
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE STAGE IF NOT EXISTS STREAMLIT_STAGE
@@ -29,7 +32,7 @@ CREATE STAGE IF NOT EXISTS STREAMLIT_STAGE
     COMMENT = 'Stage for Streamlit application files';
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- HELPER VIEWS FOR STREAMLIT APP
+-- PART 2: HELPER VIEWS FOR STREAMLIT APP
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- View: Available Source Systems
@@ -101,7 +104,7 @@ GROUP BY SOURCE_SYSTEM
 ORDER BY SOURCE_SYSTEM;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STREAMLIT APP CONFIGURATION TABLE
+-- PART 3: STREAMLIT APP CONFIGURATION TABLE
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS SEM_DEV.STREAMLIT.APP_CONFIG (
@@ -129,7 +132,7 @@ SELECT 'DEMO_ROLES', PARSE_JSON('["DATA_ADMIN", "DATA_ENGINEER", "ANALYST", "MAN
 WHERE NOT EXISTS (SELECT 1 FROM SEM_DEV.STREAMLIT.APP_CONFIG WHERE CONFIG_KEY = 'DEMO_ROLES');
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- STREAMLIT APP PROCEDURES (for interactive features)
+-- PART 4: STREAMLIT APP PROCEDURES (for interactive features)
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Procedure to sample data from any source system table
@@ -238,8 +241,26 @@ $$
 $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- GRANTS
+-- PART 5: CREATE STREAMLIT APP
 -- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE STREAMLIT DCA_DEMO_APP
+    ROOT_LOCATION = '@SEM_DEV.STREAMLIT.STREAMLIT_STAGE'
+    MAIN_FILE = 'app.py'
+    QUERY_WAREHOUSE = ANALYTICS_WH
+    COMMENT = 'Snowflake Data Cloud Architecture Demo - Multi-Source System Support';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 6: GRANTS
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Grant schema access
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE DATA_ADMIN;
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE DATA_STEWARD;
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE MANAGER;
+GRANT USAGE ON SCHEMA SEM_DEV.STREAMLIT TO ROLE VIEWER;
 
 -- Grant view access
 GRANT SELECT ON ALL VIEWS IN SCHEMA SEM_DEV.STREAMLIT TO ROLE DATA_ADMIN;
@@ -258,9 +279,48 @@ GRANT USAGE ON PROCEDURE SEM_DEV.STREAMLIT.SAMPLE_SOURCE_DATA(VARCHAR, VARCHAR) 
 GRANT USAGE ON PROCEDURE SEM_DEV.STREAMLIT.GET_TABLE_SCHEMA(VARCHAR, VARCHAR) TO ROLE ANALYST;
 GRANT USAGE ON PROCEDURE SEM_DEV.STREAMLIT.GET_CURATED_STATS(VARCHAR) TO ROLE ANALYST;
 
+-- Grant Streamlit app access to roles
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE DATA_ADMIN;
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE DATA_STEWARD;
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE DATA_ENGINEER;
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE ANALYST;
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE MANAGER;
+GRANT USAGE ON STREAMLIT DCA_DEMO_APP TO ROLE VIEWER;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- VERIFICATION
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SELECT '✓ Streamlit DDL Created' AS STATUS;
-SELECT 'Views, tables, and procedures are ready for Streamlit app' AS INFO;
+SELECT '✓ Streamlit Deployment Complete' AS STATUS;
+
+SHOW STREAMLITS IN SCHEMA SEM_DEV.STREAMLIT;
+
+SELECT 
+    'App Features:' AS INFO,
+    '1. Source System Explorer (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)' AS FEATURE_1,
+    '2. Dynamic Table/Schema Viewer' AS FEATURE_2,
+    '3. Cortex Analyst Interface' AS FEATURE_3,
+    '4. RBAC Demo with Role Switching' AS FEATURE_4,
+    '5. Contract Health Dashboard' AS FEATURE_5;
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- UPLOAD INSTRUCTIONS
+-- ═══════════════════════════════════════════════════════════════════════════
+-- 
+-- To upload the Streamlit app files:
+--
+-- 1. From SnowSQL or Snowflake UI:
+--    PUT file://streamlit/app.py @SEM_DEV.STREAMLIT.STREAMLIT_STAGE AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+--
+-- 2. If you have additional files (environment.yml, pages/, etc.):
+--    PUT file://streamlit/environment.yml @SEM_DEV.STREAMLIT.STREAMLIT_STAGE AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+--    PUT file://streamlit/pages/*.py @SEM_DEV.STREAMLIT.STREAMLIT_STAGE/pages/ AUTO_COMPRESS=FALSE OVERWRITE=TRUE;
+--
+-- 3. Verify files are uploaded:
+--    LIST @SEM_DEV.STREAMLIT.STREAMLIT_STAGE;
+--
+-- 4. Access the app:
+--    - Navigate to Snowsight > Projects > Streamlit
+--    - Or use the direct URL from SHOW STREAMLITS output
+--
+-- ═══════════════════════════════════════════════════════════════════════════
