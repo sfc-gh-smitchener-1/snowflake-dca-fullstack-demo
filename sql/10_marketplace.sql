@@ -327,6 +327,29 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'Procurement Operations', 'procurement-analytics@company.com', 4,
     'Spend Analysis, Vendor Scorecard, Budget Planning, Category Management',
     'SAP, ERP, Procurement, Spend, MM'
+),
+(
+    'DP-SAP-CUST-001',
+    'SAP Customer Summary',
+    'Customer master analytics from SAP SD module. Provides customer distribution by geography, account group, and currency with aggregated counts. Supports customer segmentation and territory analysis.',
+    'Enables territory optimization, identifies customer concentration risks, and supports geographic expansion planning. Essential for sales strategy and customer success.',
+    'v1.0',
+    'SAP', 'SEM_DEV', 'MARKETPLACE', 'DP_SAP_CUSTOMER_SUMMARY', 'SECURE_VIEW',
+    'SALES', 'INTERNAL', FALSE, 'No customer names or contact details - aggregated geography metrics only.',
+    'ERP_CONSUMER', 'ERP_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
+    'SELECT COUNTRY, SUM(CUSTOMER_COUNT) as CUSTOMERS FROM SEM_DEV.MARKETPLACE.DP_SAP_CUSTOMER_SUMMARY GROUP BY 1 ORDER BY 2 DESC',
+    'Customer count by country for geographic analysis',
+    'SELECT ACCOUNT_GROUP, SUM(CUSTOMER_COUNT) as CUSTOMERS FROM SEM_DEV.MARKETPLACE.DP_SAP_CUSTOMER_SUMMARY GROUP BY 1 ORDER BY 2 DESC',
+    'Customer distribution by account group',
+    'SELECT STATE, CITY, SUM(CUSTOMER_COUNT) as CUSTOMERS FROM SEM_DEV.MARKETPLACE.DP_SAP_CUSTOMER_SUMMARY GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 20',
+    'Top territories by customer count',
+    'SELECT CURRENCY, SUM(CUSTOMER_COUNT) as CUSTOMERS FROM SEM_DEV.MARKETPLACE.DP_SAP_CUSTOMER_SUMMARY GROUP BY 1',
+    'Customer count by currency',
+    'SELECT COUNTRY, COUNT(DISTINCT STATE) as STATES FROM SEM_DEV.MARKETPLACE.DP_SAP_CUSTOMER_SUMMARY GROUP BY 1 ORDER BY 2 DESC',
+    'Geographic spread by country',
+    'Sales Operations', 'sap-sales@company.com', 4,
+    'Customer Segmentation, Territory Planning, Geographic Analysis, Account Management',
+    'SAP, ERP, Customers, Master Data, SD'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -755,6 +778,29 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'Population Health', 'population-health@health.org', 24,
     'Population Segmentation, Health Equity, Community Health, Care Gaps',
     'FHIR, Healthcare, Population, Demographics, HIPAA'
+),
+(
+    'DP-FHIR-CONDITIONS-001',
+    'FHIR Condition Analytics',
+    'De-identified clinical condition prevalence from FHIR Condition resources. Top conditions by patient count with minimum cell size protection. Supports population health and quality measurement initiatives.',
+    'Enables disease burden analysis, quality measure tracking, and clinical program prioritization. Supports value-based care initiatives and population health management.',
+    'v1.0',
+    'FHIR', 'SEM_DEV', 'MARKETPLACE', 'DP_FHIR_CONDITION_ANALYTICS', 'SECURE_VIEW',
+    'CLINICAL', 'RESTRICTED', FALSE, 'HIPAA compliant. Minimum 10 patients per condition. No individual patient data.',
+    'HEALTHCARE_CONSUMER', 'HEALTHCARE_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
+    'SELECT CONDITION_CODE, CONDITION_NAME, PATIENT_COUNT FROM SEM_DEV.MARKETPLACE.DP_FHIR_CONDITION_ANALYTICS ORDER BY PATIENT_COUNT DESC LIMIT 20',
+    'Top 20 conditions by prevalence',
+    'SELECT CATEGORY, SUM(PATIENT_COUNT) as PATIENTS FROM SEM_DEV.MARKETPLACE.DP_FHIR_CONDITION_ANALYTICS GROUP BY 1 ORDER BY 2 DESC',
+    'Patient count by condition category',
+    'SELECT CLINICAL_STATUS, COUNT(*) as CONDITION_COUNT FROM SEM_DEV.MARKETPLACE.DP_FHIR_CONDITION_ANALYTICS GROUP BY 1',
+    'Conditions by clinical status',
+    'SELECT CONDITION_NAME, PATIENT_COUNT, PREVALENCE_RANK FROM SEM_DEV.MARKETPLACE.DP_FHIR_CONDITION_ANALYTICS WHERE PREVALENCE_RANK <= 10',
+    'Top 10 conditions by prevalence rank',
+    'SELECT CATEGORY, AVG(PATIENT_COUNT) as AVG_PATIENTS FROM SEM_DEV.MARKETPLACE.DP_FHIR_CONDITION_ANALYTICS GROUP BY 1',
+    'Average patient count by category',
+    'Clinical Analytics', 'clinical-analytics@health.org', 4,
+    'Disease Burden, Quality Measures, Population Health, Clinical Programs',
+    'FHIR, Healthcare, Conditions, Diagnosis, HIPAA'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -889,9 +935,36 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'Average pay progression by level',
     'SELECT PAY_GRADE, STDDEV_BASE_PAY / NULLIF(AVG_BASE_PAY, 0) as PAY_VARIABILITY FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION WHERE EMPLOYEE_COUNT >= 10',
     'Pay equity indicator by grade (low variability = equity)',
+    'SELECT CURRENCY, SUM(EMPLOYEE_COUNT) as EMPLOYEES FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION GROUP BY 1',
+    'Employee count by currency',
+    'SELECT PAY_GRADE, SUM(EMPLOYEE_COUNT) as TOTAL FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION GROUP BY 1 ORDER BY 2 DESC',
+    'Employee distribution across pay grades',
     'Total Rewards', 'compensation@company.com', 24,
     'Comp Planning, Pay Equity, Market Analysis, Budget Planning',
     'Workday, HR, Compensation, Salary, Pay'
+),
+(
+    'DP-WD-TIMEOFF-001',
+    'Workday Time Off Analytics',
+    'Time off request analytics from Workday HCM. Provides leave patterns, utilization rates, and request trends by type and department. Supports workforce planning and policy compliance.',
+    'Enables proactive coverage planning, identifies leave pattern trends, and supports policy compliance monitoring. Essential for HR operations and workforce planning.',
+    'v1.0',
+    'WORKDAY', 'SEM_DEV', 'MARKETPLACE', 'DP_WORKDAY_TIME_OFF', 'SECURE_VIEW',
+    'HR', 'CONFIDENTIAL', FALSE, 'No individual employee data. Aggregated by time off type and period.',
+    'WORKFORCE_CONSUMER', 'WORKFORCE_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
+    'SELECT TIME_OFF_TYPE, SUM(REQUEST_COUNT) as REQUESTS, SUM(TOTAL_DAYS) as DAYS FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_TIME_OFF GROUP BY 1 ORDER BY 3 DESC',
+    'Time off utilization by type',
+    'SELECT REQUEST_YEAR, REQUEST_MONTH, SUM(REQUEST_COUNT) as REQUESTS FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_TIME_OFF GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
+    'Monthly time off request trends',
+    'SELECT STATUS, SUM(REQUEST_COUNT) as REQUESTS FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_TIME_OFF GROUP BY 1',
+    'Request distribution by status',
+    'SELECT TIME_OFF_TYPE, AVG(AVG_DAYS_PER_REQUEST) as AVG_DURATION FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_TIME_OFF GROUP BY 1 ORDER BY 2 DESC',
+    'Average leave duration by type',
+    'SELECT REQUEST_YEAR, REQUEST_QUARTER, SUM(TOTAL_DAYS) as DAYS FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_TIME_OFF GROUP BY 1, 2 ORDER BY 1, 2',
+    'Quarterly leave days for capacity planning',
+    'HR Operations', 'hr-operations@company.com', 4,
+    'Leave Management, Workforce Planning, Coverage Planning, Policy Compliance',
+    'Workday, HR, Time Off, Leave, PTO'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -1028,6 +1101,10 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'Success rate by risk level for risk assessment calibration',
     'SELECT CHANGE_TYPE, SUM(SUCCESSFUL_COUNT) as SUCCESS, SUM(FAILED_COUNT) as FAILED FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1',
     'Change outcomes by type for process improvement',
+    'SELECT ASSIGNMENT_GROUP, SUM(CHANGE_COUNT) as TOTAL FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1 ORDER BY 2 DESC',
+    'Change volume by assignment group',
+    'SELECT STATE, SUM(CHANGE_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1',
+    'Changes by state',
     'IT Change Management', 'change-management@company.com', 4,
     'CAB Reporting, Risk Assessment, Change Success, ITIL Compliance',
     'ServiceNow, ITSM, Changes, CAB, ITIL'
@@ -1043,10 +1120,14 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'ITSM_CONSUMER', 'ITSM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT OPENED_YEAR, OPENED_QUARTER, SUM(PROBLEM_COUNT) as PROBLEMS, AVG(RCA_RATE_PCT) as RCA_COMPLETION FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly problem volume and RCA completion for management',
-    'SELECT ROOT_CAUSE_CATEGORY, SUM(PROBLEM_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS WHERE ROOT_CAUSE_CATEGORY IS NOT NULL GROUP BY 1 ORDER BY 2 DESC',
-    'Root cause distribution for systemic improvement',
+    'SELECT IMPACT, SUM(PROBLEM_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1 ORDER BY 2 DESC',
+    'Problem count by impact for prioritization',
     'SELECT PRIORITY, SUM(RELATED_INCIDENTS) as IMPACT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1 ORDER BY 1',
-    'Incident impact by problem priority for prioritization',
+    'Incident impact by problem priority',
+    'SELECT STATE, SUM(PROBLEM_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1',
+    'Problems by state',
+    'SELECT URGENCY, SUM(PROBLEM_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1',
+    'Problem distribution by urgency',
     'IT Problem Management', 'problem-management@company.com', 4,
     'Problem Trends, RCA Tracking, Service Reliability, Proactive Management',
     'ServiceNow, ITSM, Problems, RCA, ITIL'
