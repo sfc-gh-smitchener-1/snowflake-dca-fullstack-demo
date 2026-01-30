@@ -1320,7 +1320,8 @@ description: |
     
     Use Cases: Revenue Reporting, Sales Performance, Procurement Optimization, Spend Analysis
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1347,7 +1348,8 @@ description: |
     
     Use Cases: Financial Close, Variance Analysis, Audit Support, Cash Flow Forecasting
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1375,7 +1377,8 @@ description: |
     
     Use Cases: Pipeline Review, Forecast Accuracy, Customer Retention, Service Level Monitoring
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1404,7 +1407,8 @@ description: |
     
     Use Cases: Capacity Planning, Population Health Management, Quality Improvement, Clinical Operations
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1433,7 +1437,8 @@ description: |
     
     Use Cases: Workforce Planning, Organizational Design, Compensation Benchmarking, Pay Equity Analysis
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1461,7 +1466,8 @@ description: |
     
     Use Cases: SLA Monitoring, Capacity Planning, Service Improvement, Change Advisory Board
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1492,7 +1498,8 @@ description: |
     
     Use Cases: Executive Dashboards, Cross-Functional Analytics, Data Science, Business Intelligence
 organization_targets:
-    all_accounts: true
+    access:
+        - all_accounts: true
 $$
 PUBLISH = TRUE;
 
