@@ -1302,50 +1302,336 @@ GRANT SELECT ON VIEW CURATED_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS TO SHARE ENT
 -- These listings appear in your organization's private data exchange only
 -- -----------------------------------------------------------------------------
 
--- Note: The following commands create listings in your private data exchange.
--- Replace 'YOUR_DATA_EXCHANGE_NAME' with your actual internal data exchange name.
--- You can find your data exchange name in Snowsight under Data > Private Sharing > Data Exchanges.
+-- -----------------------------------------------------------------------------
+-- SAP ERP Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS SAP_ERP_ANALYTICS_LISTING
+    FOR SHARE SAP_ERP_DATA_SHARE
+    AS $$
+    title: "SAP ERP Analytics"
+    subtitle: "Sales, Procurement, and Customer Analytics from SAP S/4HANA"
+    description: |
+        Comprehensive SAP ERP analytics providing real-time insights into enterprise operations:
+        
+        **Sales Analytics (DP_SAP_SALES_ANALYTICS)**
+        - Revenue metrics by sales organization and distribution channel
+        - Order volumes and customer activity trends
+        - Average order value and performance tracking
+        - Quarterly and monthly revenue breakdowns
+        
+        **Procurement Analytics (DP_SAP_PROCUREMENT_ANALYTICS)**
+        - Spend visibility across purchasing organizations
+        - Vendor activity and concentration metrics
+        - PO volume and value trends by type and group
+        - Strategic sourcing insights
+        
+        **Customer Summary (DP_SAP_CUSTOMER_SUMMARY)**
+        - Customer distribution by geography and account group
+        - Territory analysis and planning support
+        - Currency and regional segmentation
+        
+        Data is refreshed every 4 hours from source SAP systems.
+        No PII - aggregated metrics only. Safe for executive dashboards.
+    terms_of_service: "Internal use only. Data must not be shared externally without approval."
+    business_needs:
+        - "Revenue Reporting"
+        - "Sales Performance Management"
+        - "Procurement Optimization"
+        - "Spend Analysis"
+        - "Customer Segmentation"
+    usage_examples:
+        - "SELECT * FROM DP_SAP_SALES_ANALYTICS WHERE ORDER_YEAR = 2024"
+        - "SELECT PURCHASING_ORGANIZATION, SUM(TOTAL_SPEND) FROM DP_SAP_PROCUREMENT_ANALYTICS GROUP BY 1"
+    $$;
 
--- To create listings, run these commands after setting up your data exchange:
--- 
--- CREATE LISTING SAP_ERP_ANALYTICS_LISTING
---     FOR SHARE SAP_ERP_DATA_SHARE
---     AS $$
---     title: "SAP ERP Analytics"
---     subtitle: "Sales, Procurement, and Customer Analytics from SAP"
---     description: |
---         Comprehensive SAP ERP analytics providing real-time insights into:
---         
---         **Sales Analytics (DP_SAP_SALES_ANALYTICS)**
---         - Revenue metrics by sales organization and distribution channel
---         - Order volumes and customer activity trends
---         - Average order value and performance tracking
---         
---         **Procurement Analytics (DP_SAP_PROCUREMENT_ANALYTICS)**
---         - Spend visibility across purchasing organizations
---         - Vendor activity and concentration metrics
---         - PO volume and value trends
---         
---         **Customer Summary (DP_SAP_CUSTOMER_SUMMARY)**
---         - Customer distribution by geography
---         - Account group analysis
---         - Territory planning support
---         
---         Data is refreshed every 4 hours from source SAP systems.
---         No PII - aggregated metrics only.
---     terms_of_service: "Internal use only. Data must not be shared externally."
---     business_needs:
---         - "Revenue Reporting"
---         - "Sales Performance Management"
---         - "Procurement Optimization"
---         - "Spend Analysis"
---         - "Customer Segmentation"
---     $$
---     PUBLISH = FALSE  -- Internal only, not public
---     DATA_EXCHANGE_NAME = 'YOUR_DATA_EXCHANGE_NAME';
+ALTER LISTING SAP_ERP_ANALYTICS_LISTING SET PUBLISH = FALSE;
 
--- Show created shares
+-- -----------------------------------------------------------------------------
+-- Oracle Financials Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS ORACLE_FINANCIALS_ANALYTICS_LISTING
+    FOR SHARE ORACLE_FINANCIALS_DATA_SHARE
+    AS $$
+    title: "Oracle Financials Analytics"
+    subtitle: "General Ledger and Accounts Payable Analytics from Oracle Cloud"
+    description: |
+        Oracle Financials Cloud analytics for finance teams and executives:
+        
+        **Financial Analytics (DP_ORACLE_FINANCIAL_ANALYTICS)**
+        - General Ledger journal entry metrics by period and ledger
+        - Debit/credit balances and net position tracking
+        - Period close activity monitoring
+        - Batch and entry count analytics
+        
+        **Accounts Payable Analytics (DP_ORACLE_AP_ANALYTICS)**
+        - Invoice volumes and amounts by type and source
+        - Payment status tracking (paid, unpaid, cancelled)
+        - Vendor distribution and concentration
+        - Approval status monitoring
+        
+        Data is refreshed every 4 hours from Oracle Financials Cloud.
+        No individual transaction details - aggregated by period and account class.
+        Supports SOX compliance through complete audit trail visibility.
+    terms_of_service: "Confidential financial data. Internal use only."
+    business_needs:
+        - "Financial Close Acceleration"
+        - "Variance Analysis"
+        - "Audit Support"
+        - "Budget vs Actual"
+        - "Cash Flow Forecasting"
+    usage_examples:
+        - "SELECT FISCAL_YEAR, SUM(NET_AMOUNT) FROM DP_ORACLE_FINANCIAL_ANALYTICS GROUP BY 1"
+        - "SELECT APPROVAL_STATUS, SUM(TOTAL_INVOICE_AMOUNT) FROM DP_ORACLE_AP_ANALYTICS GROUP BY 1"
+    $$;
+
+ALTER LISTING ORACLE_FINANCIALS_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- -----------------------------------------------------------------------------
+-- Salesforce CRM Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS SALESFORCE_CRM_ANALYTICS_LISTING
+    FOR SHARE SALESFORCE_CRM_DATA_SHARE
+    AS $$
+    title: "Salesforce CRM Analytics"
+    subtitle: "Pipeline, Account Health, and Service Analytics from Salesforce"
+    description: |
+        Salesforce CRM analytics for sales, customer success, and service teams:
+        
+        **Pipeline Analytics (DP_SALESFORCE_PIPELINE)**
+        - Opportunity pipeline value by stage and forecast category
+        - Win rates and deal velocity metrics
+        - Lead source effectiveness analysis
+        - Revenue forecasting support
+        
+        **Account Health (DP_SALESFORCE_ACCOUNT_HEALTH)**
+        - Customer segmentation by tier and industry
+        - ARR distribution and retention rates
+        - Geographic territory analysis
+        - Account scoring and prioritization
+        
+        **Service Analytics (DP_SALESFORCE_SERVICE_ANALYTICS)**
+        - Case volumes by priority, origin, and type
+        - Resolution rates and escalation patterns
+        - SLA performance tracking
+        - Customer satisfaction indicators
+        
+        Data is refreshed hourly from Salesforce.
+        No customer names or deal details - aggregated metrics only.
+    terms_of_service: "Internal use only. Customer data aggregated for privacy."
+    business_needs:
+        - "Pipeline Review"
+        - "Forecast Accuracy"
+        - "Customer Retention"
+        - "Service Level Monitoring"
+        - "Territory Planning"
+    usage_examples:
+        - "SELECT PIPELINE_STAGE, SUM(TOTAL_PIPELINE_VALUE) FROM DP_SALESFORCE_PIPELINE GROUP BY 1"
+        - "SELECT PRIORITY, AVG(CLOSURE_RATE_PCT) FROM DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1"
+    $$;
+
+ALTER LISTING SALESFORCE_CRM_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- -----------------------------------------------------------------------------
+-- FHIR Healthcare Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS FHIR_HEALTHCARE_ANALYTICS_LISTING
+    FOR SHARE FHIR_HEALTHCARE_DATA_SHARE
+    AS $$
+    title: "FHIR Healthcare Analytics"
+    subtitle: "HIPAA-Compliant Clinical and Population Health Data Products"
+    description: |
+        De-identified healthcare analytics from FHIR R4 resources:
+        
+        **Clinical Encounters (DP_FHIR_CLINICAL_ENCOUNTERS)**
+        - Encounter volumes by type, class, and status
+        - Duration metrics and facility utilization
+        - Patient flow and capacity analytics
+        - Quarterly and monthly trends
+        
+        **Population Health (DP_FHIR_POPULATION_HEALTH)**
+        - De-identified patient demographics
+        - Age band and gender distributions
+        - Geographic spread with privacy protection
+        - Active patient engagement rates
+        
+        **Condition Analytics (DP_FHIR_CONDITION_ANALYTICS)**
+        - Top conditions by prevalence (minimum 10 patients)
+        - Clinical status distribution
+        - Category-based disease burden analysis
+        - Quality measure support
+        
+        **HIPAA Compliance:**
+        - All data is de-identified per HIPAA Safe Harbor
+        - Minimum cell sizes enforced for privacy
+        - No Protected Health Information (PHI)
+        - IRB approval not required for operational use
+    terms_of_service: "HIPAA compliant. De-identified data only. No re-identification attempts permitted."
+    business_needs:
+        - "Capacity Planning"
+        - "Population Health Management"
+        - "Quality Improvement"
+        - "Disease Burden Analysis"
+        - "Clinical Operations"
+    usage_examples:
+        - "SELECT ENCOUNTER_CLASS, SUM(ENCOUNTER_COUNT) FROM DP_FHIR_CLINICAL_ENCOUNTERS GROUP BY 1"
+        - "SELECT AGE_BAND, SUM(PATIENT_COUNT) FROM DP_FHIR_POPULATION_HEALTH GROUP BY 1"
+    $$;
+
+ALTER LISTING FHIR_HEALTHCARE_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- -----------------------------------------------------------------------------
+-- Workday HR Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS WORKDAY_HR_ANALYTICS_LISTING
+    FOR SHARE WORKDAY_HR_DATA_SHARE
+    AS $$
+    title: "Workday HR Analytics"
+    subtitle: "Workforce, Compensation, and Time Off Analytics from Workday HCM"
+    description: |
+        Workday Human Capital Management analytics for HR and leadership:
+        
+        **Workforce Analytics (DP_WORKDAY_WORKFORCE)**
+        - Headcount by department, job family, and location
+        - Tenure distribution and flight risk indicators
+        - Active vs terminated employee metrics
+        - FTE and worker type analysis
+        
+        **Compensation Bands (DP_WORKDAY_COMPENSATION)**
+        - Pay range statistics by grade and level
+        - Min/max/median/average compensation metrics
+        - Pay equity indicators (variability analysis)
+        - Minimum 5 employees per band for privacy
+        
+        **Time Off Analytics (DP_WORKDAY_TIME_OFF)**
+        - Leave request patterns by type
+        - Utilization rates and trends
+        - Request status distribution
+        - Capacity planning support
+        
+        **Privacy Protection:**
+        - No individual employee names or IDs
+        - Aggregated by organizational dimensions
+        - Compensation data has minimum cell sizes
+    terms_of_service: "Confidential HR data. Restricted access. No individual identification permitted."
+    business_needs:
+        - "Workforce Planning"
+        - "Organizational Design"
+        - "Compensation Benchmarking"
+        - "Pay Equity Analysis"
+        - "Leave Management"
+    usage_examples:
+        - "SELECT DEPARTMENT, SUM(ACTIVE_EMPLOYEES) FROM DP_WORKDAY_WORKFORCE GROUP BY 1"
+        - "SELECT PAY_GRADE, AVG_BASE_PAY, MEDIAN_BASE_PAY FROM DP_WORKDAY_COMPENSATION"
+    $$;
+
+ALTER LISTING WORKDAY_HR_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- -----------------------------------------------------------------------------
+-- ServiceNow ITSM Analytics Listing
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS SERVICENOW_ITSM_ANALYTICS_LISTING
+    FOR SHARE SERVICENOW_ITSM_DATA_SHARE
+    AS $$
+    title: "ServiceNow ITSM Analytics"
+    subtitle: "Incident, Change, and Problem Analytics from ServiceNow"
+    description: |
+        ServiceNow IT Service Management analytics for IT operations:
+        
+        **Incident Analytics (DP_SERVICENOW_INCIDENTS)**
+        - Incident volumes by priority, category, and state
+        - Resolution times (MTTR) and SLA performance
+        - Assignment group workload distribution
+        - High-priority incident tracking
+        
+        **Change Analytics (DP_SERVICENOW_CHANGES)**
+        - Change request volumes and success rates
+        - Risk distribution and outcomes
+        - Change type analysis
+        - CAB decision support
+        
+        **Problem Analytics (DP_SERVICENOW_PROBLEMS)**
+        - Problem trends and root cause completion
+        - Impact and urgency distribution
+        - Related incident counts
+        - Proactive management insights
+        
+        Data is refreshed hourly from ServiceNow.
+        No user identifiers or ticket details - aggregated operational metrics only.
+        Supports ITIL best practices and continuous improvement.
+    terms_of_service: "Internal IT use only. Operational metrics for service improvement."
+    business_needs:
+        - "SLA Monitoring"
+        - "Capacity Planning"
+        - "Service Improvement"
+        - "Change Advisory Board"
+        - "Problem Management"
+    usage_examples:
+        - "SELECT PRIORITY, AVG(AVG_RESOLUTION_MINUTES) FROM DP_SERVICENOW_INCIDENTS GROUP BY 1"
+        - "SELECT CHANGE_TYPE, AVG(SUCCESS_RATE_PCT) FROM DP_SERVICENOW_CHANGES GROUP BY 1"
+    $$;
+
+ALTER LISTING SERVICENOW_ITSM_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- -----------------------------------------------------------------------------
+-- Enterprise Analytics Listing (All Domains)
+-- -----------------------------------------------------------------------------
+CREATE LISTING IF NOT EXISTS ENTERPRISE_ANALYTICS_LISTING
+    FOR SHARE ENTERPRISE_ANALYTICS_DATA_SHARE
+    AS $$
+    title: "Enterprise Analytics Suite"
+    subtitle: "Complete Cross-Domain Analytics for Data-Driven Organizations"
+    description: |
+        Comprehensive enterprise analytics spanning all business domains:
+        
+        **ERP (SAP)**
+        - Sales order analytics and revenue metrics
+        - Procurement spend and vendor analysis
+        - Customer master data summaries
+        
+        **Financials (Oracle)**
+        - General Ledger journal analytics
+        - Accounts Payable metrics and aging
+        
+        **CRM (Salesforce)**
+        - Sales pipeline and forecasting
+        - Account health and retention
+        - Service case analytics
+        
+        **Healthcare (FHIR)**
+        - Clinical encounter metrics (HIPAA compliant)
+        - Population health demographics
+        - Condition prevalence analytics
+        
+        **Human Resources (Workday)**
+        - Workforce composition and headcount
+        - Compensation band statistics
+        - Time off utilization
+        
+        **IT Service Management (ServiceNow)**
+        - Incident resolution metrics
+        - Change management analytics
+        - Problem trend analysis
+        
+        **17 Data Products** across 6 source systems.
+        All data refreshed every 1-24 hours depending on source.
+        No PII - aggregated metrics designed for executive dashboards.
+    terms_of_service: "Internal use only. Cross-functional analytics for leadership and data teams."
+    business_needs:
+        - "Executive Dashboards"
+        - "Cross-Functional Analytics"
+        - "Data Science & ML"
+        - "Business Intelligence"
+        - "Strategic Planning"
+    usage_examples:
+        - "SELECT SOURCE_SYSTEM, COUNT(*) FROM VW_DATA_PRODUCT_CATALOG GROUP BY 1"
+        - "Build unified dashboards across ERP, CRM, and HR data"
+    $$;
+
+ALTER LISTING ENTERPRISE_ANALYTICS_LISTING SET PUBLISH = FALSE;
+
+-- Show created shares and listings
 SHOW SHARES;
+SHOW LISTINGS;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- VERIFICATION
