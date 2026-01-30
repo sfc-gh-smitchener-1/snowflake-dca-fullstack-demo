@@ -155,7 +155,7 @@ CREATE OR REPLACE TABLE DATA_PRODUCT_CATALOG (
     
     -- Access Control
     CONSUMER_ROLE           VARCHAR(100),
-    ALLOWED_ROLES           ARRAY,
+    ALLOWED_ROLES           VARCHAR(500),
     
     -- Sample Queries (for discoverability)
     SAMPLE_QUERY_1          VARCHAR(2000),
@@ -173,8 +173,8 @@ CREATE OR REPLACE TABLE DATA_PRODUCT_CATALOG (
     OWNER_TEAM              VARCHAR(100),
     DATA_STEWARD_EMAIL      VARCHAR(255),
     SLA_REFRESH_HOURS       NUMBER,
-    USE_CASES               ARRAY,
-    TAGS                    ARRAY,
+    USE_CASES               VARCHAR(1000),
+    TAGS                    VARCHAR(500),
     
     -- Status
     STATUS                  VARCHAR(20) DEFAULT 'ACTIVE',
@@ -290,7 +290,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SAP', 'SEM_DEV', 'MARKETPLACE', 'DP_SAP_SALES_ANALYTICS', 'SECURE_VIEW',
     'SALES', 'INTERNAL', FALSE, 'No PII - aggregated metrics only. Safe for executive dashboards.',
-    'ERP_CONSUMER', ARRAY_CONSTRUCT('ERP_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ERP_CONSUMER', 'ERP_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT ORDER_YEAR, ORDER_QUARTER, SUM(TOTAL_REVENUE) as QUARTERLY_REVENUE FROM SEM_DEV.MARKETPLACE.DP_SAP_SALES_ANALYTICS GROUP BY ORDER_YEAR, ORDER_QUARTER ORDER BY 1 DESC, 2 DESC',
     'Quarterly revenue trends for executive dashboard',
     'SELECT SALES_ORGANIZATION, DISTRIBUTION_CHANNEL, SUM(TOTAL_REVENUE) as REVENUE, SUM(ORDER_COUNT) as ORDERS FROM SEM_DEV.MARKETPLACE.DP_SAP_SALES_ANALYTICS WHERE ORDER_YEAR = YEAR(CURRENT_DATE()) GROUP BY 1, 2 ORDER BY REVENUE DESC',
@@ -302,8 +302,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT * FROM SEM_DEV.MARKETPLACE.DP_SAP_SALES_ANALYTICS WHERE ORDER_YEAR >= YEAR(CURRENT_DATE()) - 1 AND TOTAL_REVENUE > 100000',
     'High-value sales activity in last 2 years',
     'SAP Finance Team', 'sap-data-steward@company.com', 4,
-    ARRAY_CONSTRUCT('Revenue Reporting', 'Sales Dashboards', 'Channel Analysis', 'Demand Forecasting'),
-    ARRAY_CONSTRUCT('SAP', 'ERP', 'Sales', 'Revenue', 'SD')
+    'Revenue Reporting, Sales Dashboards, Channel Analysis, Demand Forecasting',
+    'SAP, ERP, Sales, Revenue, SD'
 ),
 (
     'DP-SAP-PROC-001',
@@ -313,7 +313,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SAP', 'SEM_DEV', 'MARKETPLACE', 'DP_SAP_PROCUREMENT_ANALYTICS', 'SECURE_VIEW',
     'PROCUREMENT', 'INTERNAL', FALSE, 'No PII - vendor IDs are anonymized in aggregation.',
-    'ERP_CONSUMER', ARRAY_CONSTRUCT('ERP_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ERP_CONSUMER', 'ERP_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT PO_YEAR, PO_QUARTER, SUM(TOTAL_SPEND) as QUARTERLY_SPEND FROM SEM_DEV.MARKETPLACE.DP_SAP_PROCUREMENT_ANALYTICS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly procurement spend for budget tracking',
     'SELECT PURCHASING_ORGANIZATION, COUNT(DISTINCT VENDOR_KEY) as VENDOR_COUNT, SUM(TOTAL_SPEND) as SPEND FROM SEM_DEV.MARKETPLACE.DP_SAP_PROCUREMENT_ANALYTICS WHERE PO_YEAR = YEAR(CURRENT_DATE()) GROUP BY 1',
@@ -325,8 +325,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT PURCHASING_GROUP, SUM(UNIQUE_VENDORS) as VENDORS, SUM(TOTAL_SPEND) as SPEND FROM SEM_DEV.MARKETPLACE.DP_SAP_PROCUREMENT_ANALYTICS GROUP BY 1 ORDER BY 3 DESC',
     'Vendor count and spend by purchasing group',
     'Procurement Operations', 'procurement-analytics@company.com', 4,
-    ARRAY_CONSTRUCT('Spend Analysis', 'Vendor Scorecard', 'Budget Planning', 'Category Management'),
-    ARRAY_CONSTRUCT('SAP', 'ERP', 'Procurement', 'Spend', 'MM')
+    'Spend Analysis, Vendor Scorecard, Budget Planning, Category Management',
+    'SAP, ERP, Procurement, Spend, MM'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -406,7 +406,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'ORACLE', 'SEM_DEV', 'MARKETPLACE', 'DP_ORACLE_FINANCIAL_ANALYTICS', 'SECURE_VIEW',
     'FINANCE', 'CONFIDENTIAL', FALSE, 'No individual transaction details - aggregated by period and account class.',
-    'ERP_CONSUMER', ARRAY_CONSTRUCT('ERP_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ERP_CONSUMER', 'ERP_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT FISCAL_YEAR, FISCAL_QUARTER, SUM(NET_AMOUNT) as NET_POSITION FROM SEM_DEV.MARKETPLACE.DP_ORACLE_FINANCIAL_ANALYTICS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Net financial position by quarter',
     'SELECT ACCOUNT_CLASS, SUM(TOTAL_DEBITS) as DEBITS, SUM(TOTAL_CREDITS) as CREDITS FROM SEM_DEV.MARKETPLACE.DP_ORACLE_FINANCIAL_ANALYTICS WHERE FISCAL_YEAR = YEAR(CURRENT_DATE()) GROUP BY 1',
@@ -414,8 +414,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT PERIOD_NAME, JOURNAL_ENTRY_COUNT, BATCH_COUNT FROM SEM_DEV.MARKETPLACE.DP_ORACLE_FINANCIAL_ANALYTICS WHERE LEDGER_NAME = ''US_LEDGER'' ORDER BY FISCAL_YEAR DESC, FISCAL_QUARTER DESC',
     'Period close activity tracking',
     'Oracle Finance Team', 'oracle-finance@company.com', 4,
-    ARRAY_CONSTRUCT('Financial Close', 'Variance Analysis', 'Audit Support', 'Budget vs Actual'),
-    ARRAY_CONSTRUCT('Oracle', 'ERP', 'Finance', 'GL', 'Accounting')
+    'Financial Close, Variance Analysis, Audit Support, Budget vs Actual',
+    'Oracle, ERP, Finance, GL, Accounting'
 ),
 (
     'DP-ORACLE-AP-001',
@@ -425,7 +425,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'ORACLE', 'SEM_DEV', 'MARKETPLACE', 'DP_ORACLE_AP_ANALYTICS', 'SECURE_VIEW',
     'FINANCE', 'CONFIDENTIAL', FALSE, 'Vendor names anonymized. No bank account details.',
-    'ERP_CONSUMER', ARRAY_CONSTRUCT('ERP_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ERP_CONSUMER', 'ERP_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT INVOICE_YEAR, INVOICE_QUARTER, SUM(TOTAL_INVOICE_AMOUNT) as TOTAL_AP FROM SEM_DEV.MARKETPLACE.DP_ORACLE_AP_ANALYTICS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly AP volume for cash flow planning',
     'SELECT PAYMENT_METHOD, SUM(INVOICE_COUNT) as COUNT, SUM(TOTAL_INVOICE_AMOUNT) as AMOUNT FROM SEM_DEV.MARKETPLACE.DP_ORACLE_AP_ANALYTICS GROUP BY 1',
@@ -433,8 +433,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT VENDOR_LOCATION, SUM(PENDING_COUNT) as PENDING, SUM(TOTAL_INVOICE_AMOUNT) as AMOUNT FROM SEM_DEV.MARKETPLACE.DP_ORACLE_AP_ANALYTICS WHERE PENDING_COUNT > 0 GROUP BY 1 ORDER BY 2 DESC',
     'Pending payments by vendor location',
     'Oracle Finance Team', 'oracle-ap@company.com', 4,
-    ARRAY_CONSTRUCT('Cash Flow Forecasting', 'Vendor Payments', 'Working Capital', 'Payment Terms'),
-    ARRAY_CONSTRUCT('Oracle', 'ERP', 'AP', 'Payments', 'Vendors')
+    'Cash Flow Forecasting, Vendor Payments, Working Capital, Payment Terms',
+    'Oracle, ERP, AP, Payments, Vendors'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -546,7 +546,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SALESFORCE', 'SEM_DEV', 'MARKETPLACE', 'DP_SALESFORCE_PIPELINE', 'SECURE_VIEW',
     'SALES', 'INTERNAL', FALSE, 'No customer names or deal details - aggregated stage metrics only.',
-    'CRM_CONSUMER', ARRAY_CONSTRUCT('CRM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'CRM_CONSUMER', 'CRM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT CLOSE_YEAR, CLOSE_QUARTER, SUM(WON_REVENUE) as BOOKINGS, AVG(WIN_RATE_PCT) as WIN_RATE FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_PIPELINE GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly bookings and win rate for board deck',
     'SELECT PIPELINE_STAGE, SUM(TOTAL_PIPELINE_VALUE) as PIPELINE, SUM(OPPORTUNITY_COUNT) as DEALS FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_PIPELINE WHERE CLOSE_YEAR = YEAR(CURRENT_DATE()) AND NOT PIPELINE_STAGE IN (''Closed Won'', ''Closed Lost'') GROUP BY 1',
@@ -558,8 +558,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT OPPORTUNITY_TYPE, AVG(AVG_DEAL_SIZE) as AVG_DEAL, AVG(MEDIAN_DEAL_SIZE) as MEDIAN_DEAL FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_PIPELINE GROUP BY 1 ORDER BY 2 DESC',
     'Deal size analysis by opportunity type',
     'Sales Operations', 'sales-ops@company.com', 1,
-    ARRAY_CONSTRUCT('Pipeline Review', 'Forecast Calls', 'Sales Dashboards', 'Win/Loss Analysis'),
-    ARRAY_CONSTRUCT('Salesforce', 'CRM', 'Pipeline', 'Opportunities', 'Revenue')
+    'Pipeline Review, Forecast Calls, Sales Dashboards, Win/Loss Analysis',
+    'Salesforce, CRM, Pipeline, Opportunities, Revenue'
 ),
 (
     'DP-SF-ACCOUNTS-001',
@@ -569,7 +569,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SALESFORCE', 'SEM_DEV', 'MARKETPLACE', 'DP_SALESFORCE_ACCOUNT_HEALTH', 'SECURE_VIEW',
     'CUSTOMER', 'INTERNAL', FALSE, 'No company names or contacts - aggregated segment metrics only.',
-    'CRM_CONSUMER', ARRAY_CONSTRUCT('CRM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'CRM_CONSUMER', 'CRM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT CUSTOMER_TIER, SUM(ACCOUNT_COUNT) as ACCOUNTS, SUM(TOTAL_ARR) as ARR FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_ACCOUNT_HEALTH GROUP BY 1 ORDER BY 2 DESC',
     'Account and ARR distribution by tier',
     'SELECT INDUSTRY, ACTIVE_ACCOUNTS, RETENTION_RATE_PCT FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_ACCOUNT_HEALTH WHERE ACCOUNT_COUNT > 10 ORDER BY 3',
@@ -577,8 +577,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT COUNTRY, STATE, SUM(TOTAL_ARR) as ARR FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_ACCOUNT_HEALTH GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 20',
     'Top territories by ARR for resource allocation',
     'Sales Operations', 'customer-success@company.com', 4,
-    ARRAY_CONSTRUCT('Customer Segmentation', 'Territory Planning', 'Retention Analysis', 'Account Scoring'),
-    ARRAY_CONSTRUCT('Salesforce', 'CRM', 'Accounts', 'Customers', 'ARR')
+    'Customer Segmentation, Territory Planning, Retention Analysis, Account Scoring',
+    'Salesforce, CRM, Accounts, Customers, ARR'
 ),
 (
     'DP-SF-SERVICE-001',
@@ -588,7 +588,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SALESFORCE', 'SEM_DEV', 'MARKETPLACE', 'DP_SALESFORCE_SERVICE_ANALYTICS', 'SECURE_VIEW',
     'SERVICE', 'INTERNAL', FALSE, 'No customer identifiers or case details - aggregated metrics only.',
-    'CRM_CONSUMER', ARRAY_CONSTRUCT('CRM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'CRM_CONSUMER', 'CRM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT CREATED_YEAR, CREATED_MONTH, SUM(CASE_COUNT) as VOLUME, AVG(CLOSURE_RATE_PCT) as RESOLUTION_RATE FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Monthly case volume and resolution trends',
     'SELECT PRIORITY, SUM(CASE_COUNT) as CASES, AVG(ESCALATION_RATE_PCT) as ESCALATION_RATE FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1 ORDER BY 1',
@@ -596,8 +596,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT CASE_ORIGIN, SUM(CASE_COUNT) as CASES, AVG(CLOSURE_RATE_PCT) as CLOSURE_RATE FROM SEM_DEV.MARKETPLACE.DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1 ORDER BY 2 DESC',
     'Channel effectiveness analysis',
     'Customer Support', 'support-analytics@company.com', 1,
-    ARRAY_CONSTRUCT('Service Dashboards', 'SLA Monitoring', 'Staffing Planning', 'Customer Satisfaction'),
-    ARRAY_CONSTRUCT('Salesforce', 'CRM', 'Service', 'Cases', 'Support')
+    'Service Dashboards, SLA Monitoring, Staffing Planning, Customer Satisfaction',
+    'Salesforce, CRM, Service, Cases, Support'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -699,7 +699,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'FHIR', 'SEM_DEV', 'MARKETPLACE', 'DP_FHIR_CLINICAL_ENCOUNTERS', 'SECURE_VIEW',
     'CLINICAL', 'RESTRICTED', FALSE, 'HIPAA compliant. No PHI. Aggregated metrics only. IRB approval not required for operational use.',
-    'HEALTHCARE_CONSUMER', ARRAY_CONSTRUCT('HEALTHCARE_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'HEALTHCARE_CONSUMER', 'HEALTHCARE_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT ENCOUNTER_YEAR, ENCOUNTER_QUARTER, SUM(ENCOUNTER_COUNT) as VISITS, SUM(UNIQUE_PATIENTS) as PATIENTS FROM SEM_DEV.MARKETPLACE.DP_FHIR_CLINICAL_ENCOUNTERS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly patient visit volume for capacity planning',
     'SELECT ENCOUNTER_CLASS, SUM(ENCOUNTER_COUNT) as VISITS, AVG(AVG_DURATION_MINUTES) as AVG_DURATION FROM SEM_DEV.MARKETPLACE.DP_FHIR_CLINICAL_ENCOUNTERS GROUP BY 1 ORDER BY 2 DESC',
@@ -709,8 +709,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT ENCOUNTER_TYPE, AVG(AVG_DURATION_MINUTES) as AVG_MIN, AVG(MEDIAN_DURATION_MINUTES) as MEDIAN_MIN FROM SEM_DEV.MARKETPLACE.DP_FHIR_CLINICAL_ENCOUNTERS GROUP BY 1 ORDER BY 2 DESC',
     'Duration benchmarks by encounter type',
     'Clinical Operations', 'clinical-analytics@health.org', 4,
-    ARRAY_CONSTRUCT('Capacity Planning', 'Operational Efficiency', 'Quality Metrics', 'Resource Allocation'),
-    ARRAY_CONSTRUCT('FHIR', 'Healthcare', 'Clinical', 'Encounters', 'HIPAA')
+    'Capacity Planning, Operational Efficiency, Quality Metrics, Resource Allocation',
+    'FHIR, Healthcare, Clinical, Encounters, HIPAA'
 ),
 (
     'DP-FHIR-POPULATION-001',
@@ -720,7 +720,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'FHIR', 'SEM_DEV', 'MARKETPLACE', 'DP_FHIR_POPULATION_HEALTH', 'SECURE_VIEW',
     'POPULATION_HEALTH', 'RESTRICTED', FALSE, 'HIPAA Safe Harbor compliant. Age bands used instead of exact ages. Minimum cell size 10.',
-    'HEALTHCARE_CONSUMER', ARRAY_CONSTRUCT('HEALTHCARE_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'HEALTHCARE_CONSUMER', 'HEALTHCARE_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT GENDER, SUM(PATIENT_COUNT) as PATIENTS FROM SEM_DEV.MARKETPLACE.DP_FHIR_POPULATION_HEALTH GROUP BY 1',
     'Patient population by gender',
     'SELECT AGE_BAND, SUM(PATIENT_COUNT) as PATIENTS FROM SEM_DEV.MARKETPLACE.DP_FHIR_POPULATION_HEALTH GROUP BY 1 ORDER BY 1',
@@ -728,8 +728,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT STATE, SUM(PATIENT_COUNT) as PATIENTS, AVG(ACTIVE_RATE_PCT) as ENGAGEMENT FROM SEM_DEV.MARKETPLACE.DP_FHIR_POPULATION_HEALTH GROUP BY 1 ORDER BY 2 DESC',
     'Geographic distribution for community health planning',
     'Population Health', 'population-health@health.org', 24,
-    ARRAY_CONSTRUCT('Population Segmentation', 'Health Equity', 'Community Health', 'Care Gaps'),
-    ARRAY_CONSTRUCT('FHIR', 'Healthcare', 'Population', 'Demographics', 'HIPAA')
+    'Population Segmentation, Health Equity, Community Health, Care Gaps',
+    'FHIR, Healthcare, Population, Demographics, HIPAA'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -834,7 +834,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'WORKDAY', 'SEM_DEV', 'MARKETPLACE', 'DP_WORKDAY_WORKFORCE', 'SECURE_VIEW',
     'HR', 'CONFIDENTIAL', FALSE, 'No employee names, IDs, or individual data. Aggregated by organizational dimensions only.',
-    'WORKFORCE_CONSUMER', ARRAY_CONSTRUCT('WORKFORCE_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'WORKFORCE_CONSUMER', 'WORKFORCE_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT DEPARTMENT, SUM(ACTIVE_EMPLOYEES) as HEADCOUNT FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_WORKFORCE GROUP BY 1 ORDER BY 2 DESC',
     'Current headcount by department for org chart',
     'SELECT JOB_LEVEL, SUM(HEADCOUNT) as TOTAL, AVG(AVG_TENURE_YEARS) as AVG_TENURE FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_WORKFORCE GROUP BY 1 ORDER BY 1',
@@ -846,8 +846,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT JOB_FAMILY, SUM(ACTIVE_EMPLOYEES) as ACTIVE, SUM(TERMINATED_EMPLOYEES) as TERMED FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_WORKFORCE GROUP BY 1 ORDER BY 2 DESC',
     'Attrition patterns by job family',
     'HR Analytics', 'hr-analytics@company.com', 4,
-    ARRAY_CONSTRUCT('Workforce Planning', 'Org Design', 'Retention Analysis', 'Location Strategy'),
-    ARRAY_CONSTRUCT('Workday', 'HR', 'Workforce', 'Headcount', 'HCM')
+    'Workforce Planning, Org Design, Retention Analysis, Location Strategy',
+    'Workday, HR, Workforce, Headcount, HCM'
 ),
 (
     'DP-WD-COMP-001',
@@ -857,7 +857,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'WORKDAY', 'SEM_DEV', 'MARKETPLACE', 'DP_WORKDAY_COMPENSATION', 'SECURE_VIEW',
     'COMPENSATION', 'RESTRICTED', FALSE, 'No individual salaries. Aggregated bands with minimum 5 employees. Audited access.',
-    'WORKFORCE_CONSUMER', ARRAY_CONSTRUCT('WORKFORCE_CONSUMER', 'DATA_ADMIN'),
+    'WORKFORCE_CONSUMER', 'WORKFORCE_CONSUMER, DATA_ADMIN',
     'SELECT PAY_GRADE, AVG_BASE_PAY, MEDIAN_BASE_PAY, MIN_BASE_PAY, MAX_BASE_PAY FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION ORDER BY PAY_GRADE',
     'Compensation band ranges for benchmarking',
     'SELECT JOB_LEVEL, AVG(AVG_BASE_PAY) as AVG_PAY FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION GROUP BY 1 ORDER BY 1',
@@ -865,8 +865,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT PAY_GRADE, STDDEV_BASE_PAY / NULLIF(AVG_BASE_PAY, 0) as PAY_VARIABILITY FROM SEM_DEV.MARKETPLACE.DP_WORKDAY_COMPENSATION WHERE EMPLOYEE_COUNT >= 10',
     'Pay equity indicator by grade (low variability = equity)',
     'Total Rewards', 'compensation@company.com', 24,
-    ARRAY_CONSTRUCT('Comp Planning', 'Pay Equity', 'Market Analysis', 'Budget Planning'),
-    ARRAY_CONSTRUCT('Workday', 'HR', 'Compensation', 'Salary', 'Pay')
+    'Comp Planning, Pay Equity, Market Analysis, Budget Planning',
+    'Workday, HR, Compensation, Salary, Pay'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -973,7 +973,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SERVICENOW', 'SEM_DEV', 'MARKETPLACE', 'DP_SERVICENOW_INCIDENTS', 'SECURE_VIEW',
     'ITSM', 'INTERNAL', FALSE, 'No user identifiers or ticket details. Aggregated operational metrics only.',
-    'ITSM_CONSUMER', ARRAY_CONSTRUCT('ITSM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ITSM_CONSUMER', 'ITSM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT OPENED_YEAR, OPENED_MONTH, SUM(INCIDENT_COUNT) as VOLUME, AVG(AVG_RESOLUTION_MINUTES) as AVG_MTTR FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_INCIDENTS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Monthly incident volume and MTTR trend for SLA reporting',
     'SELECT PRIORITY, SUM(INCIDENT_COUNT) as COUNT, AVG(AVG_RESOLUTION_MINUTES) as AVG_RESOLUTION FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_INCIDENTS WHERE OPENED_YEAR = YEAR(CURRENT_DATE()) GROUP BY 1 ORDER BY 1',
@@ -985,8 +985,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT OPENED_YEAR, OPENED_MONTH, SUM(RESOLVED_COUNT) / NULLIF(SUM(INCIDENT_COUNT), 0) as RESOLUTION_RATE FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_INCIDENTS GROUP BY 1, 2 ORDER BY 1, 2',
     'Resolution rate trend for service improvement tracking',
     'IT Operations', 'it-analytics@company.com', 1,
-    ARRAY_CONSTRUCT('SLA Dashboards', 'Capacity Planning', 'Service Improvement', 'Executive Reporting'),
-    ARRAY_CONSTRUCT('ServiceNow', 'ITSM', 'Incidents', 'Help Desk', 'ITIL')
+    'SLA Dashboards, Capacity Planning, Service Improvement, Executive Reporting',
+    'ServiceNow, ITSM, Incidents, Help Desk, ITIL'
 ),
 (
     'DP-SN-CHANGES-001',
@@ -996,7 +996,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SERVICENOW', 'SEM_DEV', 'MARKETPLACE', 'DP_SERVICENOW_CHANGES', 'SECURE_VIEW',
     'ITSM', 'INTERNAL', FALSE, 'No change details or implementer information. Aggregated metrics only.',
-    'ITSM_CONSUMER', ARRAY_CONSTRUCT('ITSM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ITSM_CONSUMER', 'ITSM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT CHANGE_YEAR, CHANGE_QUARTER, SUM(CHANGE_COUNT) as CHANGES, AVG(SUCCESS_RATE_PCT) as SUCCESS_RATE FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly change volume and success rate for CAB review',
     'SELECT RISK, SUM(CHANGE_COUNT) as COUNT, AVG(SUCCESS_RATE_PCT) as SUCCESS_RATE FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1 ORDER BY 1',
@@ -1004,8 +1004,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT CHANGE_TYPE, SUM(SUCCESSFUL_COUNT) as SUCCESS, SUM(FAILED_COUNT) as FAILED FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES GROUP BY 1',
     'Change outcomes by type for process improvement',
     'IT Change Management', 'change-management@company.com', 4,
-    ARRAY_CONSTRUCT('CAB Reporting', 'Risk Assessment', 'Change Success', 'ITIL Compliance'),
-    ARRAY_CONSTRUCT('ServiceNow', 'ITSM', 'Changes', 'CAB', 'ITIL')
+    'CAB Reporting, Risk Assessment, Change Success, ITIL Compliance',
+    'ServiceNow, ITSM, Changes, CAB, ITIL'
 ),
 (
     'DP-SN-PROBLEMS-001',
@@ -1015,7 +1015,7 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'v1.0',
     'SERVICENOW', 'SEM_DEV', 'MARKETPLACE', 'DP_SERVICENOW_PROBLEMS', 'SECURE_VIEW',
     'ITSM', 'INTERNAL', FALSE, 'No problem details or technical information. Aggregated metrics only.',
-    'ITSM_CONSUMER', ARRAY_CONSTRUCT('ITSM_CONSUMER', 'MARKETPLACE_CONSUMER', 'DATA_ADMIN'),
+    'ITSM_CONSUMER', 'ITSM_CONSUMER, MARKETPLACE_CONSUMER, DATA_ADMIN',
     'SELECT OPENED_YEAR, OPENED_QUARTER, SUM(PROBLEM_COUNT) as PROBLEMS, AVG(RCA_RATE_PCT) as RCA_COMPLETION FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1, 2 ORDER BY 1 DESC, 2 DESC',
     'Quarterly problem volume and RCA completion for management',
     'SELECT ROOT_CAUSE_CATEGORY, SUM(PROBLEM_COUNT) as COUNT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS WHERE ROOT_CAUSE_CATEGORY IS NOT NULL GROUP BY 1 ORDER BY 2 DESC',
@@ -1023,8 +1023,8 @@ INSERT INTO GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG (
     'SELECT PRIORITY, SUM(RELATED_INCIDENTS) as IMPACT FROM SEM_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS GROUP BY 1 ORDER BY 1',
     'Incident impact by problem priority for prioritization',
     'IT Problem Management', 'problem-management@company.com', 4,
-    ARRAY_CONSTRUCT('Problem Trends', 'RCA Tracking', 'Service Reliability', 'Proactive Management'),
-    ARRAY_CONSTRUCT('ServiceNow', 'ITSM', 'Problems', 'RCA', 'ITIL')
+    'Problem Trends, RCA Tracking, Service Reliability, Proactive Management',
+    'ServiceNow, ITSM, Problems, RCA, ITIL'
 );
 
 -- ═══════════════════════════════════════════════════════════════════════════
