@@ -1292,111 +1292,59 @@ GRANT SELECT ON VIEW CURATED_DEV.MARKETPLACE.DP_SERVICENOW_CHANGES TO SHARE ENTE
 GRANT SELECT ON VIEW CURATED_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS TO SHARE ENTERPRISE_ANALYTICS_DATA_SHARE;
 
 -- -----------------------------------------------------------------------------
--- Create Internal Organizational Listings
--- These appear in Snowsight under Data > Private Sharing > Internal Marketplace
+-- Add Descriptions to Shares (Shows in Internal Listing UI)
+-- These comments provide metadata for shares when browsing in Snowsight
 -- -----------------------------------------------------------------------------
 
--- SAP ERP Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS SAP_ERP_ANALYTICS
-    SHARE SAP_ERP_DATA_SHARE
-    AS $$
-title: "SAP ERP Analytics"
-subtitle: "Sales, Procurement, and Customer Analytics from SAP S/4HANA"
-description: "Comprehensive SAP ERP analytics providing real-time insights into enterprise operations. Includes DP_SAP_SALES_ANALYTICS (revenue metrics, order volumes), DP_SAP_PROCUREMENT_ANALYTICS (spend visibility, vendor metrics), and DP_SAP_CUSTOMER_SUMMARY (customer distribution by geography). Refresh Rate: Every 4 hours. Data Classification: Internal - No PII."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- SAP ERP Analytics Share Description
+COMMENT ON SHARE SAP_ERP_DATA_SHARE IS '{"title": "SAP ERP Analytics", "subtitle": "Sales, Procurement, and Customer Analytics from SAP S/4HANA", "description": "Comprehensive SAP ERP analytics providing real-time insights into enterprise operations. Includes DP_SAP_SALES_ANALYTICS (revenue metrics, order volumes), DP_SAP_PROCUREMENT_ANALYTICS (spend visibility, vendor metrics), and DP_SAP_CUSTOMER_SUMMARY (customer distribution by geography). Refresh Rate: Every 4 hours. Data Classification: Internal - No PII.", "use_cases": ["Revenue Reporting", "Sales Performance", "Procurement Optimization", "Spend Analysis"]}';
 
--- Oracle Financials Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS ORACLE_FINANCIALS_ANALYTICS
-    SHARE ORACLE_FINANCIALS_DATA_SHARE
-    AS $$
-title: "Oracle Financials Analytics"
-subtitle: "General Ledger and Accounts Payable from Oracle Cloud"
-description: "Oracle Financials Cloud analytics for finance teams and executives. Includes DP_ORACLE_FINANCIAL_ANALYTICS (GL journal metrics, debit/credit balances) and DP_ORACLE_AP_ANALYTICS (invoice volumes, payment status). Refresh Rate: Every 4 hours. Data Classification: Confidential. Use Cases: Financial Close, Variance Analysis, Audit Support."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- Oracle Financials Analytics Share Description
+COMMENT ON SHARE ORACLE_FINANCIALS_DATA_SHARE IS '{"title": "Oracle Financials Analytics", "subtitle": "General Ledger and Accounts Payable from Oracle Cloud", "description": "Oracle Financials Cloud analytics for finance teams and executives. Includes DP_ORACLE_FINANCIAL_ANALYTICS (GL journal metrics, debit/credit balances) and DP_ORACLE_AP_ANALYTICS (invoice volumes, payment status). Refresh Rate: Every 4 hours. Data Classification: Confidential.", "use_cases": ["Financial Close", "Variance Analysis", "Audit Support", "Cash Flow Forecasting"]}';
 
--- Salesforce CRM Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS SALESFORCE_CRM_ANALYTICS
-    SHARE SALESFORCE_CRM_DATA_SHARE
-    AS $$
-title: "Salesforce CRM Analytics"
-subtitle: "Pipeline, Account Health, and Service Analytics"
-description: "Salesforce CRM analytics for sales, customer success, and service teams. Includes DP_SALESFORCE_PIPELINE (pipeline value, win rates), DP_SALESFORCE_ACCOUNT_HEALTH (customer segmentation, ARR), and DP_SALESFORCE_SERVICE_ANALYTICS (case volumes, resolution rates). Refresh Rate: Hourly. Data Classification: Internal."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- Salesforce CRM Analytics Share Description
+COMMENT ON SHARE SALESFORCE_CRM_DATA_SHARE IS '{"title": "Salesforce CRM Analytics", "subtitle": "Pipeline, Account Health, and Service Analytics", "description": "Salesforce CRM analytics for sales, customer success, and service teams. Includes DP_SALESFORCE_PIPELINE (pipeline value, win rates), DP_SALESFORCE_ACCOUNT_HEALTH (customer segmentation, ARR), and DP_SALESFORCE_SERVICE_ANALYTICS (case volumes, resolution rates). Refresh Rate: Hourly. Data Classification: Internal.", "use_cases": ["Pipeline Review", "Forecast Accuracy", "Customer Retention", "Service Level Monitoring"]}';
 
--- FHIR Healthcare Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS FHIR_HEALTHCARE_ANALYTICS
-    SHARE FHIR_HEALTHCARE_DATA_SHARE
-    AS $$
-title: "FHIR Healthcare Analytics"
-subtitle: "HIPAA-Compliant Clinical and Population Health Data"
-description: "De-identified healthcare analytics from FHIR R4 resources. Includes DP_FHIR_CLINICAL_ENCOUNTERS (encounter volumes, duration metrics), DP_FHIR_POPULATION_HEALTH (de-identified demographics, age bands), and DP_FHIR_CONDITION_ANALYTICS (top conditions by prevalence). HIPAA Compliant - No PHI. Refresh Rate: Every 4 hours."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- FHIR Healthcare Analytics Share Description
+COMMENT ON SHARE FHIR_HEALTHCARE_DATA_SHARE IS '{"title": "FHIR Healthcare Analytics", "subtitle": "HIPAA-Compliant Clinical and Population Health Data", "description": "De-identified healthcare analytics from FHIR R4 resources. Includes DP_FHIR_CLINICAL_ENCOUNTERS (encounter volumes, duration metrics), DP_FHIR_POPULATION_HEALTH (de-identified demographics, age bands), and DP_FHIR_CONDITION_ANALYTICS (top conditions by prevalence). HIPAA Compliant - No PHI. Refresh Rate: Every 4 hours.", "use_cases": ["Capacity Planning", "Population Health Management", "Quality Improvement", "Clinical Operations"]}';
 
--- Workday HR Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS WORKDAY_HR_ANALYTICS
-    SHARE WORKDAY_HR_DATA_SHARE
-    AS $$
-title: "Workday HR Analytics"
-subtitle: "Workforce, Compensation, and Time Off Analytics"
-description: "Workday HCM analytics for HR and leadership teams. Includes DP_WORKDAY_WORKFORCE (headcount, tenure by department), DP_WORKDAY_COMPENSATION (pay ranges by grade, min 5 employees per band), and DP_WORKDAY_TIME_OFF (leave patterns, utilization). No individual employee data. Refresh Rate: Every 4 hours. Data Classification: Confidential."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- Workday HR Analytics Share Description
+COMMENT ON SHARE WORKDAY_HR_DATA_SHARE IS '{"title": "Workday HR Analytics", "subtitle": "Workforce, Compensation, and Time Off Analytics", "description": "Workday HCM analytics for HR and leadership teams. Includes DP_WORKDAY_WORKFORCE (headcount, tenure by department), DP_WORKDAY_COMPENSATION (pay ranges by grade, min 5 employees per band), and DP_WORKDAY_TIME_OFF (leave patterns, utilization). No individual employee data. Refresh Rate: Every 4 hours. Data Classification: Confidential.", "use_cases": ["Workforce Planning", "Organizational Design", "Compensation Benchmarking", "Pay Equity Analysis"]}';
 
--- ServiceNow ITSM Analytics Listing
-CREATE ORGANIZATION LISTING IF NOT EXISTS SERVICENOW_ITSM_ANALYTICS
-    SHARE SERVICENOW_ITSM_DATA_SHARE
-    AS $$
-title: "ServiceNow ITSM Analytics"
-subtitle: "Incident, Change, and Problem Analytics"
-description: "ServiceNow IT Service Management analytics for IT operations. Includes DP_SERVICENOW_INCIDENTS (incident volumes, MTTR, SLA performance), DP_SERVICENOW_CHANGES (change success rates, risk distribution), and DP_SERVICENOW_PROBLEMS (problem trends, root cause completion). Refresh Rate: Hourly. Data Classification: Internal."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- ServiceNow ITSM Analytics Share Description
+COMMENT ON SHARE SERVICENOW_ITSM_DATA_SHARE IS '{"title": "ServiceNow ITSM Analytics", "subtitle": "Incident, Change, and Problem Analytics", "description": "ServiceNow IT Service Management analytics for IT operations. Includes DP_SERVICENOW_INCIDENTS (incident volumes, MTTR, SLA performance), DP_SERVICENOW_CHANGES (change success rates, risk distribution), and DP_SERVICENOW_PROBLEMS (problem trends, root cause completion). Refresh Rate: Hourly. Data Classification: Internal.", "use_cases": ["SLA Monitoring", "Capacity Planning", "Service Improvement", "Change Advisory Board"]}';
 
--- Enterprise Analytics Suite Listing (All Domains)
-CREATE ORGANIZATION LISTING IF NOT EXISTS ENTERPRISE_ANALYTICS_SUITE
-    SHARE ENTERPRISE_ANALYTICS_DATA_SHARE
-    AS $$
-title: "Enterprise Analytics Suite"
-subtitle: "Complete Cross-Domain Analytics - 17 Data Products"
-description: "Comprehensive enterprise analytics spanning all business domains. Includes SAP (3 products), Oracle (2 products), Salesforce (3 products), FHIR (3 products), Workday (3 products), and ServiceNow (3 products). Total: 17 data products across 6 source systems. Ideal for executives, data scientists, and cross-functional teams building unified dashboards."
-organization_targets:
-  accounts:
-    - "SFSENORTHAMERICA.SNOW_BCDR_PRIMARY"
-    - "SFSENORTHAMERICA.DEMO66"
-$$
-PUBLISH = TRUE;
+-- Enterprise Analytics Suite Share Description (All Domains)
+COMMENT ON SHARE ENTERPRISE_ANALYTICS_DATA_SHARE IS '{"title": "Enterprise Analytics Suite", "subtitle": "Complete Cross-Domain Analytics - 17 Data Products", "description": "Comprehensive enterprise analytics spanning all business domains. Includes SAP (3 products), Oracle (2 products), Salesforce (3 products), FHIR (3 products), Workday (3 products), and ServiceNow (3 products). Total: 17 data products across 6 source systems. Ideal for executives, data scientists, and cross-functional teams building unified dashboards.", "use_cases": ["Executive Dashboards", "Cross-Functional Analytics", "Data Science", "Business Intelligence"]}';
 
--- Show created shares and listings
+-- -----------------------------------------------------------------------------
+-- Publish Shares Internally (Target specific accounts to make them Internal Listings)
+-- These shares will appear in Data > Private Sharing for the target accounts
+-- -----------------------------------------------------------------------------
+
+-- Publish SAP ERP Analytics Share internally
+ALTER SHARE SAP_ERP_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish Oracle Financials Analytics Share internally
+ALTER SHARE ORACLE_FINANCIALS_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish Salesforce CRM Analytics Share internally
+ALTER SHARE SALESFORCE_CRM_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish FHIR Healthcare Analytics Share internally
+ALTER SHARE FHIR_HEALTHCARE_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish Workday HR Analytics Share internally
+ALTER SHARE WORKDAY_HR_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish ServiceNow ITSM Analytics Share internally
+ALTER SHARE SERVICENOW_ITSM_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Publish Enterprise Analytics Suite Share internally (All Domains)
+ALTER SHARE ENTERPRISE_ANALYTICS_DATA_SHARE SET ACCOUNTS = SFSENORTHAMERICA.SNOW_BCDR_PRIMARY, SFSENORTHAMERICA.DEMO66;
+
+-- Show created shares
 SHOW SHARES;
-SHOW LISTINGS;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- VERIFICATION
