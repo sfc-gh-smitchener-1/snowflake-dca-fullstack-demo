@@ -1306,25 +1306,19 @@ subtitle: "Sales, Procurement, and Customer Analytics from SAP S/4HANA"
 description: |
     Comprehensive SAP ERP analytics providing real-time insights into enterprise operations.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_SAP_SALES_ANALYTICS: Revenue metrics, order volumes, customer activity by sales org
     - DP_SAP_PROCUREMENT_ANALYTICS: Spend visibility, vendor metrics, PO trends
     - DP_SAP_CUSTOMER_SUMMARY: Customer distribution by geography and account group
     
-    **Refresh Rate:** Every 4 hours
-    **Data Classification:** Internal - No PII
+    Refresh Rate: Every 4 hours
+    Data Classification: Internal - No PII
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT ORDER_YEAR, SUM(TOTAL_REVENUE) FROM DP_SAP_SALES_ANALYTICS GROUP BY 1
     - SELECT PURCHASING_ORGANIZATION, SUM(TOTAL_SPEND) FROM DP_SAP_PROCUREMENT_ANALYTICS GROUP BY 1
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/data-terms"
-business_needs:
-    - "Revenue Reporting"
-    - "Sales Performance"
-    - "Procurement Optimization"
-    - "Spend Analysis"
+    
+    Use Cases: Revenue Reporting, Sales Performance, Procurement Optimization, Spend Analysis
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1339,24 +1333,18 @@ subtitle: "General Ledger and Accounts Payable from Oracle Cloud"
 description: |
     Oracle Financials Cloud analytics for finance teams and executives.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_ORACLE_FINANCIAL_ANALYTICS: GL journal metrics, debit/credit balances, period close
     - DP_ORACLE_AP_ANALYTICS: Invoice volumes, payment status, vendor distribution
     
-    **Refresh Rate:** Every 4 hours
-    **Data Classification:** Confidential
+    Refresh Rate: Every 4 hours
+    Data Classification: Confidential
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT FISCAL_YEAR, SUM(NET_AMOUNT) FROM DP_ORACLE_FINANCIAL_ANALYTICS GROUP BY 1
     - SELECT APPROVAL_STATUS, SUM(TOTAL_INVOICE_AMOUNT) FROM DP_ORACLE_AP_ANALYTICS GROUP BY 1
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/data-terms"
-business_needs:
-    - "Financial Close"
-    - "Variance Analysis"
-    - "Audit Support"
-    - "Cash Flow Forecasting"
+    
+    Use Cases: Financial Close, Variance Analysis, Audit Support, Cash Flow Forecasting
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1371,25 +1359,19 @@ subtitle: "Pipeline, Account Health, and Service Analytics"
 description: |
     Salesforce CRM analytics for sales, customer success, and service teams.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_SALESFORCE_PIPELINE: Pipeline value, win rates, forecast accuracy
     - DP_SALESFORCE_ACCOUNT_HEALTH: Customer segmentation, ARR, retention rates
     - DP_SALESFORCE_SERVICE_ANALYTICS: Case volumes, resolution rates, SLA performance
     
-    **Refresh Rate:** Hourly
-    **Data Classification:** Internal - Aggregated metrics only
+    Refresh Rate: Hourly
+    Data Classification: Internal - Aggregated metrics only
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT PIPELINE_STAGE, SUM(TOTAL_PIPELINE_VALUE) FROM DP_SALESFORCE_PIPELINE GROUP BY 1
     - SELECT PRIORITY, AVG(CLOSURE_RATE_PCT) FROM DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/data-terms"
-business_needs:
-    - "Pipeline Review"
-    - "Forecast Accuracy"
-    - "Customer Retention"
-    - "Service Level Monitoring"
+    
+    Use Cases: Pipeline Review, Forecast Accuracy, Customer Retention, Service Level Monitoring
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1404,26 +1386,20 @@ subtitle: "HIPAA-Compliant Clinical and Population Health Data"
 description: |
     De-identified healthcare analytics from FHIR R4 resources.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_FHIR_CLINICAL_ENCOUNTERS: Encounter volumes, duration metrics, facility utilization
     - DP_FHIR_POPULATION_HEALTH: De-identified demographics, age bands, geographic spread
     - DP_FHIR_CONDITION_ANALYTICS: Top conditions by prevalence, clinical status
     
-    **HIPAA Compliance:** All data de-identified per Safe Harbor. No PHI.
-    **Refresh Rate:** Every 4 hours
-    **Data Classification:** Restricted - HIPAA Compliant
+    HIPAA Compliance: All data de-identified per Safe Harbor. No PHI.
+    Refresh Rate: Every 4 hours
+    Data Classification: Restricted - HIPAA Compliant
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT ENCOUNTER_CLASS, SUM(ENCOUNTER_COUNT) FROM DP_FHIR_CLINICAL_ENCOUNTERS GROUP BY 1
     - SELECT AGE_BAND, SUM(PATIENT_COUNT) FROM DP_FHIR_POPULATION_HEALTH GROUP BY 1
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/hipaa-data-terms"
-business_needs:
-    - "Capacity Planning"
-    - "Population Health Management"
-    - "Quality Improvement"
-    - "Clinical Operations"
+    
+    Use Cases: Capacity Planning, Population Health Management, Quality Improvement, Clinical Operations
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1438,26 +1414,20 @@ subtitle: "Workforce, Compensation, and Time Off Analytics"
 description: |
     Workday HCM analytics for HR and leadership teams.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_WORKDAY_WORKFORCE: Headcount, tenure, active/terminated by department
     - DP_WORKDAY_COMPENSATION: Pay ranges by grade (min 5 employees per band)
     - DP_WORKDAY_TIME_OFF: Leave patterns, utilization rates, request trends
     
-    **Privacy:** No individual employee data. Aggregated metrics only.
-    **Refresh Rate:** Every 4 hours
-    **Data Classification:** Confidential
+    Privacy: No individual employee data. Aggregated metrics only.
+    Refresh Rate: Every 4 hours
+    Data Classification: Confidential
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT DEPARTMENT, SUM(ACTIVE_EMPLOYEES) FROM DP_WORKDAY_WORKFORCE GROUP BY 1
     - SELECT PAY_GRADE, AVG_BASE_PAY FROM DP_WORKDAY_COMPENSATION
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/hr-data-terms"
-business_needs:
-    - "Workforce Planning"
-    - "Organizational Design"
-    - "Compensation Benchmarking"
-    - "Pay Equity Analysis"
+    
+    Use Cases: Workforce Planning, Organizational Design, Compensation Benchmarking, Pay Equity Analysis
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1472,25 +1442,19 @@ subtitle: "Incident, Change, and Problem Analytics"
 description: |
     ServiceNow IT Service Management analytics for IT operations.
     
-    **Included Data Products:**
+    Included Data Products:
     - DP_SERVICENOW_INCIDENTS: Incident volumes, MTTR, SLA performance by priority
     - DP_SERVICENOW_CHANGES: Change success rates, risk distribution
     - DP_SERVICENOW_PROBLEMS: Problem trends, root cause completion rates
     
-    **Refresh Rate:** Hourly
-    **Data Classification:** Internal
+    Refresh Rate: Hourly
+    Data Classification: Internal
     
-    **Sample Queries:**
+    Sample Queries:
     - SELECT PRIORITY, AVG(AVG_RESOLUTION_MINUTES) FROM DP_SERVICENOW_INCIDENTS GROUP BY 1
     - SELECT CHANGE_TYPE, AVG(SUCCESS_RATE_PCT) FROM DP_SERVICENOW_CHANGES GROUP BY 1
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/data-terms"
-business_needs:
-    - "SLA Monitoring"
-    - "Capacity Planning"
-    - "Service Improvement"
-    - "Change Advisory Board"
+    
+    Use Cases: SLA Monitoring, Capacity Planning, Service Improvement, Change Advisory Board
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
@@ -1505,7 +1469,7 @@ subtitle: "Complete Cross-Domain Analytics - 17 Data Products"
 description: |
     Comprehensive enterprise analytics spanning all business domains.
     
-    **Included Domains:**
+    Included Domains:
     - SAP: Sales, Procurement, Customer (3 products)
     - Oracle: GL, AP (2 products)
     - Salesforce: Pipeline, Accounts, Service (3 products)
@@ -1513,20 +1477,14 @@ description: |
     - Workday: Workforce, Compensation, Time Off (3 products)
     - ServiceNow: Incidents, Changes, Problems (3 products)
     
-    **Total:** 17 data products across 6 source systems
-    **Refresh Rates:** Hourly to daily depending on source
-    **Data Classification:** Mixed (Internal, Confidential, Restricted)
+    Total: 17 data products across 6 source systems
+    Refresh Rates: Hourly to daily depending on source
+    Data Classification: Mixed (Internal, Confidential, Restricted)
     
     Ideal for executives, data scientists, and cross-functional teams
     building unified dashboards and ML models.
-terms_of_service:
-    type: "CUSTOM"
-    link: "https://company.internal/data-terms"
-business_needs:
-    - "Executive Dashboards"
-    - "Cross-Functional Analytics"
-    - "Data Science"
-    - "Business Intelligence"
+    
+    Use Cases: Executive Dashboards, Cross-Functional Analytics, Data Science, Business Intelligence
 $$
 PUBLISH = FALSE
 REVIEW = FALSE;
