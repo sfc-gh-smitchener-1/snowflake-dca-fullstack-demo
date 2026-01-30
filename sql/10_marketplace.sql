@@ -1297,7 +1297,7 @@ GRANT SELECT ON VIEW CURATED_DEV.MARKETPLACE.DP_SERVICENOW_PROBLEMS TO SHARE ENT
 -- -----------------------------------------------------------------------------
 
 -- SAP ERP Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS SAP_ERP_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS SAP_ERP_ANALYTICS
     SHARE SAP_ERP_DATA_SHARE
     AS 
 $$
@@ -1320,11 +1320,10 @@ description: |
     
     Use Cases: Revenue Reporting, Sales Performance, Procurement Optimization, Spend Analysis
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- Oracle Financials Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS ORACLE_FINANCIALS_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS ORACLE_FINANCIALS_ANALYTICS
     SHARE ORACLE_FINANCIALS_DATA_SHARE
     AS 
 $$
@@ -1346,11 +1345,10 @@ description: |
     
     Use Cases: Financial Close, Variance Analysis, Audit Support, Cash Flow Forecasting
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- Salesforce CRM Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS SALESFORCE_CRM_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS SALESFORCE_CRM_ANALYTICS
     SHARE SALESFORCE_CRM_DATA_SHARE
     AS 
 $$
@@ -1373,11 +1371,10 @@ description: |
     
     Use Cases: Pipeline Review, Forecast Accuracy, Customer Retention, Service Level Monitoring
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- FHIR Healthcare Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS FHIR_HEALTHCARE_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS FHIR_HEALTHCARE_ANALYTICS
     SHARE FHIR_HEALTHCARE_DATA_SHARE
     AS 
 $$
@@ -1401,11 +1398,10 @@ description: |
     
     Use Cases: Capacity Planning, Population Health Management, Quality Improvement, Clinical Operations
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- Workday HR Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS WORKDAY_HR_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS WORKDAY_HR_ANALYTICS
     SHARE WORKDAY_HR_DATA_SHARE
     AS 
 $$
@@ -1429,11 +1425,10 @@ description: |
     
     Use Cases: Workforce Planning, Organizational Design, Compensation Benchmarking, Pay Equity Analysis
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- ServiceNow ITSM Analytics Listing
-CREATE EXTERNAL LISTING IF NOT EXISTS SERVICENOW_ITSM_ANALYTICS
+CREATE ORGANIZATION LISTING IF NOT EXISTS SERVICENOW_ITSM_ANALYTICS
     SHARE SERVICENOW_ITSM_DATA_SHARE
     AS 
 $$
@@ -1456,11 +1451,10 @@ description: |
     
     Use Cases: SLA Monitoring, Capacity Planning, Service Improvement, Change Advisory Board
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- Enterprise Analytics Suite Listing (All Domains)
-CREATE EXTERNAL LISTING IF NOT EXISTS ENTERPRISE_ANALYTICS_SUITE
+CREATE ORGANIZATION LISTING IF NOT EXISTS ENTERPRISE_ANALYTICS_SUITE
     SHARE ENTERPRISE_ANALYTICS_DATA_SHARE
     AS 
 $$
@@ -1486,8 +1480,7 @@ description: |
     
     Use Cases: Executive Dashboards, Cross-Functional Analytics, Data Science, Business Intelligence
 $$
-PUBLISH = FALSE
-REVIEW = FALSE;
+PUBLISH = TRUE;
 
 -- Show created shares and listings
 SHOW SHARES;
