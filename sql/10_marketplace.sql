@@ -1319,6 +1319,8 @@ description: |
     - SELECT PURCHASING_ORGANIZATION, SUM(TOTAL_SPEND) FROM DP_SAP_PROCUREMENT_ANALYTICS GROUP BY 1
     
     Use Cases: Revenue Reporting, Sales Performance, Procurement Optimization, Spend Analysis
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1344,6 +1346,8 @@ description: |
     - SELECT APPROVAL_STATUS, SUM(TOTAL_INVOICE_AMOUNT) FROM DP_ORACLE_AP_ANALYTICS GROUP BY 1
     
     Use Cases: Financial Close, Variance Analysis, Audit Support, Cash Flow Forecasting
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1370,6 +1374,8 @@ description: |
     - SELECT PRIORITY, AVG(CLOSURE_RATE_PCT) FROM DP_SALESFORCE_SERVICE_ANALYTICS GROUP BY 1
     
     Use Cases: Pipeline Review, Forecast Accuracy, Customer Retention, Service Level Monitoring
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1397,6 +1403,8 @@ description: |
     - SELECT AGE_BAND, SUM(PATIENT_COUNT) FROM DP_FHIR_POPULATION_HEALTH GROUP BY 1
     
     Use Cases: Capacity Planning, Population Health Management, Quality Improvement, Clinical Operations
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1424,6 +1432,8 @@ description: |
     - SELECT PAY_GRADE, AVG_BASE_PAY FROM DP_WORKDAY_COMPENSATION
     
     Use Cases: Workforce Planning, Organizational Design, Compensation Benchmarking, Pay Equity Analysis
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1450,6 +1460,8 @@ description: |
     - SELECT CHANGE_TYPE, AVG(SUCCESS_RATE_PCT) FROM DP_SERVICENOW_CHANGES GROUP BY 1
     
     Use Cases: SLA Monitoring, Capacity Planning, Service Improvement, Change Advisory Board
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
@@ -1479,6 +1491,8 @@ description: |
     building unified dashboards and ML models.
     
     Use Cases: Executive Dashboards, Cross-Functional Analytics, Data Science, Business Intelligence
+organization_targets:
+    all_accounts: true
 $$
 PUBLISH = TRUE;
 
