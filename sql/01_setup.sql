@@ -217,15 +217,17 @@ GRANT CREATE DATA EXCHANGE LISTING ON ACCOUNT TO ROLE DATA_ADMIN;
 USE ROLE DATA_ADMIN;
 
 -- Ingestion warehouse (burstable for batch loads)
+-- Note: MIN_CLUSTER_COUNT, MAX_CLUSTER_COUNT, and SCALING_POLICY require Enterprise Edition
+-- Uncomment those lines if using Enterprise Edition for multi-cluster warehouse support
 CREATE WAREHOUSE IF NOT EXISTS INGEST_WH
     WAREHOUSE_SIZE = 'SMALL'
     WAREHOUSE_TYPE = 'STANDARD'
     AUTO_SUSPEND = 60
     AUTO_RESUME = TRUE
-    MIN_CLUSTER_COUNT = 1
-    MAX_CLUSTER_COUNT = 2
-    SCALING_POLICY = 'ECONOMY'
-    COMMENT = 'Warehouse for data ingestion workloads. Auto-scales for batch loads.';
+    -- MIN_CLUSTER_COUNT = 1
+    -- MAX_CLUSTER_COUNT = 2
+    -- SCALING_POLICY = 'ECONOMY'
+    COMMENT = 'Warehouse for data ingestion workloads.';
 
 -- Transformation warehouse (for Dynamic Tables)
 CREATE WAREHOUSE IF NOT EXISTS TRANSFORM_WH
