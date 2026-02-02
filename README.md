@@ -84,6 +84,16 @@ For organizations preferring centralized management with logical separation via 
 - **RBAC/ABAC/CGAC** for fine-grained access control without account proliferation
 - **CI/CD promotion gates** with contract validation before production deployment
 
+### Implementation Maturity Journey
+
+Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCHITECTURE.md) for the complete guide.
+
+| Phase | Focus | Key Deliverables |
+|-------|-------|------------------|
+| **Phase 1: Foundation** | Get data flowing with basic controls | Infrastructure, basic roles, manual deployment |
+| **Phase 2: Automation** | Reduce manual work, increase consistency | CI/CD, tag-based governance, Dynamic Tables, team clones |
+| **Phase 3: Enterprise Scale** | Contract-driven, self-service platform | Data contracts, semantic layer, marketplace, Cortex |
+
 ## Key Capabilities
 
 | Capability | Description |
