@@ -24,6 +24,66 @@ This architecture is built on a fundamental principle: **data serves people, and
 
 Whether you operate in a **single Snowflake account** or across **multiple accounts spanning regions and clouds**, this architecture provides the patterns for federated data management with centralized trust.
 
+## Deployment Patterns
+
+This demo supports two reference architectures. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCHITECTURE.md) for detailed documentation.
+
+### Multi-Account Architecture
+
+For organizations requiring strong isolation between business units, regions, or environments:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  SALES_PROD     │    │   HR_PROD       │    │ FINANCE_PROD    │
+│  (US Region)    │    │  (EU Region)    │    │  (US Region)    │
+└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+         │    Secure Shares     │                      │
+         └──────────────────────┼──────────────────────┘
+                                ▼
+┌───────────────────────────────────────────────────────────────┐
+│              CORPORATE DATA HUB (Consumer Account)            │
+└───────────────────────────────────────────────────────────────┘
+```
+
+### Single-Account Architecture
+
+For organizations preferring centralized management with logical separation via RBAC/ABAC:
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                           SNOWFLAKE ACCOUNT                                   │
+│                                                                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                      PRODUCTION DATABASES                               │  │
+│  │  RAW_PROD │ CURATED_PROD │ SEMANTIC_PROD │ GOVERNANCE                   │  │
+│  └──────────────────────────────┬──────────────────────────────────────────┘  │
+│                                 │ Zero-Copy Clones                            │
+│                   ┌─────────────┼─────────────┐                               │
+│                   ▼             ▼             ▼                               │
+│  ┌─────────────────────────────────────────────────────────────────────────┐  │
+│  │                    TEAM DEVELOPMENT DATABASES                           │  │
+│  │                                                                         │  │
+│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐            │  │
+│  │  │ TEAM_SALES_DEV  │ │  TEAM_HR_DEV    │ │TEAM_FINANCE_DEV │            │  │
+│  │  │                 │ │                 │ │                 │            │  │
+│  │  │ Team autonomy:  │ │ Team autonomy:  │ │ Team autonomy:  │            │  │
+│  │  │ • Own schemas   │ │ • Own schemas   │ │ • Own schemas   │            │  │
+│  │  │ • Own contracts │ │ • Own contracts │ │ • Own contracts │            │  │
+│  │  │ • Own measures  │ │ • Own measures  │ │ • Own measures  │            │  │
+│  │  └─────────────────┘ └─────────────────┘ └─────────────────┘            │  │
+│  │                                                                         │  │
+│  │  SDLC: Clone → Develop → Validate → PR Review → Promote to Prod         │  │
+│  └─────────────────────────────────────────────────────────────────────────┘  │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Features:**
+- **Zero-copy clones** from production for instant, cost-effective development environments
+- **Team autonomy** to create schemas, contracts, and semantic measures
+- **RBAC/ABAC/CGAC** for fine-grained access control without account proliferation
+- **CI/CD promotion gates** with contract validation before production deployment
+
 ## Key Capabilities
 
 | Capability | Description |
@@ -236,6 +296,7 @@ snowflake-dca-fullstack-demo/
 │
 ├── docs/                                  # Documentation
 │   ├── ARCHITECTURE.md                    # People-first, contract-driven architecture
+│   ├── SDLC_ARCHITECTURE.md               # Single/multi-account patterns, CI/CD, team autonomy
 │   ├── GOVERNANCE.md                      # Compliance framework (GDPR, HIPAA, etc.)
 │   ├── DEMO_SCRIPT.md                     # 15-minute demo walkthrough
 │   └── SAMPLE_QUESTIONS.md                # Cortex Analyst examples
@@ -320,6 +381,7 @@ snowflake-dca-fullstack-demo/
 ## Documentation
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — People-first, contract-driven design
+- [SDLC_ARCHITECTURE.md](docs/SDLC_ARCHITECTURE.md) — Single-account & multi-account deployment patterns, CI/CD, team autonomy
 - [DATA_GENERATION.md](docs/DATA_GENERATION.md) — Source system data generation (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)
 - [GOVERNANCE.md](docs/GOVERNANCE.md) — Compliance framework details
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
