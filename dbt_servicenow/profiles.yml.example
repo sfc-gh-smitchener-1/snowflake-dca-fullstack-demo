@@ -1,0 +1,37 @@
+# ============================================================================
+# dbt Profile: ServiceNow ITSM Pipeline
+# ============================================================================
+# Copy this to ~/.dbt/profiles.yml and update with your credentials.
+#
+# This profile targets the same Snowflake account used by the DCA demo,
+# writing dbt-managed tables alongside the Dynamic Tables.
+# ============================================================================
+
+dbt_servicenow:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD', '') }}"
+      authenticator: "{{ env_var('SNOWFLAKE_AUTHENTICATOR', 'snowflake') }}"
+      role: DATA_ADMIN
+      database: CURATED_DEV
+      warehouse: TRANSFORM_WH
+      schema: DBT_SERVICENOW
+      threads: 4
+      query_tag: 'dbt_servicenow'
+
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD', '') }}"
+      authenticator: "{{ env_var('SNOWFLAKE_AUTHENTICATOR', 'snowflake') }}"
+      role: DATA_ADMIN
+      database: CURATED_PROD
+      warehouse: TRANSFORM_WH
+      schema: DBT_SERVICENOW
+      threads: 4
+      query_tag: 'dbt_servicenow_prod'

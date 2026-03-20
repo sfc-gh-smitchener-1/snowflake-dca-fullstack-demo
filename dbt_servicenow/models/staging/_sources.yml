@@ -1,0 +1,112 @@
+version: 2
+
+sources:
+  - name: servicenow_raw
+    description: >
+      Raw ServiceNow ITSM data ingested via the DCA RAW layer.
+      These tables are loaded by the data generator and use SCD Type 2 tracking
+      with _IS_CURRENT, _VALID_FROM, _VALID_TO columns.
+    database: "{{ var('source_database') }}"
+    schema: "{{ var('source_schema') }}"
+    freshness:
+      warn_after: {count: 12, period: hour}
+      error_after: {count: 24, period: hour}
+    loaded_at_field: '"_LOADED_AT"'
+    tags: ['servicenow', 'raw']
+
+    tables:
+      - name: SYS_USER
+        description: ServiceNow user accounts — agents, requesters, managers
+        columns:
+          - name: sys_id
+            description: Unique record identifier
+            tests:
+              - not_null
+              - unique
+          - name: user_name
+            description: Login username
+          - name: email
+            description: User email address
+            meta:
+              pii_type: DIRECT
+              governance: [MASK_EMAIL]
+          - name: active
+            description: Whether the user account is active
+
+      - name: INCIDENT
+        description: IT incident records — service disruptions and outages
+        columns:
+          - name: sys_id
+            description: Unique incident identifier
+            tests:
+              - not_null
+              - unique
+          - name: number
+            description: Human-readable incident number (INC0000001)
+          - name: priority
+            description: Combined urgency + impact priority (1-5)
+            tests:
+              - accepted_values:
+                  values: ['1', '2', '3', '4', '5',
+                           '1 - Critical', '2 - High', '3 - Moderate', '4 - Low', '5 - Planning']
+          - name: state
+            description: Incident lifecycle state
+
+      - name: CHANGE_REQUEST
+        description: Change management records — planned changes to IT services
+        columns:
+          - name: sys_id
+            description: Unique change request identifier
+            tests:
+              - not_null
+              - unique
+          - name: number
+            description: Human-readable change number (CHG0000001)
+          - name: risk
+            description: Change risk assessment level
+
+      - name: PROBLEM
+        description: Problem management records — root cause investigations
+        columns:
+          - name: sys_id
+            description: Unique problem identifier
+            tests:
+              - not_null
+              - unique
+          - name: number
+            description: Human-readable problem number (PRB0000001)
+
+      - name: CMDB_CI
+        description: Configuration Management Database — IT assets and infrastructure
+        columns:
+          - name: sys_id
+            description: Unique configuration item identifier
+            tests:
+              - not_null
+              - unique
+          - name: name
+            description: CI display name
+          - name: sys_class_name
+            description: CI type classification
+
+      - name: SC_REQUEST
+        description: Service catalog requests — user-initiated service requests
+        columns:
+          - name: sys_id
+            description: Unique request identifier
+            tests:
+              - not_null
+              - unique
+          - name: number
+            description: Human-readable request number (REQ0000001)
+
+      - name: KB_KNOWLEDGE
+        description: Knowledge base articles — self-service documentation
+        columns:
+          - name: sys_id
+            description: Unique article identifier
+            tests:
+              - not_null
+              - unique
+          - name: number
+            description: Human-readable KB number (KB0000001)

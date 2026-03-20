@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides a structured 15-minute demonstration of the Snowflake Data Cloud Architecture demo, showcasing Horizon governance, Dynamic Tables, Cortex Analyst, and the Internal Data Marketplace.
+This guide provides a structured 15-minute demonstration of the Snowflake Data Cloud Architecture demo, showcasing Horizon governance, Dynamic Tables, dbt, Cortex Analyst, and the Internal Data Marketplace.
 
 ## Prerequisites
 
@@ -14,8 +14,13 @@ Before the demo:
    python data_generator.py --system sap --domain all --output ../data
    # Or: --system salesforce, oracle, fhir, workday, servicenow
    ```
-3. Ensure Streamlit app is deployed
-4. Have Snowsight open and logged in
+3. Run the dbt pipeline for ServiceNow:
+   ```bash
+   cd dbt_servicenow
+   dbt build
+   ```
+4. Ensure Streamlit app is deployed
+5. Have Snowsight open and logged in
 
 ## Demo Flow
 
@@ -32,7 +37,7 @@ Open README.md and highlight the architecture:
 
 > "Our architecture follows the medallion pattern:
 > - **RAW Layer**: Captures data from any source system with full history
-> - **CURATED Layer**: Transforms data using Dynamic Tables that automatically refresh
+> - **CURATED Layer**: Transforms data using Dynamic Tables (SAP, Salesforce, Oracle, FHIR, Workday) and dbt (ServiceNow) — teams choose their engine
 > - **SEMANTIC Layer**: Provides business-friendly views optimized for Cortex Analyst"
 
 #### Show the Role Hierarchy
@@ -80,6 +85,47 @@ SELECT GET_DDL('DYNAMIC TABLE', 'CURATED_DEV.DIMENSIONS.DIM_CUSTOMER');
 ```
 
 > "Notice the derived attributes - customer tier, tenure bucket, health score. These business rules are encoded once and refresh automatically."
+
+### Part 2b: dbt Pipeline — ServiceNow (2 minutes)
+
+#### Show the dbt DAG
+
+```bash
+# In terminal (or show pre-generated docs)
+cd dbt_servicenow
+dbt docs generate
+dbt docs serve
+```
+
+> "For teams that already use dbt, the DCA supports code-first transformation alongside Dynamic Tables. Here ServiceNow ITSM is managed by dbt — same RAW layer, same CURATED output, different engine."
+
+#### Show dbt Tests and Lineage
+
+```bash
+# Run models and tests
+dbt build
+
+# Check source freshness
+dbt source freshness
+```
+
+> "dbt brings built-in testing — not_null, unique, accepted_values, relationship tests — all defined in YAML alongside the model code. Every run validates data quality automatically."
+
+#### Show the dbt Output in Snowflake
+
+```sql
+-- dbt-managed curated tables sit alongside Dynamic Table schemas
+USE ROLE DATA_ADMIN;
+SHOW SCHEMAS IN DATABASE CURATED_DEV LIKE '%SERVICENOW%';
+
+-- Query a dbt fact table
+SELECT priority, COUNT(*) as incident_count, 
+       SUM(CASE WHEN is_sla_breached THEN 1 ELSE 0 END) as sla_breaches
+FROM CURATED_DEV.DBT_SERVICENOW.FACT_INCIDENTS
+GROUP BY priority ORDER BY priority;
+```
+
+> "Consumers don't know or care whether a table was built by Dynamic Tables or dbt — they see the same curated, contract-validated, governance-tagged output."
 
 ### Part 3: Semantic Views for Cortex (3 minutes)
 
@@ -178,11 +224,12 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 
 > "To summarize what we've seen:
 > 1. **Dynamic Tables** automate data transformation with SLA guarantees
-> 2. **Semantic Views** enable natural language analytics through Cortex
-> 3. **Horizon Governance** enforces security at the data layer
-> 4. **Data Marketplace** enables self-service data consumption
+> 2. **dbt** provides code-first, tested, documented pipelines for teams that prefer it
+> 3. **Semantic Views** enable natural language analytics through Cortex
+> 4. **Horizon Governance** enforces security at the data layer
+> 5. **Data Marketplace** enables self-service data consumption
 >
-> All of this runs entirely in Snowflake - one platform for the complete data lifecycle."
+> Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. All of this runs entirely in Snowflake."
 
 ## Common Questions
 
@@ -210,3 +257,12 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 
 **Q: Can we use this with our existing tools?**
 > "Absolutely. Semantic views work with any BI tool. Tableau, Power BI, Looker - they all benefit from the pre-defined relationships."
+
+**Q: Why use dbt alongside Dynamic Tables?**
+> "They serve different needs. Dynamic Tables are zero-orchestration — ideal for teams that want Snowflake to manage everything. dbt is code-first — ideal for teams that already have dbt in their ecosystem and want Git-native transformations with built-in testing, macros, and docs. The DCA supports both in the same architecture."
+
+**Q: Can a team migrate from Dynamic Tables to dbt (or vice versa)?**
+> "Yes. Since both engines write to the same CURATED layer with the same contracts and governance, a team can swap engines without impacting downstream consumers. The curated output is the contract — the engine is an implementation detail."
+
+**Q: How does dbt testing compare to data contracts?**
+> "dbt tests (`not_null`, `unique`, `accepted_values`, `relationships`) are complementary to data contracts. dbt enforces quality at the transformation layer; contracts enforce quality at the publishing boundary. In a mature setup, both run — dbt tests catch issues early, contracts catch issues at the trust boundary."

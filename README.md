@@ -102,7 +102,8 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 | **Multi-Account Support** | Cross-region, cross-cloud data sharing with contract validation |
 | **Team Autonomy** | Each team manages their data their way, publishing to production via contracts |
 | **Medallion Architecture** | RAW → CURATED → SEMANTIC with SCD Type 2 history |
-| **Dynamic Tables** | Automated transformation with TARGET_LAG SLAs |
+| **Dynamic Tables** | Automated transformation with TARGET_LAG SLAs (SAP, Salesforce, Oracle, FHIR, Workday) |
+| **dbt (ServiceNow)** | Code-first, tested, documented transformation pipeline with full DAG lineage |
 | **Semantic Views** | Native Snowflake Semantic Views for Cortex Analyst |
 | **Cortex Analyst** | Natural language to SQL via semantic models |
 | **Snowflake Horizon** | Tag-based governance, masking, row-level security |
@@ -143,7 +144,8 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 │  │                                                                     │    │
 │  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)     │    │
 │  │   SCD Type 2           Dynamic Tables           Semantic Views      │    │
-│  │   Team-owned           Contract-validated       Consumer-ready      │    │
+│  │   Team-owned           + dbt (ServiceNow)       Consumer-ready      │    │
+│  │                        Contract-validated                           │    │
 │  │                                                                     │    │
 │  │   Data flows ONLY when contracts are satisfied                      │    │
 │  └──────────────────────────────────┬──────────────────────────────────┘    │
@@ -171,6 +173,23 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Transformation Approaches
+
+The DCA supports a **hybrid transformation strategy** — teams choose the engine that fits their workflow:
+
+| Aspect | Dynamic Tables | dbt |
+|--------|---------------|-----|
+| **Engine** | Snowflake-native, declarative SQL | Code-first, Git-native with Jinja |
+| **Orchestration** | Zero-orchestration (`TARGET_LAG` SLAs) | dbt CLI / dbt Cloud / Airflow |
+| **Testing** | Contract validation procedures | Built-in `schema.yml` tests + custom SQL tests |
+| **Lineage** | Snowflake UI dependency graph | `ref()` DAG with `dbt docs` |
+| **Incremental** | Automatic (Snowflake-managed) | Explicit `is_incremental()` logic |
+| **Best for** | Teams standardizing on Snowflake-native | Teams with existing dbt investment |
+
+**In this demo:** Dynamic Tables manage SAP, Salesforce, Oracle EBS, FHIR, and Workday. dbt manages ServiceNow ITSM. Consumers see identical curated tables regardless of which engine produced them.
+
+See [DBT_VS_DYNAMIC_TABLES.md](docs/DBT_VS_DYNAMIC_TABLES.md) for a detailed comparison and decision framework.
 
 ## Multi-Account Topology
 
@@ -233,6 +252,7 @@ Producer Data  →  Schema Check  →  Quality Rules  →  SLA Check  →  Gover
 - Snowflake account with ACCOUNTADMIN role
 - Git repository access (GitHub, GitLab, etc.)
 - Python 3.9+ (for local data generation)
+- dbt-snowflake 1.7+ (for ServiceNow dbt pipeline)
 
 ### Deployment
 
@@ -249,6 +269,22 @@ Producer Data  →  Schema Check  →  Quality Rules  →  SLA Check  →  Gover
 @sql/09_streamlit_app.sql      -- Deploy Streamlit app
 @sql/10_marketplace.sql        -- Data products
 ```
+
+### dbt Pipeline (ServiceNow)
+
+After deploying the SQL scripts, run the dbt pipeline for ServiceNow ITSM:
+
+```bash
+cd dbt_servicenow
+pip install dbt-snowflake
+cp profiles.yml.example ~/.dbt/profiles.yml  # Edit with your credentials
+
+dbt deps                       # Install packages
+dbt build                      # Run models + tests
+dbt docs generate && dbt docs serve  # View DAG and documentation
+```
+
+The dbt pipeline creates staging views and mart tables in `CURATED_DEV.DBT_SERVICENOW_STAGING` and `CURATED_DEV.DBT_SERVICENOW` — sitting alongside the Dynamic Table schemas for the other five source systems.
 
 ### Load Source System Data
 
@@ -308,8 +344,24 @@ snowflake-dca-fullstack-demo/
 │   ├── ARCHITECTURE.md                    # People-first, contract-driven architecture
 │   ├── SDLC_ARCHITECTURE.md               # Single/multi-account patterns, CI/CD, team autonomy
 │   ├── GOVERNANCE.md                      # Compliance framework (GDPR, HIPAA, etc.)
+│   ├── DBT_VS_DYNAMIC_TABLES.md           # dbt vs Dynamic Tables comparison & decision framework
 │   ├── DEMO_SCRIPT.md                     # 15-minute demo walkthrough
 │   └── SAMPLE_QUESTIONS.md                # Cortex Analyst examples
+│
+├── dbt_servicenow/                        # dbt Project (ServiceNow ITSM)
+│   ├── dbt_project.yml                    # Project configuration
+│   ├── profiles.yml.example               # Snowflake connection template
+│   ├── models/
+│   │   ├── staging/                       # Staging views (rename, type, filter)
+│   │   │   ├── _sources.yml              # Source definitions + freshness checks
+│   │   │   ├── _stg_servicenow.yml       # Schema tests for staging
+│   │   │   └── stg_servicenow__*.sql     # 6 staging models
+│   │   └── marts/                         # Business-ready dimensions & facts
+│   │       ├── _marts_servicenow.yml     # Schema tests + governance metadata
+│   │       ├── dimensions/               # dim_user, dim_cmdb_ci
+│   │       └── facts/                    # fact_incidents, fact_changes, etc.
+│   ├── tests/                             # Custom SQL tests
+│   └── macros/                            # Reusable Jinja macros (SLA thresholds)
 │
 ├── sql/                                   # Snowflake SQL Scripts
 │   ├── 00_deploy_all.sql                  # Master deployment orchestrator
@@ -333,16 +385,13 @@ snowflake-dca-fullstack-demo/
 │   ├── requirements.txt                   # Python dependencies
 │   └── __init__.py
 │
-├── data/                                  # Generated data (gitignored)
-│   ├── sap_s4hana/                        # SAP ECC/S4HANA tables
-│   ├── salesforce/                        # Salesforce objects
-│   ├── oracle_ebs/                        # Oracle EBS tables
-│   ├── fhir_r4/                           # HL7 FHIR resources
-│   ├── workday/                           # Workday HCM reports
-│   └── servicenow/                        # ServiceNow tables
-│
-└── docs/
-    └── DATA_GENERATION.md                 # Source system documentation
+└── data/                                  # Generated data (gitignored)
+    ├── sap_s4hana/                        # SAP ECC/S4HANA tables
+    ├── salesforce/                        # Salesforce objects
+    ├── oracle_ebs/                        # Oracle EBS tables
+    ├── fhir_r4/                           # HL7 FHIR resources
+    ├── workday/                           # Workday HCM reports
+    └── servicenow/                        # ServiceNow tables
 ```
 
 ## Compliance Framework
@@ -392,6 +441,7 @@ snowflake-dca-fullstack-demo/
 
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — People-first, contract-driven design
 - [SDLC_ARCHITECTURE.md](docs/SDLC_ARCHITECTURE.md) — Single-account & multi-account deployment patterns, CI/CD, team autonomy
+- [DBT_VS_DYNAMIC_TABLES.md](docs/DBT_VS_DYNAMIC_TABLES.md) — dbt vs Dynamic Tables: comparison, decision framework, hybrid architecture
 - [DATA_GENERATION.md](docs/DATA_GENERATION.md) — Source system data generation (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)
 - [GOVERNANCE.md](docs/GOVERNANCE.md) — Compliance framework details
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
@@ -401,6 +451,8 @@ snowflake-dca-fullstack-demo/
 
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
 - [Dynamic Tables](https://docs.snowflake.com/en/user-guide/dynamic-tables-intro)
+- [dbt-snowflake](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup)
+- [dbt Best Practices](https://docs.getdbt.com/best-practices)
 - [Semantic Views](https://docs.snowflake.com/en/sql-reference/sql/create-semantic-view)
 - [Cortex Analyst](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-analyst)
 - [Data Sharing](https://docs.snowflake.com/en/user-guide/data-sharing-intro)

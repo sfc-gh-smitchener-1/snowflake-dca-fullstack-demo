@@ -331,6 +331,8 @@ The most successful high-velocity teams use this hybrid model within a Single Or
     │                                                                │
     │   ✓ Shared Identity (SSO, same user across accounts)           │
     │                                                                │
+    │   ✓ Hybrid Transformation (Dynamic Tables + dbt coexist)       │
+    │                                                                │
     └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -491,6 +493,22 @@ ALTER ACCOUNT SET RESOURCE_MONITOR = CDO_MONTHLY_BUDGET;
                     │                           │   │  ✓ RECOMMENDED            │
                     └───────────────────────────┘   └───────────────────────────┘
 ```
+
+---
+
+## Transformation Engines in Multi-Account
+
+In a Hub-and-Spoke topology, both Dynamic Tables and dbt can operate within each account:
+
+| Account | Dynamic Tables | dbt |
+|---------|---------------|-----|
+| **IT Hub (Production)** | Curated layer for SAP, Salesforce, Oracle, FHIR, Workday — `TARGET_LAG` SLAs enforced | CI/CD runs `dbt build` for ServiceNow ITSM domain — tests gate production promotion |
+| **CDO Spoke (Innovation)** | Rapid prototyping on shared production data | Feature branch development with `dbt build --select` for incremental testing |
+| **Regional Spokes** | Local transformations with region-specific `TARGET_LAG` | Local dbt projects with region-specific profiles and source freshness checks |
+
+The transformation engine is an account-level choice per domain. Shared data (via Secure Data Sharing) is engine-agnostic — consumers in any account see the same curated tables regardless of which engine produced them.
+
+See [DBT_VS_DYNAMIC_TABLES.md](DBT_VS_DYNAMIC_TABLES.md) for a detailed comparison and decision framework.
 
 ---
 

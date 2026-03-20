@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: stg_servicenow__users
+    description: >
+      Cleaned and renamed ServiceNow user records. Filters to current SCD2
+      records only. This is the base for the dim_user mart.
+    columns:
+      - name: user_id
+        description: Unique user identifier (sys_id)
+        tests:
+          - not_null
+          - unique
+      - name: email
+        description: User email address (PII — masked in downstream)
+        meta:
+          pii_type: DIRECT
+
+  - name: stg_servicenow__incidents
+    description: >
+      Cleaned and renamed ServiceNow incident records with computed
+      time-to-resolve metric. Filters to current SCD2 records.
+    columns:
+      - name: incident_id
+        description: Unique incident identifier
+        tests:
+          - not_null
+          - unique
+      - name: incident_number
+        description: Human-readable incident number
+        tests:
+          - not_null
+      - name: time_to_resolve_minutes
+        description: >
+          Minutes from opened_at to resolved_at (or current time if unresolved).
+          Key SLA metric for ITSM operations.
+
+  - name: stg_servicenow__changes
+    description: >
+      Cleaned and renamed ServiceNow change request records.
+    columns:
+      - name: change_id
+        description: Unique change request identifier
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_servicenow__problems
+    description: >
+      Cleaned and renamed ServiceNow problem records.
+    columns:
+      - name: problem_id
+        description: Unique problem identifier
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_servicenow__cmdb_ci
+    description: >
+      Cleaned and renamed CMDB configuration items. Contains IT asset
+      and infrastructure inventory.
+    columns:
+      - name: ci_id
+        description: Unique configuration item identifier
+        tests:
+          - not_null
+          - unique
+
+  - name: stg_servicenow__requests
+    description: >
+      Cleaned and renamed service catalog requests.
+    columns:
+      - name: request_id
+        description: Unique service request identifier
+        tests:
+          - not_null
+          - unique

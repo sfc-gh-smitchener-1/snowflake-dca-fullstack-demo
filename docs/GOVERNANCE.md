@@ -253,6 +253,63 @@ All generated records include:
    - Apply masking policies based on `_SOURCE_TABLE` metadata
    - Track lineage from source to consumption layer
 
+6. **Leverage dbt for Governance-as-Code** (for dbt-managed domains)
+   - Define `meta` tags in `schema.yml` for `data_classification`, `pii_type`, and `owner`
+   - Use `not_null` and `unique` tests as enforceable schema contracts
+   - Use `accepted_values` tests to validate controlled vocabularies (e.g., priority, status)
+   - Use `relationships` tests to enforce referential integrity across models
+   - Run `dbt test` in CI/CD as a governance gate before production promotion
+   - Generate `dbt docs` for self-service data discovery with governance context
+
+## dbt and Governance Integration
+
+For domains managed by dbt (e.g., ServiceNow ITSM), governance metadata is embedded directly in dbt's `schema.yml` files. This enables governance-as-code alongside transformation logic.
+
+### How dbt Complements Snowflake Horizon
+
+| Governance Concern | Snowflake Horizon | dbt |
+|-------------------|-------------------|-----|
+| **Column masking** | Tag-based masking policies | N/A (Snowflake-only) — dbt tables inherit masking via tags |
+| **Row-level security** | Row access policies | N/A (Snowflake-only) — applied to dbt output tables |
+| **Data classification** | `DATA_CLASSIFICATION` tag | `meta.data_classification` in schema.yml |
+| **PII identification** | `PII_TYPE` tag | `meta.pii_type` in schema.yml, surfaced in dbt docs |
+| **Schema contracts** | Contract validation procedures | `not_null`, `unique`, column type tests |
+| **Quality rules** | Quality contract thresholds | `accepted_values`, custom SQL tests, `dbt test` |
+| **Referential integrity** | Foreign key metadata | `relationships` test (e.g., fact → dim) |
+| **Data freshness** | SLA contract monitoring | `dbt source freshness` (warn/error thresholds) |
+| **Lineage** | Snowflake UI object dependencies | `ref()` DAG + `dbt docs generate` |
+| **Ownership** | Object ownership grants | `meta.owner` in schema.yml |
+
+### Example: dbt Governance Metadata
+
+```yaml
+# From dbt_servicenow/models/marts/_marts_servicenow.yml
+models:
+  - name: fact_incidents
+    description: "ServiceNow incident fact table with SLA breach detection"
+    config:
+      meta:
+        owner: "itsm-data-team@company.com"
+        data_classification: "INTERNAL"
+    columns:
+      - name: caller_email
+        meta:
+          pii_type: "DIRECT"
+        tests:
+          - not_null
+      - name: priority
+        tests:
+          - accepted_values:
+              values: ['1 - Critical', '2 - High', '3 - Moderate', '4 - Low']
+      - name: assignee_user_key
+        tests:
+          - relationships:
+              to: ref('dim_user')
+              field: user_key
+```
+
+After `dbt build`, Snowflake Horizon tags and masking policies are applied to the output tables — the two systems work together, not in opposition.
+
 ## References
 
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)

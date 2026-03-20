@@ -239,7 +239,7 @@ Each team owns their data domain and operates independently. They:
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                    CURATED LAYER (Silver)                           │    │
 │  │   Team's business logic, derived attributes                         │    │
-│  │   Dynamic Tables with team-defined TARGET_LAG                       │    │
+│  │   Dynamic Tables or dbt — team chooses their engine                 │    │
 │  └────────────────────────────────┬────────────────────────────────────┘    │
 │                                   │                                         │
 │                                   ▼                                         │
@@ -315,7 +315,7 @@ The corporate data account consumes from multiple producers:
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │                    CURATED LAYER (Silver)                           │    │
 │  │   Cross-domain joins, enterprise business logic                     │    │
-│  │   Dynamic Tables, additional quality rules                          │    │
+│  │   Dynamic Tables + dbt, additional quality rules                    │    │
 │  └────────────────────────────────┬────────────────────────────────────┘    │
 │                                   │                                         │
 │                                   ▼                                         │
@@ -659,7 +659,8 @@ For organizations using a single Snowflake account, the same principles apply us
 │  │                          DATA LAYER                                 │    │
 │  │                                                                     │    │
 │  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)     │    │
-│  │   SCD Type 2           Dynamic Tables           Semantic Views      │    │
+│  │   SCD Type 2           Dynamic Tables +         Semantic Views      │    │
+│  │                        dbt (hybrid)                                 │    │
 │  │                                                                     │    │
 │  │   Data flows ONLY when contracts are satisfied                      │    │
 │  └──────────────────────────────────┬──────────────────────────────────┘    │
@@ -690,10 +691,60 @@ For organizations using a single Snowflake account, the same principles apply us
 
 ---
 
+## Hybrid Transformation Strategy
+
+The DCA curated layer supports multiple transformation engines. Teams choose the tool that fits their workflow and existing investment:
+
+### Dynamic Tables (Snowflake-Native)
+
+Used by: **SAP, Salesforce, Oracle EBS, FHIR, Workday** domains in this demo.
+
+- Zero-orchestration — Snowflake manages refresh via `TARGET_LAG`
+- Metadata-driven — `CURATED_CONFIG` table + `BUILD_CURATED_LAYER()` procedure generates all Dynamic Tables from config rows
+- Automatic incremental refresh — no developer logic required
+- Ideal for teams standardizing on Snowflake-native tooling
+
+### dbt (Code-First)
+
+Used by: **ServiceNow ITSM** domain in this demo.
+
+- `ref()` lineage — explicit DAG with `dbt docs generate`
+- Built-in testing — `schema.yml` tests (not_null, unique, accepted_values, relationships) plus custom SQL tests
+- Jinja macros — reusable logic (e.g., `sla_breach_check()` macro)
+- Git-native — PRs, code review, version control for all transformation logic
+- CI/CD-friendly — `dbt build` in pipelines with `--select` for incremental deploys
+- Ideal for teams with existing dbt investment or requiring portable transformation logic
+
+### Consumer Transparency
+
+Regardless of which engine produces a curated table, downstream consumers see the same contract-validated, governance-tagged tables. The transformation engine is an implementation detail — contracts and governance are the trust boundary.
+
+```
+Source Systems                Transformation Engine          Curated Output
+─────────────────            ─────────────────────          ──────────────────
+SAP S/4HANA       ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.SAP.*
+Salesforce        ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.SALESFORCE.*
+Oracle EBS        ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.ORACLE_EBS.*
+FHIR R4           ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.FHIR.*
+Workday HCM       ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.WORKDAY.*
+ServiceNow ITSM   ─────►    dbt (ref + tests + docs)    ─►  CURATED.DBT_SERVICENOW.*
+                                                              │
+                                                              ▼
+                                                    Semantic Views → Cortex Analyst
+                                                    (consumers don't care which engine)
+```
+
+For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md](DBT_VS_DYNAMIC_TABLES.md).
+
+---
+
 ## References
 
 - [Snowflake Data Sharing](https://docs.snowflake.com/en/user-guide/data-sharing-intro)
 - [Cross-Region/Cross-Cloud Replication](https://docs.snowflake.com/en/user-guide/database-replication-intro)
 - [Snowflake Organizations](https://docs.snowflake.com/en/user-guide/organizations)
 - [Dynamic Tables](https://docs.snowflake.com/en/user-guide/dynamic-tables-intro)
+- [dbt-snowflake](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup)
+- [dbt Best Practices](https://docs.getdbt.com/best-practices)
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
+- [dbt vs Dynamic Tables — Decision Framework](DBT_VS_DYNAMIC_TABLES.md)

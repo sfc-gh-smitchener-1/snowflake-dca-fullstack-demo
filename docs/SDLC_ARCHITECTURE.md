@@ -132,12 +132,13 @@ Implementing a complete data platform is a journey, not a destination. This sect
 │  │  • Manual approval for PROD        • Compliance tagging (GDPR, HIPAA)     │  │
 │  │  • Rollback procedures             • Audit logging enabled                │  │
 │  │                                                                           │  │
-│  │  DYNAMIC TABLES                    TEAM SELF-SERVICE                      │  │
-│  │  ──────────────                    ─────────────────                      │  │
+│  │  DYNAMIC TABLES / dbt              TEAM SELF-SERVICE                      │  │
+│  │  ─────────────────────             ─────────────────                      │  │
 │  │  • Replace scheduled tasks         • Clone provisioning procedure         │  │
 │  │  • Declarative transformations     • Team-owned DEV databases             │  │
 │  │  • TARGET_LAG for SLA management   • Sandbox schemas for experiments      │  │
-│  │  • Built-in refresh orchestration  • Self-service data loading            │  │
+│  │  • dbt for code-first pipelines    • Self-service data loading            │  │
+│  │  • Built-in refresh orchestration                                         │  │
 │  │                                                                           │  │
 │  │  DATA CONTRACTS (Basic)            MONITORING                             │  │
 │  │  ─────────────────────             ──────────                             │  │
@@ -154,7 +155,7 @@ Implementing a complete data platform is a journey, not a destination. This sect
 │  │  ✓ All deployments go through CI/CD pipeline                             │  │
 │  │  ✓ PII columns are automatically masked for unauthorized roles           │  │
 │  │  ✓ Teams can provision their own development environments                │  │
-│  │  ✓ Dynamic Tables handle transformation orchestration                    │  │
+│  │  ✓ Dynamic Tables or dbt handle transformation orchestration            │  │
 │  │  ✓ Governance tags are applied to all production tables                  │  │
 │  │  ✓ Alerts fire when data pipelines fail                                  │  │
 │  │                                                                           │  │
@@ -166,7 +167,7 @@ Implementing a complete data platform is a journey, not a destination. This sect
 │  │  1. CI/CD pipeline (GitHub Actions or equivalent)                         │  │
 │  │  2. Tag taxonomy and masking policy library                               │  │
 │  │  3. Clone provisioning stored procedure                                   │  │
-│  │  4. Dynamic Table implementation for curated layer                        │  │
+│  │  4. Dynamic Table and/or dbt implementation for curated layer              │  │
 │  │  5. Monitoring dashboard (Snowsight or external)                          │  │
 │  │  6. Team onboarding runbook                                               │  │
 │  │                                                                           │  │
@@ -274,10 +275,10 @@ Use this matrix to assess your current state and identify gaps:
 |------------|---------|---------|---------|
 | **Deployment** | Manual SQL execution | CI/CD with linting | Contract validation gates |
 | **Governance** | Database grants | Tag-based masking | Automated compliance |
-| **Transformations** | Views + Tasks | Dynamic Tables | Semantic Views |
+| **Transformations** | Views + Tasks | Dynamic Tables / dbt | Semantic Views |
 | **Team Access** | Shared DEV database | Clone-based isolation | Self-service marketplace |
-| **Data Quality** | Ad-hoc checks | Basic monitoring | Contract-enforced SLAs |
-| **Discovery** | Documentation | Tagged metadata | Internal marketplace |
+| **Data Quality** | Ad-hoc checks | Basic monitoring + dbt tests | Contract-enforced SLAs |
+| **Discovery** | Documentation | Tagged metadata + dbt docs | Internal marketplace |
 | **AI/Analytics** | SQL queries | BI dashboards | Natural language (Cortex) |
 
 ---
@@ -494,7 +495,7 @@ All production data resides in centrally-managed databases within a single Snowf
 
 - **RAW_PROD**: The landing zone for all source system data. Each source system (SAP, Salesforce, Workday, etc.) has its own schema. Data is stored with SCD Type 2 history, preserving a complete audit trail of all changes. Only the ingestion process can write here; all other access is read-only.
 
-- **CURATED_PROD**: Business-ready transformations implemented as Dynamic Tables. Each domain (Sales, HR, Finance) has its own schema. The `TARGET_LAG` parameter on each Dynamic Table defines the SLA for data freshness. Cross-domain joins happen here when business logic requires it.
+- **CURATED_PROD**: Business-ready transformations implemented as Dynamic Tables or dbt models (depending on team preference). Each domain (Sales, HR, Finance) has its own schema. Dynamic Tables use `TARGET_LAG` for SLA enforcement; dbt models use `dbt build` with schema tests. Cross-domain joins happen here when business logic requires it.
 
 - **SEMANTIC_PROD**: The consumption layer with Semantic Views that define business measures, dimensions, and relationships. This is the primary interface for analysts and BI tools. Cortex Analyst uses these semantic models for natural language queries.
 
@@ -1048,6 +1049,24 @@ jobs:
             --frameworks GDPR,HIPAA,SOC2 \
             --sql sql/
 
+  # dbt Pipeline (for dbt-managed domains like ServiceNow)
+  dbt:
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dbt
+        run: pip install dbt-snowflake
+
+      - name: dbt Build (models + tests)
+        working-directory: dbt_servicenow
+        run: dbt build --profiles-dir . --target ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+
+      - name: dbt Source Freshness
+        working-directory: dbt_servicenow
+        run: dbt source freshness --profiles-dir .
+
   # Gate 3: Deploy to Staging
   staging:
     runs-on: ubuntu-latest
@@ -1071,7 +1090,7 @@ jobs:
   # Gate 4: Deploy to Production
   production:
     runs-on: ubuntu-latest
-    needs: [validate, governance]
+    needs: [validate, governance, dbt]
     if: github.ref == 'refs/heads/main'
     environment: production
     steps:
@@ -1255,6 +1274,7 @@ Many organizations use a **hybrid approach**:
 - [ ] Set up Git integration for SQL versioning
 - [ ] Create clone automation (stored procedure for team onboarding)
 - [ ] Set up CI/CD pipeline with promotion gates
+- [ ] Configure dbt project for code-first domains (if applicable)
 - [ ] Create monitoring for stale clones (cost management)
 - [ ] Document team onboarding process
 
@@ -1278,3 +1298,5 @@ Many organizations use a **hybrid approach**:
 - [Tag-Based Masking](https://docs.snowflake.com/en/user-guide/tag-based-masking-policies)
 - [Git Integration](https://docs.snowflake.com/en/developer-guide/git/git-setting-up)
 - [Data Sharing](https://docs.snowflake.com/en/user-guide/data-sharing-intro)
+- [dbt-snowflake](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup)
+- [dbt CI/CD](https://docs.getdbt.com/docs/deploy/continuous-integration)

@@ -382,6 +382,33 @@ SELECT COUNT(*) FROM RAW_DEV.SAP.KNA1;
 SELECT * FROM RAW_DEV.SAP.KNA1 LIMIT 5;
 ```
 
+### 5. Run dbt Pipeline (ServiceNow)
+
+After loading ServiceNow data into `RAW_DEV.SERVICENOW`, run the dbt pipeline to build curated dimensions and facts:
+
+```bash
+cd dbt_servicenow
+
+# First time setup
+pip install dbt-snowflake
+cp profiles.yml.example ~/.dbt/profiles.yml
+# Edit ~/.dbt/profiles.yml with your Snowflake credentials
+
+# Build all models and run tests
+dbt build
+
+# Check source freshness against SLA thresholds
+dbt source freshness
+
+# Generate documentation and DAG visualization
+dbt docs generate
+dbt docs serve
+```
+
+This creates staging views in `CURATED_DEV.DBT_SERVICENOW_STAGING` and mart tables (dim_user, dim_cmdb_ci, fact_incidents, fact_changes, fact_problems, fact_requests) in `CURATED_DEV.DBT_SERVICENOW`.
+
+The other five source systems (SAP, Salesforce, Oracle EBS, FHIR, Workday) are transformed by Dynamic Tables via `05_curated_layer.sql`. See [DBT_VS_DYNAMIC_TABLES.md](DBT_VS_DYNAMIC_TABLES.md) for details on the hybrid approach.
+
 ### Source System Schemas
 
 Tables are automatically created in source-specific schemas:
