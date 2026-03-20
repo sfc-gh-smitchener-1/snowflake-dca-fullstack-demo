@@ -1,5 +1,7 @@
 # United Rentals — Focused Demo
 
+![United Rentals Demo](Screenshot%202026-03-20%20at%209.45.59%E2%80%AFAM.png)
+
 > **From Manual Heroics to the UR Federated Data Product Factory** — Applying Data Cloud Architecture patterns to eliminate data friction across United Rentals' fragmented Snowflake environment.
 
 ## Company Context
@@ -34,20 +36,20 @@ Each of UR's core challenges maps directly to a DCA pattern demonstrated in the 
 
 ```
 ┌──────────────────────┐    ┌──────────────────────┐
-│  EDW PRODUCTION       │    │  EDW DEVELOPMENT      │
-│  (To rename:          │    │  (Mirrors Production)  │
-│   Snowflake Prod)     │    │                        │
-│                       │    │                        │
-│  ┌─────────────────┐  │    └────────────────────────┘
-│  │ EDW (core)      │  │
-│  │ Manning         │  │    ┌──────────────────────┐
-│  │ Sales Ops       │  │    │  DISCOVERY ACCOUNT    │
-│  └─────────────────┘  │    │  (Skunkworks / AI)    │
-│                       │    │                        │
-│  Auth: Local/Service  │    │  Auth: SSO + RLS       │
-│  ELT:  Wherescape Red │    │  AI:   Cortex          │
-│  Ingest: Fivetran     │◄───│  Data: Shared from Prod│
-└──────────────────────┘    └──────────────────────┘
+│  EDW PRODUCTION      │    │  EDW DEVELOPMENT     │
+│  (To rename:         │    │  (Mirrors Production)│
+│   Snowflake Prod)    │    │                      │
+│                      │    │                      │
+│  ┌─────────────────┐ │    └──────────────────────┘
+│  │ EDW (core)      │ │
+│  │ Manning         │ │    ┌─────────────────────  ─┐
+│  │ Sales Ops       │ │    │  DISCOVERY ACCOUNT     │
+│  └─────────────────┘ │    │  (Skunkworks / AI)     │
+│                      │    │                        │
+│  Auth: Local/Service │    │  Auth: SSO + RLS       │
+│  ELT:  Wherescape Red│    │  AI:   Cortex          │
+│  Ingest: Fivetran    │◄───│  Data: Shared from Prod│
+└──────────────────────┘    └────────────────────  ──┘
         │
         │  Precisely → Fivetran migration in progress
         ▼
@@ -58,28 +60,28 @@ Each of UR's core challenges maps directly to a DCA pattern demonstrated in the 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    UNIFIED IDENTITY PLANE (SSO/MFA)              │
+│                    UNIFIED IDENTITY PLANE (SSO/MFA)             │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
+│                                                                 │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │              PRIMARY HUB (Container-by-DB)                 │  │
-│  │                                                            │  │
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────────────┐   │  │
-│  │  │  EDW    │ │ Manning │ │Sales Ops│ │ Cortex AI     │   │  │
-│  │  │ RAW→   │ │ RAW→   │ │ RAW→   │ │ Models +      │   │  │
-│  │  │ CURATED→│ │ CURATED→│ │ CURATED→│ │ Feature Store │   │  │
-│  │  │ SEMANTIC│ │ SEMANTIC│ │ SEMANTIC│ │               │   │  │
-│  │  └─────────┘ └─────────┘ └─────────┘ └───────────────┘   │  │
+│  │              PRIMARY HUB (Container-by-DB)                │  │
+│  │                                                           │  │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌───────────────┐    │  │
+│  │  │  EDW    │ │ Manning │ │Sales Ops│ │ Cortex AI     │    │  │
+│  │  │ RAW→    │ │ RAW→    │ │ RAW→    │ │ Models +      │    │  │
+│  │  │ CURATED→│ │ CURATED→│ │ CURATED→│ │ Feature Store │    │  │
+│  │  │ SEMANTIC│ │ SEMANTIC│ │ SEMANTIC│ │               │    │  │
+│  │  └─────────┘ └─────────┘ └─────────┘ └───────────────┘    │  │
 │  └───────────────────────────┬───────────────────────────────┘  │
-│                              │ Internal Marketplace              │
+│                              │ Internal Marketplace             │
 │  ┌───────────────────────────▼───────────────────────────────┐  │
-│  │            UR PRIVATE DATA EXCHANGE                         │  │
-│  │  Fleet ◄──► Telematics ◄──► Maintenance ◄──► Finance       │  │
+│  │            UR PRIVATE DATA EXCHANGE                       │  │
+│  │  Fleet ◄──► Telematics ◄──► Maintenance ◄──► Finance      │  │
 │  └───────────────────────────────────────────────────────────┘  │
-│                              │                                   │
+│                              │                                  │
 │  ┌───────────────────────────▼───────────────────────────────┐  │
-│  │        SNOWFLAKE HORIZON (Unified Governance)              │  │
-│  │  Tags │ Masking │ Row Access │ Lineage │ Catalog           │  │
+│  │        SNOWFLAKE HORIZON (Unified Governance)             │  │
+│  │  Tags │ Masking │ Row Access │ Lineage │ Catalog          │  │
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
