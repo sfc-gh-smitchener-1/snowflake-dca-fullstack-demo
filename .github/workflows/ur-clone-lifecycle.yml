@@ -1,0 +1,253 @@
+# ============================================================================
+# United Rentals — Clone Lifecycle Management
+# ============================================================================
+#
+# Two triggers:
+#   1. workflow_dispatch — manual clone provisioning for domain teams
+#   2. schedule — daily cleanup of expired clones (6 AM CT)
+#
+# Uses:
+#   UR_CLONE_PROVISIONER — PROVISION_DEV_CLONE, CLEANUP_EXPIRED_CLONES
+#   UR_CICD_VALIDATOR    — read clone registry for reporting
+#
+# This replaces UR's current manual process of requesting a copy of the
+# EDW Dev account. Teams get instant zero-copy clones from PROD with
+# automatic TTL-based cleanup.
+# ============================================================================
+
+name: "UR Clone Lifecycle"
+
+on:
+  # Manual trigger — teams request a clone via GitHub UI or API
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to perform"
+        required: true
+        type: choice
+        options:
+          - provision
+          - cleanup
+          - status
+      team_name:
+        description: "Team name (e.g., MANNING, SALES_OPS, FLEET)"
+        required: false
+        type: string
+      team_role:
+        description: "Snowflake role for the team (e.g., MANNING_TEAM_ROLE)"
+        required: false
+        type: string
+      ttl_days:
+        description: "Clone TTL in days"
+        required: false
+        default: "14"
+        type: string
+
+  # Scheduled cleanup — runs daily at 6 AM Central
+  schedule:
+    - cron: "0 11 * * *"  # 11:00 UTC = 6:00 AM CT
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+  SNOWFLAKE_WAREHOUSE: TRANSFORM_WH
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # PROVISION: Create zero-copy clone set for a domain team
+  # ──────────────────────────────────────────────────────────────────────────
+  provision:
+    name: "Provision Clone — ${{ inputs.team_name }}"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'provision'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          if [[ -z "${{ inputs.team_name }}" ]]; then
+            echo "::error::team_name is required for provisioning"
+            exit 1
+          fi
+          if [[ -z "${{ inputs.team_role }}" ]]; then
+            echo "::error::team_role is required for provisioning"
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Provision clone set
+        env:
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER_CLONE }}
+          SNOWFLAKE_ROLE: UR_CLONE_PROVISIONER
+        run: |
+          python -c "
+          import snowflake.connector
+          import os
+
+          conn = snowflake.connector.connect(
+              account=os.environ['SNOWFLAKE_ACCOUNT'],
+              user=os.environ['SNOWFLAKE_USER'],
+              private_key_file_pwd=None,
+              private_key=os.environ.get('SNOWFLAKE_PRIVATE_KEY'),
+              role=os.environ['SNOWFLAKE_ROLE'],
+              warehouse=os.environ['SNOWFLAKE_WAREHOUSE'],
+          )
+          cur = conn.cursor()
+          cur.execute(\"\"\"
+              CALL GOVERNANCE.CONTRACTS.PROVISION_DEV_CLONE(
+                  '${{ inputs.team_name }}',
+                  '${{ inputs.team_role }}',
+                  ${{ inputs.ttl_days }}
+              )
+          \"\"\")
+          result = cur.fetchone()
+          print('Clone provisioning result:')
+          print(result[0])
+          cur.close()
+          conn.close()
+          "
+
+      - name: Report clone status
+        env:
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python -c "
+          import snowflake.connector
+          import os
+
+          conn = snowflake.connector.connect(
+              account=os.environ['SNOWFLAKE_ACCOUNT'],
+              user=os.environ['SNOWFLAKE_USER'],
+              private_key=os.environ.get('SNOWFLAKE_PRIVATE_KEY'),
+              role=os.environ['SNOWFLAKE_ROLE'],
+              warehouse=os.environ['SNOWFLAKE_WAREHOUSE'],
+          )
+          cur = conn.cursor()
+          cur.execute(\"\"\"
+              SELECT CLONE_DATABASE, SOURCE_DATABASE, TEAM_ROLE,
+                     EXPIRES_AT, HOURS_REMAINING, LIFECYCLE_STATUS
+              FROM GOVERNANCE.CONTRACTS.VW_ACTIVE_CLONES
+              WHERE DOMAIN = 'UNITED_RENTALS'
+              ORDER BY CREATED_AT DESC
+              LIMIT 10
+          \"\"\")
+          rows = cur.fetchall()
+          print(f'Active clones: {len(rows)}')
+          for r in rows:
+              print(f'  {r[0]} (from {r[1]}) → {r[3]} — {r[5]} ({r[4]}h remaining)')
+          cur.close()
+          conn.close()
+          "
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # CLEANUP: Drop expired clones (scheduled daily + manual trigger)
+  # ──────────────────────────────────────────────────────────────────────────
+  cleanup:
+    name: "Cleanup Expired Clones"
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'cleanup')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Run clone cleanup
+        env:
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER_CLONE }}
+          SNOWFLAKE_ROLE: UR_CLONE_PROVISIONER
+        run: |
+          python -c "
+          import snowflake.connector
+          import os
+
+          conn = snowflake.connector.connect(
+              account=os.environ['SNOWFLAKE_ACCOUNT'],
+              user=os.environ['SNOWFLAKE_USER'],
+              private_key=os.environ.get('SNOWFLAKE_PRIVATE_KEY'),
+              role=os.environ['SNOWFLAKE_ROLE'],
+              warehouse=os.environ['SNOWFLAKE_WAREHOUSE'],
+          )
+          cur = conn.cursor()
+          cur.execute('CALL GOVERNANCE.CONTRACTS.CLEANUP_EXPIRED_CLONES()')
+          result = cur.fetchone()
+          print(result[0])
+          cur.close()
+          conn.close()
+          "
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # STATUS: Report on all active clones
+  # ──────────────────────────────────────────────────────────────────────────
+  status:
+    name: "Clone Status Report"
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'status'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Generate clone report
+        env:
+          SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python -c "
+          import snowflake.connector
+          import os
+
+          conn = snowflake.connector.connect(
+              account=os.environ['SNOWFLAKE_ACCOUNT'],
+              user=os.environ['SNOWFLAKE_USER'],
+              private_key=os.environ.get('SNOWFLAKE_PRIVATE_KEY'),
+              role=os.environ['SNOWFLAKE_ROLE'],
+              warehouse=os.environ['SNOWFLAKE_WAREHOUSE'],
+          )
+          cur = conn.cursor()
+
+          # Active clones
+          cur.execute('SELECT * FROM GOVERNANCE.CONTRACTS.VW_ACTIVE_CLONES')
+          rows = cur.fetchall()
+          cols = [d[0] for d in cur.description]
+          print('=== ACTIVE CLONES ===')
+          print(' | '.join(cols))
+          for r in rows:
+              print(' | '.join(str(v) for v in r))
+
+          # Summary
+          cur.execute(\"\"\"
+              SELECT LIFECYCLE_STATUS, COUNT(*) AS CNT
+              FROM GOVERNANCE.CONTRACTS.VW_ACTIVE_CLONES
+              GROUP BY LIFECYCLE_STATUS
+          \"\"\")
+          print()
+          print('=== SUMMARY ===')
+          for r in cur.fetchall():
+              print(f'  {r[0]}: {r[1]}')
+
+          cur.close()
+          conn.close()
+          "

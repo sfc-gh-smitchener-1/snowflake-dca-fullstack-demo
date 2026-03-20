@@ -1,0 +1,296 @@
+# ============================================================================
+# United Rentals — Snowflake CI/CD Pipeline
+# ============================================================================
+#
+# Implements the database-as-a-container promotion flow:
+#   PR → DEV (validate + deploy)
+#   merge to develop → STG (integration tests)
+#   merge to main → PROD (approval gate + deploy)
+#
+# Each job uses a DIFFERENT Snowflake role — the role IS the environment wall.
+# No job can touch an environment it isn't scoped to.
+#
+# Roles used:
+#   UR_CICD_DEPLOY_DEV  — DEV deployments (PR builds)
+#   UR_CICD_DEPLOY_STG  — STG deployments (develop branch)
+#   UR_CICD_DEPLOY_PROD — PROD deployments (main branch, requires approval)
+#   UR_CICD_VALIDATOR   — Cross-env validation (read-only, all envs)
+#
+# The ENVIRONMENT_REGISTRY table drives target resolution dynamically.
+# No database names are hardcoded in this workflow — everything is resolved
+# at runtime via: SELECT DATABASE_NAME FROM GOVERNANCE.CONTRACTS.ENVIRONMENT_REGISTRY
+# ============================================================================
+
+name: "UR Snowflake CI/CD"
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths:
+      - "demos/united-rentals/sql/**"
+      - "demos/united-rentals/tools/**"
+      - "demos/united-rentals/streamlit/**"
+  push:
+    branches: [develop, main]
+    paths:
+      - "demos/united-rentals/sql/**"
+      - "demos/united-rentals/tools/**"
+      - "demos/united-rentals/streamlit/**"
+
+env:
+  SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+  SNOWFLAKE_USER_DEV: ${{ secrets.SNOWFLAKE_USER_DEV }}
+  SNOWFLAKE_USER_STG: ${{ secrets.SNOWFLAKE_USER_STG }}
+  SNOWFLAKE_USER_PROD: ${{ secrets.SNOWFLAKE_USER_PROD }}
+  SNOWFLAKE_USER_VALIDATOR: ${{ secrets.SNOWFLAKE_USER_VALIDATOR }}
+  SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+  SNOWFLAKE_WAREHOUSE: TRANSFORM_WH
+  PYTHON_VERSION: "3.11"
+
+# Only one deployment per environment at a time
+concurrency:
+  group: ur-cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # GATE 1: Lint + Static Analysis (no Snowflake connection needed)
+  # ──────────────────────────────────────────────────────────────────────────
+  lint:
+    name: "Gate 1 — SQL Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install linter
+        run: pip install sqlfluff
+
+      - name: Lint SQL files
+        run: |
+          sqlfluff lint demos/united-rentals/sql/ \
+            --dialect snowflake \
+            --ignore parsing \
+            --format github-annotation
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # GATE 2: Validate Promotion (uses UR_CICD_VALIDATOR — read-only cross-env)
+  # ──────────────────────────────────────────────────────────────────────────
+  validate:
+    name: "Gate 2 — Promotion Validation"
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Determine target environment
+        id: env
+        run: |
+          if [[ "${{ github.base_ref }}" == "main" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "target=PROD" >> "$GITHUB_OUTPUT"
+            echo "source=STG" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.base_ref }}" == "develop" || "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            echo "target=STG" >> "$GITHUB_OUTPUT"
+            echo "source=DEV" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=DEV" >> "$GITHUB_OUTPUT"
+            echo "source=DEV" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run promotion validation gates
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+          TARGET_ENV: ${{ steps.env.outputs.target }}
+        run: |
+          python demos/united-rentals/tools/sf_validate.py \
+            --target-env "$TARGET_ENV" \
+            --layers RAW CURATED SEMANTIC \
+            --schema UNITED_RENTALS
+
+      - name: Verify environment registry resolution
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action resolve \
+            --target-env ${{ steps.env.outputs.target }} \
+            --layer CURATED
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # DEV DEPLOY: On PR to develop (uses UR_CICD_DEPLOY_DEV — DEV only)
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-dev:
+    name: "Deploy → DEV"
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Deploy SQL to DEV databases
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_DEV }}
+          SNOWFLAKE_ROLE: UR_CICD_DEPLOY_DEV
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action deploy \
+            --target-env DEV \
+            --sql-dir demos/united-rentals/sql \
+            --git-sha "${{ github.sha }}" \
+            --git-branch "${{ github.head_ref }}" \
+            --pr-number "${{ github.event.pull_request.number }}"
+
+      - name: Smoke test DEV
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python demos/united-rentals/tools/sf_integration_tests.py \
+            --target-env DEV \
+            --schema UNITED_RENTALS \
+            --suite smoke
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # STG DEPLOY: On push to develop (uses UR_CICD_DEPLOY_STG — STG only)
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-stg:
+    name: "Deploy → STG"
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Deploy SQL to STG databases
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_STG }}
+          SNOWFLAKE_ROLE: UR_CICD_DEPLOY_STG
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action deploy \
+            --target-env STG \
+            --sql-dir demos/united-rentals/sql \
+            --git-sha "${{ github.sha }}" \
+            --git-branch develop
+
+      - name: Integration tests on STG
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python demos/united-rentals/tools/sf_integration_tests.py \
+            --target-env STG \
+            --schema UNITED_RENTALS \
+            --suite full
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # PROD DEPLOY: On push to main (uses UR_CICD_DEPLOY_PROD — PROD only)
+  #   - Requires GitHub Environment "production" approval
+  #   - STG integration tests must pass first
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-prod:
+    name: "Deploy → PROD"
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production  # GitHub Environment with required reviewers
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: pip install snowflake-connector-python
+
+      - name: Pre-deploy validation
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python demos/united-rentals/tools/sf_validate.py \
+            --target-env PROD \
+            --layers RAW CURATED SEMANTIC \
+            --schema UNITED_RENTALS \
+            --strict
+
+      - name: Deploy SQL to PROD databases
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_PROD }}
+          SNOWFLAKE_ROLE: UR_CICD_DEPLOY_PROD
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action deploy \
+            --target-env PROD \
+            --sql-dir demos/united-rentals/sql \
+            --git-sha "${{ github.sha }}" \
+            --git-branch main
+
+      - name: Post-deploy verification
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_VALIDATOR }}
+          SNOWFLAKE_ROLE: UR_CICD_VALIDATOR
+        run: |
+          python demos/united-rentals/tools/sf_integration_tests.py \
+            --target-env PROD \
+            --schema UNITED_RENTALS \
+            --suite full
+
+      - name: Log promotion to audit trail
+        if: success()
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_PROD }}
+          SNOWFLAKE_ROLE: UR_CICD_DEPLOY_PROD
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action log-promotion \
+            --target-env PROD \
+            --git-sha "${{ github.sha }}" \
+            --git-branch main \
+            --status SUCCESS
+
+      - name: Log failure
+        if: failure()
+        env:
+          SNOWFLAKE_USER: ${{ env.SNOWFLAKE_USER_PROD }}
+          SNOWFLAKE_ROLE: UR_CICD_DEPLOY_PROD
+        run: |
+          python demos/united-rentals/tools/sf_deploy.py \
+            --action log-promotion \
+            --target-env PROD \
+            --git-sha "${{ github.sha }}" \
+            --git-branch main \
+            --status FAILED
