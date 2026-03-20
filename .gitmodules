@@ -1,3 +1,4 @@
 [submodule "demos"]
 	path = demos
 	url = https://github.com/sfc-gh-smitchener-1/snowflake-demos.git
+	branch = main
