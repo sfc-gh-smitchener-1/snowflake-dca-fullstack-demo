@@ -447,6 +447,13 @@ snowflake-dca-fullstack-demo/
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
 - [SAMPLE_QUESTIONS.md](docs/SAMPLE_QUESTIONS.md) — Cortex Analyst examples
 
+## Focused Demos
+
+Customer-specific applications of DCA patterns — each demo maps the core architecture to a real engagement.
+
+- [Focused Demos Index](demos/) — Overview and structure convention
+- [United Rentals](demos/united-rentals/) — Equipment rental industry: federated platform, account consolidation, Cortex AI pipeline, SDLC bridge
+
 ## Resources
 
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
