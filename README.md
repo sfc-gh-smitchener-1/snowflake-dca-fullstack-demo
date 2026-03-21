@@ -6,21 +6,17 @@
 
 This architecture is built on a fundamental principle: **data serves people, and people must retain control over their data**.
 
+```mermaid
+flowchart LR
+    PEOPLE["PEOPLE\ndefine intent"] --> CONTRACTS["CONTRACTS\nencode agreements"] --> DATA["DATA\nflows"]
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        THE DATA CLOUD PHILOSOPHY                           │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│   PEOPLE define intent  →  CONTRACTS encode agreements  →  DATA flows      │
-│                                                                            │
-│   • Teams own their data domains with full autonomy                        │
-│   • Contracts establish mutual expectations (quality, schema, SLA)         │
-│   • Quality gates enforce standards before production                      │
-│   • Governance protects at every boundary                                  │
-│   • Cross-account sharing enables true federation                          │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+
+**The Data Cloud Philosophy:**
+- Teams own their data domains with full autonomy
+- Contracts establish mutual expectations (quality, schema, SLA)
+- Quality gates enforce standards before production
+- Governance protects at every boundary
+- Cross-account sharing enables true federation
 
 Whether you operate in a **single Snowflake account** or across **multiple accounts spanning regions and clouds**, this architecture provides the patterns for federated data management with centralized trust.
 
@@ -32,50 +28,36 @@ This demo supports two reference architectures. See [SDLC_ARCHITECTURE.md](docs/
 
 For organizations requiring strong isolation between business units, regions, or environments:
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  SALES_PROD     │    │   HR_PROD       │    │ FINANCE_PROD    │
-│  (US Region)    │    │  (EU Region)    │    │  (US Region)    │
-└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
-         │    Secure Shares     │                      │
-         └──────────────────────┼──────────────────────┘
-                                ▼
-┌───────────────────────────────────────────────────────────────┐
-│              CORPORATE DATA HUB (Consumer Account)            │
-└───────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    SALES["SALES_PROD\n(US Region)"] -->|"Secure Shares"| HUB
+    HR["HR_PROD\n(EU Region)"] -->|"Secure Shares"| HUB
+    FINANCE["FINANCE_PROD\n(US Region)"] -->|"Secure Shares"| HUB
+    HUB["CORPORATE DATA HUB\n(Consumer Account)"]
 ```
 
 ### Single-Account Architecture
 
 For organizations preferring centralized management with logical separation via RBAC/ABAC:
 
-```
-┌───────────────────────────────────────────────────────────────────────────────┐
-│                           SNOWFLAKE ACCOUNT                                   │
-│                                                                               │
-│  ┌─────────────────────────────────────────────────────────────────────────┐  │
-│  │                      PRODUCTION DATABASES                               │  │
-│  │  RAW_PROD │ CURATED_PROD │ SEMANTIC_PROD │ GOVERNANCE                   │  │
-│  └──────────────────────────────┬──────────────────────────────────────────┘  │
-│                                 │ Zero-Copy Clones                            │
-│                   ┌─────────────┼─────────────┐                               │
-│                   ▼             ▼             ▼                               │
-│  ┌─────────────────────────────────────────────────────────────────────────┐  │
-│  │                    TEAM DEVELOPMENT DATABASES                           │  │
-│  │                                                                         │  │
-│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐            │  │
-│  │  │ TEAM_SALES_DEV  │ │  TEAM_HR_DEV    │ │TEAM_FINANCE_DEV │            │  │
-│  │  │                 │ │                 │ │                 │            │  │
-│  │  │ Team autonomy:  │ │ Team autonomy:  │ │ Team autonomy:  │            │  │
-│  │  │ • Own schemas   │ │ • Own schemas   │ │ • Own schemas   │            │  │
-│  │  │ • Own contracts │ │ • Own contracts │ │ • Own contracts │            │  │
-│  │  │ • Own measures  │ │ • Own measures  │ │ • Own measures  │            │  │
-│  │  └─────────────────┘ └─────────────────┘ └─────────────────┘            │  │
-│  │                                                                         │  │
-│  │  SDLC: Clone → Develop → Validate → PR Review → Promote to Prod         │  │
-│  └─────────────────────────────────────────────────────────────────────────┘  │
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ACCOUNT["SNOWFLAKE ACCOUNT"]
+        subgraph PROD["PRODUCTION DATABASES"]
+            RAW["RAW_PROD"]
+            CUR["CURATED_PROD"]
+            SEM["SEMANTIC_PROD"]
+            GOV["GOVERNANCE"]
+        end
+        CLONE["ZERO-COPY CLONES"]
+        subgraph DEV["TEAM DEVELOPMENT DATABASES"]
+            SALES_DEV["TEAM_SALES_DEV\n• Own schemas\n• Own contracts\n• Own measures"]
+            HR_DEV["TEAM_HR_DEV\n• Own schemas\n• Own contracts\n• Own measures"]
+            FIN_DEV["TEAM_FINANCE_DEV\n• Own schemas\n• Own contracts\n• Own measures"]
+        end
+        SDLC["SDLC: Clone → Develop → Validate → PR Review → Promote to Prod"]
+    end
+    PROD --> CLONE --> DEV
 ```
 
 **Key Features:**
@@ -113,65 +95,35 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                  SNOWFLAKE DATA CLOUD ARCHITECTURE                          │
-│                     People-First, Contract-Driven                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                           PEOPLE LAYER                              │    │
-│  │  Data Producers (Teams) │ Data Stewards │ Analysts │ AI Agents      │    │
-│  │                                                                     │    │
-│  │  Each team has AUTONOMY to manage their data domain                 │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        CONTRACT LAYER                               │    │
-│  │                                                                     │    │
-│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │    │
-│  │   │   Schema    │ │   Quality   │ │     SLA     │ │ Governance  │   │    │
-│  │   │  Contract   │ │  Contract   │ │  Contract   │ │  Contract   │   │    │
-│  │   └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │    │
-│  │                                                                     │    │
-│  │   Contracts are the TRUST BOUNDARY between producers and consumers  │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                          DATA LAYER                                 │    │
-│  │                                                                     │    │
-│  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)     │    │
-│  │   SCD Type 2           Dynamic Tables           Semantic Views      │    │
-│  │   Team-owned           + dbt (ServiceNow)       Consumer-ready      │    │
-│  │                        Contract-validated                           │    │
-│  │                                                                     │    │
-│  │   Data flows ONLY when contracts are satisfied                      │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                       GOVERNANCE LAYER                              │    │
-│  │                                                                     │    │
-│  │   Tags │ Masking │ Row Access │ Compliance │ Audit                  │    │
-│  │                                                                     │    │
-│  │   Governance protects at EVERY boundary, including contracts        │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                       CONSUMPTION LAYER                             │    │
-│  │                                                                     │    │
-│  │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐   │    │
-│  │   │  CORTEX ANALYST │ │   MARKETPLACE   │ │  CROSS-ACCOUNT     │    │    │
-│  │   │  Natural Lang.  │ │  Data Products  │ │   SHARING          │    │    │
-│  │   └─────────────────┘ └─────────────────┘ └─────────────────────┘   │    │
-│  │                                                                     │    │
-│  │   Consumers trust data because contracts guarantee quality          │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PEOPLE["PEOPLE LAYER"]
+        P["Data Producers (Teams) | Data Stewards | Analysts | AI Agents\nEach team has AUTONOMY to manage their data domain"]
+    end
+    subgraph CONTRACTS["CONTRACT LAYER"]
+        C_SCHEMA["Schema\nContract"]
+        C_QUALITY["Quality\nContract"]
+        C_SLA["SLA\nContract"]
+        C_GOV["Governance\nContract"]
+        C_NOTE["Contracts are the TRUST BOUNDARY between producers and consumers"]
+    end
+    subgraph DATALAYER["DATA LAYER"]
+        RAW["RAW (Bronze)\nSCD Type 2\nTeam-owned"]
+        CURATED["CURATED (Silver)\nDynamic Tables + dbt\nContract-validated"]
+        SEMANTIC["SEMANTIC (Gold)\nSemantic Views\nConsumer-ready"]
+        RAW --> CURATED --> SEMANTIC
+        D_NOTE["Data flows ONLY when contracts are satisfied"]
+    end
+    subgraph GOVERNANCE["GOVERNANCE LAYER"]
+        G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary"]
+    end
+    subgraph CONSUMPTION["CONSUMPTION LAYER"]
+        CORTEX["CORTEX ANALYST\nNatural Language"]
+        MARKET["MARKETPLACE\nData Products"]
+        SHARING["CROSS-ACCOUNT\nSHARING"]
+        CON_NOTE["Consumers trust data because contracts guarantee quality"]
+    end
+    PEOPLE --> CONTRACTS --> DATALAYER --> GOVERNANCE --> CONSUMPTION
 ```
 
 ### Transformation Approaches
@@ -195,26 +147,15 @@ See [DBT_VS_DYNAMIC_TABLES.md](docs/DBT_VS_DYNAMIC_TABLES.md) for a detailed com
 
 For organizations with multiple Snowflake accounts (regional, business unit, or partner):
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  SALES ACCOUNT  │    │   HR ACCOUNT    │    │ FINANCE ACCOUNT │
-│  (US Region)    │    │  (EU Region)    │    │  (US Region)    │
-│                 │    │                 │    │                 │
-│  Team owns data │    │  Team owns data │    │  Team owns data │
-│  Publishes via  │    │  Publishes via  │    │  Publishes via  │
-│  contracts      │    │  contracts      │    │  contracts      │
-└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
-         │                      │                      │
-         └──────────────────────┼──────────────────────┘
-                                │
-                                ▼
-┌───────────────────────────────────────────────────────────────────────┐
-│                    CORPORATE DATA ACCOUNT (Consumer)                  │
-│                                                                       │
-│   Inbound Shares → Contract Validation → Curated → Semantic → Apps    │
-│                                                                       │
-│   Only contract-compliant data is accepted and integrated             │
-└───────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    SALES["SALES ACCOUNT\n(US Region)\nTeam owns data\nPublishes via contracts"]
+    HR["HR ACCOUNT\n(EU Region)\nTeam owns data\nPublishes via contracts"]
+    FINANCE["FINANCE ACCOUNT\n(US Region)\nTeam owns data\nPublishes via contracts"]
+    SALES --> CORP
+    HR --> CORP
+    FINANCE --> CORP
+    CORP["CORPORATE DATA ACCOUNT (Consumer)\nInbound Shares → Contract Validation → Curated → Semantic → Apps\nOnly contract-compliant data is accepted and integrated"]
 ```
 
 ## Data Contracts
@@ -230,19 +171,18 @@ Contracts are explicit agreements between data producers and consumers:
 
 ### Contract Validation Flow
 
-```
-Producer Data  →  Schema Check  →  Quality Rules  →  SLA Check  →  Governance
-                      ↓                 ↓               ↓             ↓
-                   PASS/FAIL        PASS/FAIL       PASS/FAIL     PASS/FAIL
-                      ↓                 ↓               ↓             ↓
-                      └─────────────────┴───────────────┴─────────────┘
-                                              │
-                                   ┌──────────┴──────────┐
-                                   │                     │
-                              ALL PASS              ANY FAIL
-                                   │                     │
-                                   ▼                     ▼
-                           Publish to Share      Quarantine + Alert
+```mermaid
+flowchart LR
+    PRODUCER["Producer Data"] --> SCHEMA["Schema Check"]
+    PRODUCER --> QUALITY["Quality Rules"]
+    PRODUCER --> SLA["SLA Check"]
+    PRODUCER --> GOV["Governance"]
+    SCHEMA --> RESULT{All Pass?}
+    QUALITY --> RESULT
+    SLA --> RESULT
+    GOV --> RESULT
+    RESULT -->|"ALL PASS"| PUBLISH["Publish to Share"]
+    RESULT -->|"ANY FAIL"| QUARANTINE["Quarantine + Alert"]
 ```
 
 ## Quick Start
@@ -335,63 +275,45 @@ See [DATA_GENERATION.md](docs/DATA_GENERATION.md) for full documentation.
 
 ## Repository Structure
 
-```
-snowflake-dca-fullstack-demo/
-│
-├── README.md                              # This file
-│
-├── docs/                                  # Documentation
-│   ├── ARCHITECTURE.md                    # People-first, contract-driven architecture
-│   ├── SDLC_ARCHITECTURE.md               # Single/multi-account patterns, CI/CD, team autonomy
-│   ├── GOVERNANCE.md                      # Compliance framework (GDPR, HIPAA, etc.)
-│   ├── DBT_VS_DYNAMIC_TABLES.md           # dbt vs Dynamic Tables comparison & decision framework
-│   ├── DEMO_SCRIPT.md                     # 15-minute demo walkthrough
-│   └── SAMPLE_QUESTIONS.md                # Cortex Analyst examples
-│
-├── dbt_servicenow/                        # dbt Project (ServiceNow ITSM)
-│   ├── dbt_project.yml                    # Project configuration
-│   ├── profiles.yml.example               # Snowflake connection template
-│   ├── models/
-│   │   ├── staging/                       # Staging views (rename, type, filter)
-│   │   │   ├── _sources.yml              # Source definitions + freshness checks
-│   │   │   ├── _stg_servicenow.yml       # Schema tests for staging
-│   │   │   └── stg_servicenow__*.sql     # 6 staging models
-│   │   └── marts/                         # Business-ready dimensions & facts
-│   │       ├── _marts_servicenow.yml     # Schema tests + governance metadata
-│   │       ├── dimensions/               # dim_user, dim_cmdb_ci
-│   │       └── facts/                    # fact_incidents, fact_changes, etc.
-│   ├── tests/                             # Custom SQL tests
-│   └── macros/                            # Reusable Jinja macros (SLA thresholds)
-│
-├── sql/                                   # Snowflake SQL Scripts
-│   ├── 00_deploy_all.sql                  # Master deployment orchestrator
-│   ├── 01_setup.sql                       # Roles, warehouses, databases, tags
-│   ├── 02_git_integration.sql             # Git repository connection
-│   ├── 03_raw_layer.sql                   # RAW tables with SCD Type 2
-│   ├── 04_load_data.sql                   # Data loading procedures
-│   ├── 05_curated_layer.sql               # Dynamic Tables
-│   ├── 06_semantic_layer.sql              # Native Semantic Views
-│   ├── 07_governance.sql                  # Horizon policies
-│   ├── 08_contracts.sql                   # Data contracts & validation
-│   ├── 09_streamlit_app.sql               # Streamlit deployment
-│   ├── 10_marketplace.sql                 # Data product creation
-│   └── 99_cleanup.sql                     # Complete teardown
-│
-├── streamlit/                             # Streamlit Application
-│   └── app.py                             # Demo app with Cortex & governance
-│
-├── tools/                                 # Python Utilities
-│   ├── data_generator.py                  # Source system-aware data generator
-│   ├── requirements.txt                   # Python dependencies
-│   └── __init__.py
-│
-└── data/                                  # Generated data (gitignored)
-    ├── sap_s4hana/                        # SAP ECC/S4HANA tables
-    ├── salesforce/                        # Salesforce objects
-    ├── oracle_ebs/                        # Oracle EBS tables
-    ├── fhir_r4/                           # HL7 FHIR resources
-    ├── workday/                           # Workday HCM reports
-    └── servicenow/                        # ServiceNow tables
+```mermaid
+graph LR
+    ROOT["snowflake-dca-fullstack-demo/"]
+    ROOT --> README["README.md"]
+    ROOT --> DOCS["docs/"]
+    ROOT --> DBT["dbt_servicenow/"]
+    ROOT --> SQL["sql/"]
+    ROOT --> ST["streamlit/"]
+    ROOT --> TOOLS["tools/"]
+    ROOT --> DATA["data/ (gitignored)"]
+
+    DOCS --> ARCH["ARCHITECTURE.md"]
+    DOCS --> SDLC["SDLC_ARCHITECTURE.md"]
+    DOCS --> GOV["GOVERNANCE.md"]
+    DOCS --> DBTVDT["DBT_VS_DYNAMIC_TABLES.md"]
+    DOCS --> DEMO["DEMO_SCRIPT.md"]
+    DOCS --> SAMPLE["SAMPLE_QUESTIONS.md"]
+
+    DBT --> PROJ["dbt_project.yml"]
+    DBT --> MODELS["models/"]
+    MODELS --> STAGING["staging/ (6 models)"]
+    MODELS --> MARTS["marts/ (dims + facts)"]
+    DBT --> TESTS["tests/"]
+    DBT --> MACROS["macros/"]
+
+    SQL --> S01["01_setup.sql"]
+    SQL --> S02["02_git_integration.sql"]
+    SQL --> S03["03-10 ... scripts"]
+    SQL --> S99["99_cleanup.sql"]
+
+    ST --> APP["app.py"]
+    TOOLS --> GEN["data_generator.py"]
+
+    DATA --> SAP["sap_s4hana/"]
+    DATA --> SF["salesforce/"]
+    DATA --> ORA["oracle_ebs/"]
+    DATA --> FHIR["fhir_r4/"]
+    DATA --> WD["workday/"]
+    DATA --> SN["servicenow/"]
 ```
 
 ## Compliance Framework
@@ -417,24 +339,21 @@ snowflake-dca-fullstack-demo/
 
 ## Role Hierarchy
 
-```
-                            ACCOUNTADMIN
-                                  │
-                             DATA_ADMIN ◄── Owns all demo objects
-                                  │
-          ┌───────────────────────┼───────────────────────┐
-          │                       │                       │
-     DATA_ENGINEER           DATA_STEWARD            PII_VIEWER
-          │                       │                       │
-          │          ┌────────────┼────────────┐          │
-          │          │            │            │          │
-          │      ANALYST      MANAGER      AUDITOR        │
-          │          │            │            │          │
-          │          └──────┬─────┴──────┬─────┘          │
-          │                 │            │                │
-          └─────────►   VIEWER     EXTERNAL_PARTNER  ◄────┘
-                            │
-                        AI_AGENT
+```mermaid
+graph TD
+    ACCTADMIN["ACCOUNTADMIN"] --> DATA_ADMIN["DATA_ADMIN\n(Owns all demo objects)"]
+    DATA_ADMIN --> DATA_ENGINEER
+    DATA_ADMIN --> DATA_STEWARD
+    DATA_ADMIN --> PII_VIEWER
+    DATA_STEWARD --> ANALYST
+    DATA_STEWARD --> MANAGER
+    DATA_STEWARD --> AUDITOR
+    DATA_ENGINEER --> VIEWER
+    ANALYST --> VIEWER
+    MANAGER --> VIEWER
+    AUDITOR --> VIEWER
+    PII_VIEWER --> EXTERNAL_PARTNER
+    VIEWER --> AI_AGENT
 ```
 
 ## Documentation

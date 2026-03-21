@@ -6,21 +6,17 @@ This architecture embodies a fundamental truth: **data serves people, and people
 
 The solution is **Data Contracts**: explicit agreements between data producers and consumers that define quality, quantity, freshness, schema, and governance expectations. Only when contracts are satisfied does data flow to production.
 
+```mermaid
+flowchart LR
+    PEOPLE["PEOPLE\ndefine intent"] --> CONTRACTS["CONTRACTS\nencode agreements"] --> DATA["DATA\nflows on trust"]
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                     THE DATA CLOUD ARCHITECTURE PHILOSOPHY                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   PEOPLE define intent → CONTRACTS encode agreements → DATA flows on trust  │
-│                                                                             │
-│   • Teams own their data domains                                            │
-│   • Contracts establish mutual expectations                                 │
-│   • Quality gates enforce standards before production                       │
-│   • Governance protects at every boundary                                   │
-│   • Cross-account sharing enables federation                                │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+
+**The Data Cloud Architecture Philosophy:**
+- Teams own their data domains
+- Contracts establish mutual expectations
+- Quality gates enforce standards before production
+- Governance protects at every boundary
+- Cross-account sharing enables federation
 
 ---
 
@@ -35,57 +31,28 @@ Real enterprises don't have one Snowflake account. They have:
 
 The architecture must support **federated data management** where each team operates independently but connects to a shared corporate data fabric.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                      FEDERATED DATA CLOUD TOPOLOGY                          │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
-│  │  SALES ACCOUNT  │    │   HR ACCOUNT    │    │ FINANCE ACCOUNT │          │
-│  │  (US Region)    │    │  (EU Region)    │    │  (US Region)    │          │
-│  │                 │    │                 │    │                 │          │
-│  │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │          │
-│  │ │  PRODUCER   │ │    │ │  PRODUCER   │ │    │ │  PRODUCER   │ │          │
-│  │ │   LAYER     │ │    │ │   LAYER     │ │    │ │   LAYER     │ │          │
-│  │ └──────┬──────┘ │    │ └──────┬──────┘ │    │ └──────┬──────┘ │          │
-│  │        │        │    │        │        │    │        │        │          │
-│  │ ┌──────▼──────┐ │    │ ┌──────▼──────┐ │    │ ┌──────▼──────┐ │          │
-│  │ │  CONTRACT   │ │    │ │  CONTRACT   │ │    │ │  CONTRACT   │ │          │
-│  │ │ VALIDATION  │ │    │ │ VALIDATION  │ │    │ │ VALIDATION  │ │          │
-│  │ └──────┬──────┘ │    │ └──────┬──────┘ │    │ └──────┬──────┘ │          │
-│  │        │        │    │        │        │    │        │        │          │
-│  │ ┌──────▼──────┐ │    │ ┌──────▼──────┐ │    │ ┌──────▼──────┐ │          │
-│  │ │   SHARE     │ │    │ │   SHARE     │ │    │ │   SHARE     │ │          │
-│  │ │  (Export)   │ │    │ │  (Export)   │ │    │ │  (Export)   │ │          │
-│  │ └──────┬──────┘ │    │ └──────┬──────┘ │    │ └──────┬──────┘ │          │
-│  └────────┼────────┘    └────────┼────────┘    └────────┼────────┘          │
-│           │                      │                      │                   │
-│           └──────────────────────┼──────────────────────┘                   │
-│                                  │                                          │
-│                                  ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │                    CORPORATE DATA ACCOUNT (Consumer)                  │  │
-│  │                                                                       │  │
-│  │   ┌──────────────────────────────────────────────────────────────┐    │  │
-│  │   │                    INBOUND SHARES                            │    │  │
-│  │   │   Sales Data │ HR Data │ Finance Data │ Partner Data         │    │  │
-│  │   └──────────────────────────────────────────────────────────────┘    │  │
-│  │                                  │                                    │  │
-│  │                                  ▼                                    │  │
-│  │   ┌──────────────────────────────────────────────────────────────┐    │  │
-│  │   │                CONTRACT REGISTRY & VALIDATION                │    │  │
-│  │   │   Schema Contracts │ Quality Rules │ SLA Monitoring          │    │  │
-│  │   └──────────────────────────────────────────────────────────────┘    │  │
-│  │                                  │                                    │  │
-│  │                                  ▼                                    │  │
-│  │   ┌──────────────────────────────────────────────────────────────┐    │  │
-│  │   │          CURATED → SEMANTIC → MARKETPLACE                    │    │  │
-│  │   │   Dynamic Tables │ Semantic Views │ Data Products            │    │  │
-│  │   └──────────────────────────────────────────────────────────────┘    │  │
-│  │                                                                       │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph SALES["SALES ACCOUNT (US Region)"]
+        S_PROD["PRODUCER LAYER"] --> S_VAL["CONTRACT VALIDATION"] --> S_SHARE["SHARE (Export)"]
+    end
+    subgraph HR["HR ACCOUNT (EU Region)"]
+        H_PROD["PRODUCER LAYER"] --> H_VAL["CONTRACT VALIDATION"] --> H_SHARE["SHARE (Export)"]
+    end
+    subgraph FINANCE["FINANCE ACCOUNT (US Region)"]
+        F_PROD["PRODUCER LAYER"] --> F_VAL["CONTRACT VALIDATION"] --> F_SHARE["SHARE (Export)"]
+    end
+
+    S_SHARE --> CORP
+    H_SHARE --> CORP
+    F_SHARE --> CORP
+
+    subgraph CORP["CORPORATE DATA ACCOUNT (Consumer)"]
+        INBOUND["INBOUND SHARES\nSales Data | HR Data | Finance Data | Partner Data"]
+        REGISTRY["CONTRACT REGISTRY & VALIDATION\nSchema Contracts | Quality Rules | SLA Monitoring"]
+        CURATED["CURATED → SEMANTIC → MARKETPLACE\nDynamic Tables | Semantic Views | Data Products"]
+        INBOUND --> REGISTRY --> CURATED
+    end
 ```
 
 ---
@@ -104,34 +71,27 @@ The architecture must support **federated data management** where each team oper
 
 ### Contract Lifecycle
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                        DATA CONTRACT LIFECYCLE                             │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│  1. DEFINE              2. VALIDATE             3. PUBLISH                 │
-│  ───────────────────    ───────────────────    ───────────────────         │
-│                                                                            │
-│  Producer creates       Automated tests        Contract stored             │
-│  contract in YAML       run on each load       in registry                 │
-│  or JSON format         to verify              and versioned               │
-│                         compliance                                         │
-│                                                                            │
-│  ┌───────────────┐     ┌───────────────┐      ┌───────────────┐            │
-│  │  contract:    │     │  ✓ Schema OK  │      │  GOVERNANCE.  │            │
-│  │    schema:... │ ──► │  ✓ Quality OK │ ───► │  CONTRACTS.   │            │
-│  │    quality:...│     │  ✗ SLA Miss   │      │  REGISTRY     │            │
-│  │    sla:...    │     │    (blocked)  │      │               │            │
-│  └───────────────┘     └───────────────┘      └───────────────┘            │
-│                                                                            │
-│  4. ENFORCE             5. MONITOR              6. EVOLVE                  │
-│  ───────────────────    ───────────────────    ───────────────────         │
-│                                                                            │
-│  Only passing data      Dashboards track       Version changes             │
-│  flows to downstream    contract health        require consumer            │
-│  layers                 and violations         agreement                   │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph DEFINE["1. DEFINE"]
+        D["Producer creates\ncontract in YAML\nor JSON format"]
+    end
+    subgraph VALIDATE["2. VALIDATE"]
+        V["Automated tests\nrun on each load\n✓ Schema OK\n✓ Quality OK\n✗ SLA Miss (blocked)"]
+    end
+    subgraph PUBLISH["3. PUBLISH"]
+        P["Contract stored\nin GOVERNANCE.\nCONTRACTS.REGISTRY\nand versioned"]
+    end
+    subgraph ENFORCE["4. ENFORCE"]
+        E["Only passing data\nflows to downstream\nlayers"]
+    end
+    subgraph MONITOR["5. MONITOR"]
+        M["Dashboards track\ncontract health\nand violations"]
+    end
+    subgraph EVOLVE["6. EVOLVE"]
+        EV["Version changes\nrequire consumer\nagreement"]
+    end
+    DEFINE --> VALIDATE --> PUBLISH --> ENFORCE --> MONITOR --> EVOLVE
 ```
 
 ### Contract Definition Example
@@ -217,63 +177,25 @@ Each team owns their data domain and operates independently. They:
 
 ### Producer Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    PRODUCER ACCOUNT (Team-Owned)                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                         SOURCE SYSTEMS                              │    │
-│  │   SAP S/4HANA │ Oracle EBS │ Salesforce │ Workday │ ServiceNow      │    │
-│  │   FHIR R4     │ Custom ERP │ APIs       │ Files   │ Streaming       │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      RAW LAYER (Bronze)                             │    │
-│  │   Team's raw data with SCD Type 2 history                           │    │
-│  │   Tags applied by producer                                          │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    CURATED LAYER (Silver)                           │    │
-│  │   Team's business logic, derived attributes                         │    │
-│  │   Dynamic Tables or dbt — team chooses their engine                 │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                  CONTRACT VALIDATION LAYER                          │    │
-│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │    │
-│  │   │   Schema    │ │   Quality   │ │     SLA     │ │ Governance  │   │    │
-│  │   │   Check     │ │   Rules     │ │   Check     │ │   Check     │   │    │
-│  │   └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘   │    │
-│  │          │               │               │               │          │    │
-│  │          └───────────────┴───────────────┴───────────────┘          │    │
-│  │                                  │                                  │    │
-│  │                                  ▼                                  │    │
-│  │                    ┌────────────────────────┐                       │    │
-│  │                    │   CONTRACT PASSED?     │                       │    │
-│  │                    └───────────┬────────────┘                       │    │
-│  │                                │                                    │    │
-│  │              ┌─────────────────┴─────────────────┐                  │    │
-│  │              │                                   │                  │    │
-│  │        ┌─────▼─────┐                      ┌──────▼──────┐           │    │
-│  │        │    YES    │                      │     NO      │           │    │
-│  │        │  Publish  │                      │   Alert &   │           │    │
-│  │        │  to Share │                      │   Quarantine│           │    │
-│  │        └─────┬─────┘                      └─────────────┘           │    │
-│  └──────────────┼──────────────────────────────────────────────────────┘    │
-│                 │                                                           │
-│                 ▼                                                           │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      OUTBOUND SHARE                                 │    │
-│  │   Secure data sharing to consumer accounts                          │    │
-│  │   Only contract-compliant data exposed                              │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    SOURCES["SOURCE SYSTEMS\nSAP S/4HANA | Oracle EBS | Salesforce | Workday | ServiceNow\nFHIR R4 | Custom ERP | APIs | Files | Streaming"]
+    RAW["RAW LAYER (Bronze)\nTeam's raw data with SCD Type 2 history\nTags applied by producer"]
+    CURATED["CURATED LAYER (Silver)\nTeam's business logic, derived attributes\nDynamic Tables or dbt — team chooses their engine"]
+    subgraph VALIDATION["CONTRACT VALIDATION LAYER"]
+        SCHEMA_CHK["Schema\nCheck"]
+        QUALITY_CHK["Quality\nRules"]
+        SLA_CHK["SLA\nCheck"]
+        GOV_CHK["Governance\nCheck"]
+        DECISION{"CONTRACT\nPASSED?"}
+        SCHEMA_CHK --> DECISION
+        QUALITY_CHK --> DECISION
+        SLA_CHK --> DECISION
+        GOV_CHK --> DECISION
+    end
+    DECISION -->|"YES"| SHARE["OUTBOUND SHARE\nSecure data sharing to consumer accounts\nOnly contract-compliant data exposed"]
+    DECISION -->|"NO"| QUARANTINE["Alert & Quarantine"]
+    SOURCES --> RAW --> CURATED --> VALIDATION
 ```
 
 ---
@@ -282,58 +204,22 @@ Each team owns their data domain and operates independently. They:
 
 The corporate data account consumes from multiple producers:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CONSUMER ACCOUNT (Corporate)                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                      INBOUND SHARES                                 │    │
-│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │    │
-│  │   │   SALES     │ │     HR      │ │   FINANCE   │ │  PARTNER    │   │    │
-│  │   │    SHARE    │ │    SHARE    │ │    SHARE    │ │   SHARE     │   │    │
-│  │   └──────┬──────┘ └──────┬──────┘ └──────┬──────┘ └──────┬──────┘   │    │
-│  └──────────┼───────────────┼───────────────┼───────────────┼──────────┘    │
-│             │               │               │               │               │
-│             └───────────────┴───────────────┴───────────────┘               │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    CONTRACT REGISTRY                                │    │
-│  │   All contracts from all producers                                  │    │
-│  │   Version history, SLA tracking, violation alerts                   │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                  INTEGRATION LAYER (Bronze)                         │    │
-│  │   Mounted shares with contract metadata                             │    │
-│  │   Lineage tracking back to source                                   │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    CURATED LAYER (Silver)                           │    │
-│  │   Cross-domain joins, enterprise business logic                     │    │
-│  │   Dynamic Tables + dbt, additional quality rules                    │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│                                   ▼                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                   SEMANTIC LAYER (Gold)                             │    │
-│  │   Enterprise-wide semantic views                                    │    │
-│  │   Cortex Analyst integration                                        │    │
-│  └────────────────────────────────┬────────────────────────────────────┘    │
-│                                   │                                         │
-│           ┌───────────────────────┼───────────────────────┐                 │
-│           │                       │                       │                 │
-│           ▼                       ▼                       ▼                 │
-│  ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────────┐        │
-│  │    HORIZON      │   │ CORTEX ANALYST  │   │    MARKETPLACE      │        │
-│  │   GOVERNANCE    │   │                 │   │   DATA PRODUCTS     │        │
-│  └─────────────────┘   └─────────────────┘   └─────────────────────┘        │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph INBOUND["INBOUND SHARES"]
+        SALES["SALES\nSHARE"]
+        HR["HR\nSHARE"]
+        FINANCE["FINANCE\nSHARE"]
+        PARTNER["PARTNER\nSHARE"]
+    end
+    REGISTRY["CONTRACT REGISTRY\nAll contracts from all producers\nVersion history, SLA tracking, violation alerts"]
+    INTEGRATION["INTEGRATION LAYER (Bronze)\nMounted shares with contract metadata\nLineage tracking back to source"]
+    CURATED["CURATED LAYER (Silver)\nCross-domain joins, enterprise business logic\nDynamic Tables + dbt, additional quality rules"]
+    SEMANTIC["SEMANTIC LAYER (Gold)\nEnterprise-wide semantic views\nCortex Analyst integration"]
+    INBOUND --> REGISTRY --> INTEGRATION --> CURATED --> SEMANTIC
+    SEMANTIC --> HORIZON["HORIZON\nGOVERNANCE"]
+    SEMANTIC --> CORTEX["CORTEX ANALYST"]
+    SEMANTIC --> MARKETPLACE["MARKETPLACE\nDATA PRODUCTS"]
 ```
 
 ---
@@ -602,91 +488,50 @@ CALL GOVERNANCE.CONTRACTS.VALIDATE_INBOUND_CONTRACT(
 
 For organizations using a single Snowflake account, the same principles apply using **database boundaries** instead of account boundaries:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    SINGLE ACCOUNT - DATABASE BOUNDARIES                     │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐          │
-│  │  SALES_DEV DB   │    │   HR_DEV DB     │    │ FINANCE_DEV DB  │          │
-│  │  (Sales Team)   │    │  (HR Team)      │    │ (Finance Team)  │          │
-│  └────────┬────────┘    └────────┬────────┘    └────────┬────────┘          │
-│           │                      │                      │                   │
-│           │     Contract Validation + Database Roles    │                   │
-│           │                      │                      │                   │
-│           └──────────────────────┼──────────────────────┘                   │
-│                                  ▼                                          │
-│  ┌───────────────────────────────────────────────────────────────────────┐  │
-│  │                    CORPORATE_PROD DB (Consumers)                      │  │
-│  │   Uses database roles to access validated views from team DBs         │  │
-│  └───────────────────────────────────────────────────────────────────────┘  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    SALES_DEV["SALES_DEV DB\n(Sales Team)"]
+    HR_DEV["HR_DEV DB\n(HR Team)"]
+    FINANCE_DEV["FINANCE_DEV DB\n(Finance Team)"]
+    SALES_DEV -->|"Contract Validation\n+ Database Roles"| CORP
+    HR_DEV -->|"Contract Validation\n+ Database Roles"| CORP
+    FINANCE_DEV -->|"Contract Validation\n+ Database Roles"| CORP
+    CORP["CORPORATE_PROD DB (Consumers)\nUses database roles to access\nvalidated views from team DBs"]
 ```
 
 ---
 
 ## The Complete Picture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                  SNOWFLAKE DATA CLOUD ARCHITECTURE                          │
-│                     People-First, Contract-Driven                           │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                           PEOPLE LAYER                              │    │
-│  │  Data Producers │ Data Stewards │ Analysts │ AI Agents │ Consumers  │    │
-│  │                                                                     │    │
-│  │  Each team has AUTONOMY to manage their data domain                 │    │
-│  │  Contracts encode INTENT and AGREEMENTS                             │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                        CONTRACT LAYER                               │    │
-│  │                                                                     │    │
-│  │   ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │    │
-│  │   │   Schema    │ │   Quality   │ │     SLA     │ │ Governance  │   │    │
-│  │   │  Contract   │ │  Contract   │ │  Contract   │ │  Contract   │   │    │
-│  │   └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │    │
-│  │                                                                     │    │
-│  │   Contracts are the TRUST BOUNDARY between producers and consumers  │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                          DATA LAYER                                 │    │
-│  │                                                                     │    │
-│  │   RAW (Bronze)    →    CURATED (Silver)    →    SEMANTIC (Gold)     │    │
-│  │   SCD Type 2           Dynamic Tables +         Semantic Views      │    │
-│  │                        dbt (hybrid)                                 │    │
-│  │                                                                     │    │
-│  │   Data flows ONLY when contracts are satisfied                      │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                       GOVERNANCE LAYER                              │    │
-│  │                                                                     │    │
-│  │   Tags │ Masking │ Row Access │ Compliance │ Audit                  │    │ 
-│  │                                                                     │    │
-│  │   Governance protects at EVERY boundary, including contracts        │    │
-│  └──────────────────────────────────┬──────────────────────────────────┘    │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                       CONSUMPTION LAYER                             │    │
-│  │                                                                     │    │
-│  │   ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────────┐   │    │
-│  │   │  CORTEX ANALYST │ │   MARKETPLACE   │ │  CROSS-ACCOUNT      │   │    │
-│  │   │  Natural Lang.  │ │  Data Products  │ │   SHARING           │   │    │
-│  │   └─────────────────┘ └─────────────────┘ └─────────────────────┘   │    │
-│  │                                                                     │    │
-│  │   Consumers trust data because contracts guarantee quality          │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PEOPLE["PEOPLE LAYER"]
+        P["Data Producers | Data Stewards | Analysts | AI Agents | Consumers\nEach team has AUTONOMY to manage their data domain\nContracts encode INTENT and AGREEMENTS"]
+    end
+    subgraph CONTRACTS["CONTRACT LAYER"]
+        C_SCHEMA["Schema\nContract"]
+        C_QUALITY["Quality\nContract"]
+        C_SLA["SLA\nContract"]
+        C_GOV["Governance\nContract"]
+        C_NOTE["Contracts are the TRUST BOUNDARY between producers and consumers"]
+    end
+    subgraph DATALAYER["DATA LAYER"]
+        RAW["RAW (Bronze)\nSCD Type 2"]
+        CURATED["CURATED (Silver)\nDynamic Tables + dbt"]
+        SEMANTIC["SEMANTIC (Gold)\nSemantic Views"]
+        RAW --> CURATED --> SEMANTIC
+        D_NOTE["Data flows ONLY when contracts are satisfied"]
+    end
+    subgraph GOVERNANCE["GOVERNANCE LAYER"]
+        G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary, including contracts"]
+    end
+    subgraph CONSUMPTION["CONSUMPTION LAYER"]
+        CORTEX["CORTEX ANALYST\nNatural Language"]
+        MARKET["MARKETPLACE\nData Products"]
+        SHARING["CROSS-ACCOUNT\nSHARING"]
+        CON_NOTE["Consumers trust data because contracts guarantee quality"]
+    end
+    PEOPLE --> CONTRACTS --> DATALAYER --> GOVERNANCE --> CONSUMPTION
 ```
 
 ---
@@ -719,19 +564,20 @@ Used by: **ServiceNow ITSM** domain in this demo.
 
 Regardless of which engine produces a curated table, downstream consumers see the same contract-validated, governance-tagged tables. The transformation engine is an implementation detail — contracts and governance are the trust boundary.
 
-```
-Source Systems                Transformation Engine          Curated Output
-─────────────────            ─────────────────────          ──────────────────
-SAP S/4HANA       ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.SAP.*
-Salesforce        ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.SALESFORCE.*
-Oracle EBS        ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.ORACLE_EBS.*
-FHIR R4           ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.FHIR.*
-Workday HCM       ─────►    Dynamic Tables (TARGET_LAG)  ─►  CURATED.WORKDAY.*
-ServiceNow ITSM   ─────►    dbt (ref + tests + docs)    ─►  CURATED.DBT_SERVICENOW.*
-                                                              │
-                                                              ▼
-                                                    Semantic Views → Cortex Analyst
-                                                    (consumers don't care which engine)
+```mermaid
+flowchart LR
+    SAP["SAP S/4HANA"] -->|"Dynamic Tables\n(TARGET_LAG)"| C_SAP["CURATED.SAP.*"]
+    SF["Salesforce"] -->|"Dynamic Tables\n(TARGET_LAG)"| C_SF["CURATED.SALESFORCE.*"]
+    ORA["Oracle EBS"] -->|"Dynamic Tables\n(TARGET_LAG)"| C_ORA["CURATED.ORACLE_EBS.*"]
+    FHIR["FHIR R4"] -->|"Dynamic Tables\n(TARGET_LAG)"| C_FHIR["CURATED.FHIR.*"]
+    WD["Workday HCM"] -->|"Dynamic Tables\n(TARGET_LAG)"| C_WD["CURATED.WORKDAY.*"]
+    SN["ServiceNow ITSM"] -->|"dbt\n(ref + tests + docs)"| C_SN["CURATED.DBT_SERVICENOW.*"]
+    C_SAP --> SEM["Semantic Views → Cortex Analyst\n(consumers don't care which engine)"]
+    C_SF --> SEM
+    C_ORA --> SEM
+    C_FHIR --> SEM
+    C_WD --> SEM
+    C_SN --> SEM
 ```
 
 For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md](DBT_VS_DYNAMIC_TABLES.md).

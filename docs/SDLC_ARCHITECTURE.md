@@ -45,55 +45,47 @@ Implementing a complete data platform is a journey, not a destination. This sect
 - Fundamental access controls
 - Manual deployment processes
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        PHASE 1: FOUNDATION                                      │
-│                   "Get data flowing with basic controls"                        │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         WHAT YOU BUILD                                    │  │
-│  │                                                                           │  │
-│  │  INFRASTRUCTURE                    GOVERNANCE                             │  │
-│  │  ───────────────                   ──────────                             │  │
-│  │  • RAW_DEV / RAW_PROD databases    • Basic role hierarchy                 │  │
-│  │  • CURATED_DEV / CURATED_PROD      • DATA_ADMIN, DATA_ENGINEER, ANALYST   │  │
-│  │  • Standard warehouses (XS-M)      • Database-level grants                │  │
-│  │  • Staging areas for file loads    • Manual access requests               │  │
-│  │                                                                           │  │
-│  │  DATA PIPELINE                     DEPLOYMENT                             │  │
-│  │  ─────────────                     ──────────                             │  │
-│  │  • File-based ingestion (CSV/JSON) • SQL scripts in Git                   │  │
-│  │  • Basic transformations           • Manual execution via SnowSQL         │  │
-│  │  • Simple views                    • Peer review via PR                   │  │
-│  │  • Scheduled tasks (if needed)     • No automated testing                 │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         SUCCESS CRITERIA                                  │  │
-│  │                                                                           │  │
-│  │  ✓ Data is flowing from sources to RAW layer                              │  │
-│  │  ✓ Basic transformations produce CURATED outputs                         │  │
-│  │  ✓ Users can query data with appropriate access                          │  │
-│  │  ✓ All SQL is version-controlled in Git                                  │  │
-│  │  ✓ DEV and PROD environments are separated                               │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         KEY DELIVERABLES                                  │  │
-│  │                                                                           │  │
-│  │  1. Role hierarchy document                                               │  │
-│  │  2. Database/schema naming conventions                                    │  │
-│  │  3. Git repository structure                                              │  │
-│  │  4. Basic runbook for deployments                                         │  │
-│  │  5. At least one end-to-end data pipeline                                 │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+#### What You Build
+
+**Infrastructure**
+- RAW_DEV / RAW_PROD databases
+- CURATED_DEV / CURATED_PROD
+- Standard warehouses (XS-M)
+- Staging areas for file loads
+
+**Governance**
+- Basic role hierarchy
+- DATA_ADMIN, DATA_ENGINEER, ANALYST
+- Database-level grants
+- Manual access requests
+
+**Data Pipeline**
+- File-based ingestion (CSV/JSON)
+- Basic transformations
+- Simple views
+- Scheduled tasks (if needed)
+
+**Deployment**
+- SQL scripts in Git
+- Manual execution via SnowSQL
+- Peer review via PR
+- No automated testing
+
+#### Success Criteria
+
+- Data is flowing from sources to RAW layer
+- Basic transformations produce CURATED outputs
+- Users can query data with appropriate access
+- All SQL is version-controlled in Git
+- DEV and PROD environments are separated
+
+#### Key Deliverables
+
+1. Role hierarchy document
+2. Database/schema naming conventions
+3. Git repository structure
+4. Basic runbook for deployments
+5. At least one end-to-end data pipeline
 
 **Typical Challenges in Phase 1:**
 - Scope creep — resist the urge to build everything at once
@@ -115,66 +107,64 @@ Implementing a complete data platform is a journey, not a destination. This sect
 - Team-specific development environments (clones)
 - Basic data contracts
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                        PHASE 2: AUTOMATION                                      │
-│                  "Reduce manual work, increase consistency"                     │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         WHAT YOU ADD                                      │  │
-│  │                                                                           │  │
-│  │  CI/CD PIPELINE                    GOVERNANCE POLICIES                    │  │
-│  │  ────────────                      ───────────────────                    │  │
-│  │  • GitHub Actions / Azure DevOps   • Object tags (PII_TYPE, etc.)         │  │
-│  │  • Automated SQL linting           • Tag-based masking policies           │  │
-│  │  • Automated deployment to DEV     • Row access policies                  │  │
-│  │  • Manual approval for PROD        • Compliance tagging (GDPR, HIPAA)     │  │
-│  │  • Rollback procedures             • Audit logging enabled                │  │
-│  │                                                                           │  │
-│  │  DYNAMIC TABLES / dbt              TEAM SELF-SERVICE                      │  │
-│  │  ─────────────────────             ─────────────────                      │  │
-│  │  • Replace scheduled tasks         • Clone provisioning procedure         │  │
-│  │  • Declarative transformations     • Team-owned DEV databases             │  │
-│  │  • TARGET_LAG for SLA management   • Sandbox schemas for experiments      │  │
-│  │  • dbt for code-first pipelines    • Self-service data loading            │  │
-│  │  • Built-in refresh orchestration                                         │  │
-│  │                                                                           │  │
-│  │  DATA CONTRACTS (Basic)            MONITORING                             │  │
-│  │  ─────────────────────             ──────────                             │  │
-│  │  • Schema documentation            • Query performance monitoring         │  │
-│  │  • Column-level descriptions       • Resource usage alerts                │  │
-│  │  • Owner/contact metadata          • Dynamic Table lag monitoring         │  │
-│  │  • Quality expectations (informal) • Failed task alerts                   │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         SUCCESS CRITERIA                                  │  │
-│  │                                                                           │  │
-│  │  ✓ All deployments go through CI/CD pipeline                             │  │
-│  │  ✓ PII columns are automatically masked for unauthorized roles           │  │
-│  │  ✓ Teams can provision their own development environments                │  │
-│  │  ✓ Dynamic Tables or dbt handle transformation orchestration            │  │
-│  │  ✓ Governance tags are applied to all production tables                  │  │
-│  │  ✓ Alerts fire when data pipelines fail                                  │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         KEY DELIVERABLES                                  │  │
-│  │                                                                           │  │
-│  │  1. CI/CD pipeline (GitHub Actions or equivalent)                         │  │
-│  │  2. Tag taxonomy and masking policy library                               │  │
-│  │  3. Clone provisioning stored procedure                                   │  │
-│  │  4. Dynamic Table and/or dbt implementation for curated layer              │  │
-│  │  5. Monitoring dashboard (Snowsight or external)                          │  │
-│  │  6. Team onboarding runbook                                               │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+#### What You Add
+
+**CI/CD Pipeline**
+- GitHub Actions / Azure DevOps
+- Automated SQL linting
+- Automated deployment to DEV
+- Manual approval for PROD
+- Rollback procedures
+
+**Governance Policies**
+- Object tags (PII_TYPE, etc.)
+- Tag-based masking policies
+- Row access policies
+- Compliance tagging (GDPR, HIPAA)
+- Audit logging enabled
+
+**Dynamic Tables / dbt**
+- Replace scheduled tasks
+- Declarative transformations
+- TARGET_LAG for SLA management
+- dbt for code-first pipelines
+- Built-in refresh orchestration
+
+**Team Self-Service**
+- Clone provisioning procedure
+- Team-owned DEV databases
+- Sandbox schemas for experiments
+- Self-service data loading
+
+**Data Contracts (Basic)**
+- Schema documentation
+- Column-level descriptions
+- Owner/contact metadata
+- Quality expectations (informal)
+
+**Monitoring**
+- Query performance monitoring
+- Resource usage alerts
+- Dynamic Table lag monitoring
+- Failed task alerts
+
+#### Success Criteria
+
+- All deployments go through CI/CD pipeline
+- PII columns are automatically masked for unauthorized roles
+- Teams can provision their own development environments
+- Dynamic Tables or dbt handle transformation orchestration
+- Governance tags are applied to all production tables
+- Alerts fire when data pipelines fail
+
+#### Key Deliverables
+
+1. CI/CD pipeline (GitHub Actions or equivalent)
+2. Tag taxonomy and masking policy library
+3. Clone provisioning stored procedure
+4. Dynamic Table and/or dbt implementation for curated layer
+5. Monitoring dashboard (Snowsight or external)
+6. Team onboarding runbook
 
 **Typical Challenges in Phase 2:**
 - CI/CD pipeline complexity — start with simple validation, add gates incrementally
@@ -196,69 +186,69 @@ Implementing a complete data platform is a journey, not a destination. This sect
 - Cross-account/cross-region capabilities (if needed)
 - AI/ML integration (Cortex Analyst, etc.)
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      PHASE 3: ENTERPRISE SCALE                                  │
-│                "Contract-driven, self-service data platform"                    │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         WHAT YOU ADD                                      │  │
-│  │                                                                           │  │
-│  │  DATA CONTRACTS (Formal)           SEMANTIC LAYER                         │  │
-│  │  ───────────────────────           ──────────────                         │  │
-│  │  • Contract registry database      • Native Semantic Views                │  │
-│  │  • Schema contracts (enforced)     • Business measures & dimensions       │  │
-│  │  • Quality contracts (automated)   • Cross-domain relationships           │  │
-│  │  • SLA contracts (monitored)       • Natural language interface           │  │
-│  │  • Breaking change detection       • Cortex Analyst integration           │  │
-│  │  • Consumer notification           • Self-service analytics               │  │
-│  │                                                                           │  │
-│  │  DATA MARKETPLACE                  CROSS-DOMAIN/ACCOUNT                   │  │
-│  │  ────────────────                  ────────────────────                   │  │
-│  │  • Internal data product catalog   • Secure data sharing                  │  │
-│  │  • Domain-specific data products   • Cross-account replication            │  │
-│  │  • Usage tracking & analytics      • Multi-region deployment              │  │
-│  │  • Data product SLAs               • Federated governance                 │  │
-│  │  • Consumer feedback loop          • Contract validation at boundaries    │  │
-│  │                                                                           │  │
-│  │  ADVANCED AUTOMATION               AI/ML INTEGRATION                      │  │
-│  │  ───────────────────               ──────────────────                     │  │
-│  │  • Contract validation in CI/CD    • Cortex Analyst for NL→SQL            │  │
-│  │  • Automated impact analysis       • ML feature stores                    │  │
-│  │  • Self-healing pipelines          • AI governance (AI_ALLOWED tag)       │  │
-│  │  • Cost optimization automation    • Automated data quality ML            │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         SUCCESS CRITERIA                                  │  │
-│  │                                                                           │  │
-│  │  ✓ All production data has formal contracts                               │  │
-│  │  ✓ Breaking changes are detected before production deployment             │  │
-│  │  ✓ Business users can discover data via internal marketplace              │  │
-│  │  ✓ Analysts can query data using natural language                         │  │
-│  │  ✓ Cross-domain analytics are enabled via shared semantic models          │  │
-│  │  ✓ Contract violations trigger automated alerts                           │  │
-│  │  ✓ Data quality is continuously monitored and reported                    │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         KEY DELIVERABLES                                  │  │
-│  │                                                                           │  │
-│  │  1. Contract registry with validation procedures                          │  │
-│  │  2. Semantic views for all major business domains                         │  │
-│  │  3. Internal marketplace with domain data products                        │  │
-│  │  4. Cortex Analyst semantic models                                        │  │
-│  │  5. Contract-aware CI/CD pipeline                                         │  │
-│  │  6. Data platform health dashboard                                        │  │
-│  │  7. Self-service documentation portal                                     │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+#### What You Add
+
+**Data Contracts (Formal)**
+- Contract registry database
+- Schema contracts (enforced)
+- Quality contracts (automated)
+- SLA contracts (monitored)
+- Breaking change detection
+- Consumer notification
+
+**Semantic Layer**
+- Native Semantic Views
+- Business measures & dimensions
+- Cross-domain relationships
+- Natural language interface
+- Cortex Analyst integration
+- Self-service analytics
+
+**Data Marketplace**
+- Internal data product catalog
+- Domain-specific data products
+- Usage tracking & analytics
+- Data product SLAs
+- Consumer feedback loop
+
+**Cross-Domain/Account**
+- Secure data sharing
+- Cross-account replication
+- Multi-region deployment
+- Federated governance
+- Contract validation at boundaries
+
+**Advanced Automation**
+- Contract validation in CI/CD
+- Automated impact analysis
+- Self-healing pipelines
+- Cost optimization automation
+
+**AI/ML Integration**
+- Cortex Analyst for NL→SQL
+- ML feature stores
+- AI governance (AI_ALLOWED tag)
+- Automated data quality ML
+
+#### Success Criteria
+
+- All production data has formal contracts
+- Breaking changes are detected before production deployment
+- Business users can discover data via internal marketplace
+- Analysts can query data using natural language
+- Cross-domain analytics are enabled via shared semantic models
+- Contract violations trigger automated alerts
+- Data quality is continuously monitored and reported
+
+#### Key Deliverables
+
+1. Contract registry with validation procedures
+2. Semantic views for all major business domains
+3. Internal marketplace with domain data products
+4. Cortex Analyst semantic models
+5. Contract-aware CI/CD pipeline
+6. Data platform health dashboard
+7. Self-service documentation portal
 
 **Typical Challenges in Phase 3:**
 - Organizational change management — contracts require producer/consumer alignment
@@ -289,67 +279,27 @@ For organizations requiring **strong isolation** between business units, regions
 
 ### Reference Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      MULTI-ACCOUNT REFERENCE ARCHITECTURE                       │
-│                         Environment & Team Separation                           │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                        PRODUCTION ACCOUNTS                                │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │  │
-│  │  │  SALES_PROD     │  │   HR_PROD       │  │ FINANCE_PROD    │            │  │
-│  │  │  (US-WEST-2)    │  │  (EU-WEST-1)    │  │  (US-EAST-1)    │            │  │
-│  │  │                 │  │                 │  │                 │            │  │
-│  │  │  Team owns data │  │  GDPR compliant │  │  SOX compliant  │            │  │
-│  │  │  Publishes via  │  │  EU residency   │  │  Audit trails   │            │  │
-│  │  │  contracts      │  │  contracts      │  │  contracts      │            │  │
-│  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘            │  │
-│  │           │                    │                    │                     │  │
-│  │           │   Secure Shares    │   Secure Shares    │                     │  │
-│  │           └────────────────────┼────────────────────┘                     │  │
-│  │                                │                                          │  │
-│  │                                ▼                                          │  │
-│  │  ┌───────────────────────────────────────────────────────────────────┐    │  │
-│  │  │              CORPORATE DATA ACCOUNT (Consumer Hub)                │    │  │
-│  │  │                                                                   │    │  │
-│  │  │   Inbound Shares → Contract Validation → Curated → Semantic       │    │  │
-│  │  │                                                                   │    │  │
-│  │  │   • Enterprise-wide analytics                                     │    │  │
-│  │  │   • Cross-domain joins                                            │    │  │
-│  │  │   • Data marketplace                                              │    │  │
-│  │  │   • Cortex Analyst                                                │    │  │
-│  │  └───────────────────────────────────────────────────────────────────┘    │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                      DEVELOPMENT ACCOUNTS (per team)                      │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │  │
-│  │  │  SALES_DEV      │  │   HR_DEV        │  │ FINANCE_DEV     │            │  │
-│  │  │                 │  │                 │  │                 │            │  │
-│  │  │  Cloned from    │  │  Cloned from    │  │  Cloned from    │            │  │
-│  │  │  SALES_PROD     │  │  HR_PROD        │  │  FINANCE_PROD   │            │  │
-│  │  │                 │  │                 │  │                 │            │  │
-│  │  │  • Feature dev  │  │  • Feature dev  │  │  • Feature dev  │            │  │
-│  │  │  • Testing      │  │  • Testing      │  │  • Testing      │            │  │
-│  │  │  • CI/CD        │  │  • CI/CD        │  │  • CI/CD        │            │  │
-│  │  └─────────────────┘  └─────────────────┘  └─────────────────┘            │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                           SDLC FLOW                                       │  │
-│  │                                                                           │  │
-│  │   DEV Account ──► Git Branch ──► PR Review ──► QA/UAT ──► PROD Account    │  │
-│  │                                                                           │  │
-│  │   Cross-account replication for promotion                                 │  │
-│  │   Contract validation at each gate                                        │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PROD["PRODUCTION ACCOUNTS"]
+        SALES["SALES_PROD\n(US-WEST-2)\nTeam owns data\nPublishes via contracts"]
+        HR["HR_PROD\n(EU-WEST-1)\nGDPR compliant\nEU residency"]
+        FINANCE["FINANCE_PROD\n(US-EAST-1)\nSOX compliant\nAudit trails"]
+    end
+
+    SALES -->|"Secure Shares"| CORP
+    HR -->|"Secure Shares"| CORP
+    FINANCE -->|"Secure Shares"| CORP
+
+    CORP["CORPORATE DATA ACCOUNT\n(Consumer Hub)\n• Enterprise-wide analytics\n• Cross-domain joins\n• Data marketplace\n• Cortex Analyst"]
+
+    subgraph DEV["DEVELOPMENT ACCOUNTS (per team)"]
+        SALES_DEV["SALES_DEV\nCloned from SALES_PROD\n• Feature dev\n• Testing / CI/CD"]
+        HR_DEV["HR_DEV\nCloned from HR_PROD\n• Feature dev\n• Testing / CI/CD"]
+        FIN_DEV["FINANCE_DEV\nCloned from FINANCE_PROD\n• Feature dev\n• Testing / CI/CD"]
+    end
+
+    SDLC["SDLC FLOW\nDEV Account → Git Branch → PR Review → QA/UAT → PROD Account"]
 ```
 
 #### Diagram Notes: Multi-Account Architecture
@@ -417,74 +367,32 @@ For organizations that prefer **centralized management** with **logical separati
 
 ### Reference Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     SINGLE-ACCOUNT REFERENCE ARCHITECTURE                       │
-│                  Team Autonomy with Centralized Governance                      │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                         SNOWFLAKE ACCOUNT                                 │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │                      PRODUCTION DATABASES                           │  │  │
-│  │  │                                                                     │  │  │
-│  │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐    │  │  │
-│  │  │  │ RAW_PROD    │ │ CURATED_PROD│ │SEMANTIC_PROD│ │ GOVERNANCE  │    │  │  │
-│  │  │  │             │ │             │ │             │ │             │    │  │  │
-│  │  │  │ Source data │ │ Dynamic     │ │ Semantic    │ │ Contracts   │    │  │  │
-│  │  │  │ SCD Type 2  │ │ Tables      │ │ Views       │ │ Policies    │    │  │  │
-│  │  │  │             │ │             │ │             │ │ Tags        │    │  │  │
-│  │  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘    │  │  │
-│  │  │                                                                     │  │  │
-│  │  │  Owner: DATA_ADMIN    Modify: DATA_ENGINEER    Read: ANALYST        │  │  │
-│  │  └──────────────────────────────────┬──────────────────────────────────┘  │  │
-│  │                                     │                                     │  │
-│  │                              ZERO-COPY CLONES                             │  │
-│  │                                     │                                     │  │
-│  │                   ┌─────────────────┼─────────────────┐                   │  │
-│  │                   │                 │                 │                   │  │
-│  │                   ▼                 ▼                 ▼                   │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │                   DEVELOPMENT DATABASES (per team)                  │  │  │
-│  │  │                                                                     │  │  │
-│  │  │  ┌───────────────────────────────────────────────────────────────┐  │  │  │
-│  │  │  │              TEAM_SALES_DEV (Cloned from PROD)                │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │  │  │  │
-│  │  │  │  │ RAW         │ │ CURATED     │ │ SANDBOX     │◄── Team's    │  │  │  │
-│  │  │  │  │ (clone)     │ │ (clone)     │ │ (new work)  │    own work  │  │  │  │
-│  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘              │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  Team can create: schemas, tables, views, procedures, UDFs    │  │  │  │
-│  │  │  │  Team can define: contracts, measures, semantic models        │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  Owner: SALES_TEAM_ROLE                                       │  │  │  │
-│  │  │  └───────────────────────────────────────────────────────────────┘  │  │  │
-│  │  │                                                                     │  │  │
-│  │  │  ┌───────────────────────────────────────────────────────────────┐  │  │  │
-│  │  │  │              TEAM_HR_DEV (Cloned from PROD)                   │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐              │  │  │  │
-│  │  │  │  │ RAW         │ │ CURATED     │ │ SANDBOX     │◄── Team's    │  │  │  │
-│  │  │  │  │ (clone)     │ │ (clone)     │ │ (new work)  │    own work  │  │  │  │
-│  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘              │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  Owner: HR_TEAM_ROLE                                          │  │  │  │
-│  │  │  └───────────────────────────────────────────────────────────────┘  │  │  │
-│  │  │                                                                     │  │  │
-│  │  │  ┌───────────────────────────────────────────────────────────────┐  │  │  │
-│  │  │  │              TEAM_FINANCE_DEV (Cloned from PROD)              │  │  │  │
-│  │  │  │                                                               │  │  │  │
-│  │  │  │  Similar structure...                                         │  │  │  │
-│  │  │  │  Owner: FINANCE_TEAM_ROLE                                     │  │  │  │
-│  │  │  └───────────────────────────────────────────────────────────────┘  │  │  │
-│  │  │                                                                     │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ACCOUNT["SNOWFLAKE ACCOUNT"]
+        subgraph PROD_DBS["PRODUCTION DATABASES"]
+            RAW["RAW_PROD\nSource data\nSCD Type 2"]
+            CURATED["CURATED_PROD\nDynamic Tables"]
+            SEMANTIC["SEMANTIC_PROD\nSemantic Views"]
+            GOV["GOVERNANCE\nContracts\nPolicies / Tags"]
+        end
+        ACCESS["Owner: DATA_ADMIN | Modify: DATA_ENGINEER | Read: ANALYST"]
+        CLONE["ZERO-COPY CLONES"]
+        subgraph DEV_DBS["DEVELOPMENT DATABASES (per team)"]
+            subgraph TEAM_SALES["TEAM_SALES_DEV (Cloned from PROD)"]
+                S_RAW["RAW\n(clone)"]
+                S_CUR["CURATED\n(clone)"]
+                S_SBX["SANDBOX\n(new work)"]
+            end
+            subgraph TEAM_HR["TEAM_HR_DEV (Cloned from PROD)"]
+                H_RAW["RAW\n(clone)"]
+                H_CUR["CURATED\n(clone)"]
+                H_SBX["SANDBOX\n(new work)"]
+            end
+            TEAM_FIN["TEAM_FINANCE_DEV\nSimilar structure...\nOwner: FINANCE_TEAM_ROLE"]
+        end
+    end
+    PROD_DBS --> CLONE --> DEV_DBS
 ```
 
 #### Diagram Notes: Single-Account Architecture
@@ -540,86 +448,55 @@ Each team receives their own development database with complete autonomy:
 
 ### Access Control Model (RBAC/ABAC/CGAC)
 
+#### Role Hierarchy (RBAC)
+
+```mermaid
+graph TD
+    ACCTADMIN["ACCOUNTADMIN"] --> SYSADMIN
+    SYSADMIN --> DATA_ADMIN
+    SYSADMIN --> PLATFORM_ADMIN
+    SYSADMIN --> SECURITY_ADMIN
+    DATA_ADMIN --> SALES_ADMIN
+    DATA_ADMIN --> HR_ADMIN
+    DATA_ADMIN --> FINANCE_ADMIN
+    SALES_ADMIN --> SALES_DEV
+    SALES_DEV --> SALES_READ
+    HR_ADMIN --> HR_DEV
+    HR_DEV --> HR_READ
+    FINANCE_ADMIN --> FINANCE_DEV
+    FINANCE_DEV --> FINANCE_READ
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    SINGLE-ACCOUNT ACCESS CONTROL MODEL                          │
-│                         RBAC + ABAC + Column/Row Security                       │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                          ROLE HIERARCHY (RBAC)                            │  │
-│  │                                                                           │  │
-│  │                              ACCOUNTADMIN                                 │  │
-│  │                                    │                                      │  │
-│  │                              SYSADMIN                                     │  │
-│  │                                    │                                      │  │
-│  │                    ┌───────────────┼───────────────┐                      │  │
-│  │                    │               │               │                      │  │
-│  │              DATA_ADMIN      PLATFORM_ADMIN   SECURITY_ADMIN              │  │
-│  │                    │               │               │                      │  │
-│  │         ┌──────────┴─────────┬─────┴───────────────┴──────────┐           │  │
-│  │         │                    │                                │           │  │
-│  │   ┌─────┴─────┐      ┌──────┴──────┐                  ┌───────┴───────┐   │  │
-│  │   │   TEAM    │      │    TEAM     │                  │     TEAM      │   │  │
-│  │   │  ROLES    │      │   ROLES     │                  │    ROLES      │   │  │
-│  │   │           │      │             │                  │               │   │  │
-│  │   │SALES_ADMIN│      │  HR_ADMIN   │                  │FINANCE_ADMIN  │   │  │
-│  │   │SALES_DEV  │      │  HR_DEV     │                  │FINANCE_DEV    │   │  │
-│  │   │SALES_READ │      │  HR_READ    │                  │FINANCE_READ   │   │  │
-│  │   └───────────┘      └─────────────┘                  └───────────────┘   │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                   ATTRIBUTE-BASED ACCESS (ABAC)                           │  │
-│  │                                                                           │  │
-│  │   ┌─────────────────────────────────────────────────────────────────┐     │  │
-│  │   │                    OBJECT TAGS                                  │     │  │
-│  │   │                                                                 │     │  │
-│  │   │  DATA_CLASSIFICATION: PUBLIC | INTERNAL | CONFIDENTIAL | RESTRICTED   │  │
-│  │   │  PII_TYPE:            NONE | INDIRECT | DIRECT | SENSITIVE      │     │  │
-│  │   │  DATA_DOMAIN:         SALES | HR | FINANCE | HEALTHCARE         │     │  │
-│  │   │  ENVIRONMENT:         DEV | QA | UAT | PROD                     │     │  │
-│  │   │  COST_CENTER:         Team-specific cost allocation             │     │  │
-│  │   │                                                                 │     │  │
-│  │   └─────────────────────────────────────────────────────────────────┘     │  │
-│  │                                                                           │  │
-│  │   ┌─────────────────────────────────────────────────────────────────┐     │  │
-│  │   │                TAG-BASED MASKING POLICIES                       │     │  │
-│  │   │                                                                 │     │  │
-│  │   │  IF column.PII_TYPE = 'DIRECT' AND NOT current_role() IN        │     │  │
-│  │   │     ('PII_VIEWER', 'DATA_ADMIN')                                │     │  │
-│  │   │  THEN mask_value()                                              │     │  │
-│  │   │                                                                 │     │  │
-│  │   └─────────────────────────────────────────────────────────────────┘     │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │               COLUMN/ROW-LEVEL SECURITY (CGAC)                            │  │
-│  │                                                                           │  │
-│  │   ┌─────────────────────────────────────────────────────────────────┐     │  │
-│  │   │                  ROW ACCESS POLICIES                            │     │  │
-│  │   │                                                                 │     │  │
-│  │   │  SALES team sees only their region's data                       │     │  │
-│  │   │  HR team sees only their department's employees                 │     │  │
-│  │   │  FINANCE sees aggregated data unless in FINANCE_DETAIL role     │     │  │
-│  │   │                                                                 │     │  │
-│  │   └─────────────────────────────────────────────────────────────────┘     │  │
-│  │                                                                           │  │
-│  │   ┌─────────────────────────────────────────────────────────────────┐     │  │
-│  │   │                  COLUMN MASKING POLICIES                        │     │  │
-│  │   │                                                                 │     │  │
-│  │   │  SSN:    ****-**-1234     (last 4 visible)                      │     │  │
-│  │   │  Email:  j***@company.com (partial mask)                        │     │  │
-│  │   │  Salary: NULL or range    (redacted for non-HR)                 │     │  │
-│  │   │                                                                 │     │  │
-│  │   └─────────────────────────────────────────────────────────────────┘     │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+
+#### Attribute-Based Access (ABAC)
+
+**Object Tags**
+
+| Tag | Values |
+|-----|--------|
+| DATA_CLASSIFICATION | PUBLIC, INTERNAL, CONFIDENTIAL, RESTRICTED |
+| PII_TYPE | NONE, INDIRECT, DIRECT, SENSITIVE |
+| DATA_DOMAIN | SALES, HR, FINANCE, HEALTHCARE |
+| ENVIRONMENT | DEV, QA, UAT, PROD |
+| COST_CENTER | Team-specific cost allocation |
+
+**Tag-Based Masking Policies**
+
 ```
+IF column.PII_TYPE = 'DIRECT' AND NOT current_role() IN ('PII_VIEWER', 'DATA_ADMIN')
+THEN mask_value()
+```
+
+#### Column/Row-Level Security (CGAC)
+
+**Row Access Policies**
+- SALES team sees only their region's data
+- HR team sees only their department's employees
+- FINANCE sees aggregated data unless in FINANCE_DETAIL role
+
+**Column Masking Policies**
+- SSN: `****-**-1234` (last 4 visible)
+- Email: `j***@company.com` (partial mask)
+- Salary: NULL or range (redacted for non-HR)
 
 #### Diagram Notes: Access Control Model
 
@@ -667,72 +544,45 @@ Fine-grained controls that operate at the row and column level:
 
 Each team gets their own development database where they have full autonomy. This model balances freedom with governance by clearly delineating what teams control versus what the platform enforces.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                          TEAM AUTONOMY MODEL                                    │
-│                   What Teams Own vs. What Platform Owns                         │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                    TEAM OWNS (in their DEV database)                      │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  SCHEMAS                                                            │  │  │
-│  │  │  • SANDBOX          - Experimental work                             │  │  │
-│  │  │  • STAGING          - Pre-production testing                        │  │  │
-│  │  │  • FEATURE_*        - Feature branch schemas                        │  │  │
-│  │  │  • ANALYTICS        - Team-specific analytics                       │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  DATA OBJECTS                                                       │  │  │
-│  │  │  • Tables, Views, Materialized Views                                │  │  │
-│  │  │  • Dynamic Tables (team-defined TARGET_LAG)                         │  │  │
-│  │  │  • Streams, Tasks, Pipes                                            │  │  │
-│  │  │  • Stored Procedures, UDFs, UDTFs                                   │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  CONTRACTS & SEMANTICS                                              │  │  │
-│  │  │  • Data contracts (schema, quality, SLA)                            │  │  │
-│  │  │  • Semantic models (measures, dimensions)                           │  │  │
-│  │  │  • Business glossary terms                                          │  │  │
-│  │  │  • Documentation                                                    │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                    PLATFORM OWNS (enforced centrally)                     │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  GOVERNANCE                                                         │  │  │
-│  │  │  • Tag definitions (DATA_CLASSIFICATION, PII_TYPE, etc.)            │  │  │
-│  │  │  • Masking policies (applied via tags)                              │  │  │
-│  │  │  • Row access policies                                              │  │  │
-│  │  │  • Compliance frameworks (GDPR, HIPAA, etc.)                        │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  SECURITY                                                           │  │  │
-│  │  │  • Role hierarchy and inheritance                                   │  │  │
-│  │  │  • Network policies                                                 │  │  │
-│  │  │  • Authentication (SSO, MFA)                                        │  │  │
-│  │  │  • Audit logging configuration                                      │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────────────────────────────────────────────────────────┐  │  │
-│  │  │  PRODUCTION PROMOTION                                               │  │  │
-│  │  │  • Approval workflows                                               │  │  │
-│  │  │  • Contract validation gates                                        │  │  │
-│  │  │  • Deployment automation                                            │  │  │
-│  │  │  • Rollback procedures                                              │  │  │
-│  │  └─────────────────────────────────────────────────────────────────────┘  │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+#### Team Owns (in their DEV database)
+
+**Schemas**
+- SANDBOX — Experimental work
+- STAGING — Pre-production testing
+- FEATURE_* — Feature branch schemas
+- ANALYTICS — Team-specific analytics
+
+**Data Objects**
+- Tables, Views, Materialized Views
+- Dynamic Tables (team-defined TARGET_LAG)
+- Streams, Tasks, Pipes
+- Stored Procedures, UDFs, UDTFs
+
+**Contracts & Semantics**
+- Data contracts (schema, quality, SLA)
+- Semantic models (measures, dimensions)
+- Business glossary terms
+- Documentation
+
+#### Platform Owns (enforced centrally)
+
+**Governance**
+- Tag definitions (DATA_CLASSIFICATION, PII_TYPE, etc.)
+- Masking policies (applied via tags)
+- Row access policies
+- Compliance frameworks (GDPR, HIPAA, etc.)
+
+**Security**
+- Role hierarchy and inheritance
+- Network policies
+- Authentication (SSO, MFA)
+- Audit logging configuration
+
+**Production Promotion**
+- Approval workflows
+- Contract validation gates
+- Deployment automation
+- Rollback procedures
 
 #### Diagram Notes: Team Autonomy Model
 
@@ -790,138 +640,89 @@ This section details the Software Development Lifecycle workflow for Snowflake d
 
 ### Single-Account SDLC Flow
 
+```mermaid
+flowchart LR
+    CLONE["Step 1\nCLONE\nPROD → DEV"] --> DEVELOP["Step 2\nDEVELOP & TEST\nGit + CI/CD"]
+    DEVELOP --> GATES["Step 3\nPROMOTION GATES\n4 validation gates"]
+    GATES --> DEPLOY["Step 4\nDEPLOY TO PROD\nDDL / Clone / Swap"]
+    DEPLOY --> POST["Step 5\nPOST-DEPLOY\nNotify + Monitor"]
 ```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                     SINGLE-ACCOUNT SDLC WORKFLOW                                │
-│                Clone-Based Development with Promotion Gates                     │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ STEP 1: CLONE PRODUCTION TO DEVELOPMENT                                │     │
-│  │                                                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │  -- Team requests development environment (automated)            │  │     │
-│  │  │  CREATE DATABASE TEAM_SALES_DEV CLONE RAW_PROD;                  │  │     │
-│  │  │  CREATE DATABASE TEAM_SALES_CURATED_DEV CLONE CURATED_PROD;      │  │     │
-│  │  │                                                                  │  │     │
-│  │  │  -- Zero-copy, instant, cost-effective                           │  │     │
-│  │  │  -- Team has full read/write in their clone                      │  │     │
-│  │  │  -- Production data is point-in-time snapshot                    │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                                                                        │     │
-│  │  PROD ─────────────────► DEV (zero-copy clone)                         │     │
-│  │   │                        │                                           │     │
-│  │   │ Source of truth        │ Team's sandbox                            │     │
-│  │   │ Protected              │ Full autonomy                             │     │
-│  │                                                                        │     │
-│  └────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                 │
-│  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ STEP 2: DEVELOP & TEST                                                 │     │
-│  │                                                                        │     │
-│  │  ┌──────────────────┐                                                  │     │
-│  │  │  Git Repository  │                                                  │     │
-│  │  │                  │                                                  │     │
-│  │  │  main (prod)     │◄───────────────────┐                             │     │
-│  │  │       │          │                    │                             │     │
-│  │  │       ├──develop │                    │ PR + Review                 │     │
-│  │  │       │    │     │                    │                             │     │
-│  │  │       │    ├──feature/new-metric      │                             │     │
-│  │  │       │    │                          │                             │     │
-│  │  └───────┼────┼──────┘                   │                             │     │
-│  │          │    │                          │                             │     │
-│  │          │    ▼                          │                             │     │
-│  │  ┌───────┴────────────────┐    ┌─────────┴─────────┐                   │     │
-│  │  │  TEAM_SALES_DEV DB     │    │  CI/CD Pipeline   │                   │     │
-│  │  │                        │    │                   │                   │     │
-│  │  │  • New tables          │───►│  • Lint SQL       │                   │     │
-│  │  │  • Modified views      │    │  • Run tests      │                   │     │
-│  │  │  • New measures        │    │  • Validate       │                   │     │
-│  │  │  • Contract drafts     │    │    contracts      │                   │     │
-│  │  │                        │    │  • Security scan  │                   │     │
-│  │  └────────────────────────┘    └───────────────────┘                   │     │
-│  │                                                                        │     │
-│  └────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                 │
-│  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ STEP 3: PROMOTION GATES (Checks & Balances)                            │     │
-│  │                                                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │                    GATE 1: CONTRACT VALIDATION                   │  │     │
-│  │  │                                                                  │  │     │
-│  │  │   ✓ Schema matches contract definition                           │  │     │
-│  │  │   ✓ All quality rules pass threshold                             │  │     │
-│  │  │   ✓ No breaking changes to existing consumers                    │  │     │
-│  │  │   ✓ SLA targets are achievable                                   │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                               │                                        │     │
-│  │                               ▼                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │                    GATE 2: GOVERNANCE CHECK                      │  │     │
-│  │  │                                                                  │  │     │
-│  │  │   ✓ All PII columns are tagged                                   │  │     │
-│  │  │   ✓ Masking policies are applied                                 │  │     │
-│  │  │   ✓ Data classification is assigned                              │  │     │
-│  │  │   ✓ No compliance violations                                     │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                               │                                        │     │
-│  │                               ▼                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │                    GATE 3: PEER REVIEW                           │  │     │
-│  │  │                                                                  │  │     │
-│  │  │   ✓ Code review by team member                                   │  │     │
-│  │  │   ✓ Data steward approval (if governance change)                 │  │     │
-│  │  │   ✓ Platform team approval (if infra change)                     │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                               │                                        │     │
-│  │                               ▼                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │                    GATE 4: UAT/STAGING                           │  │     │
-│  │  │                                                                  │  │     │
-│  │  │   ✓ Deploy to staging environment                                │  │     │
-│  │  │   ✓ Run integration tests                                        │  │     │
-│  │  │   ✓ Validate downstream impact                                   │  │     │
-│  │  │   ✓ Performance benchmarks pass                                  │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                                                                        │     │
-│  └────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                 │
-│  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ STEP 4: DEPLOY TO PRODUCTION                                           │     │
-│  │                                                                        │     │
-│  │  ┌──────────────────────────────────────────────────────────────────┐  │     │
-│  │  │  -- Automated deployment (after all gates pass)                  │  │     │
-│  │  │                                                                  │  │     │
-│  │  │  -- Option A: Execute DDL from Git                               │  │     │
-│  │  │  EXECUTE IMMEDIATE FROM @git_repo/sql/curated/new_view.sql;      │  │     │
-│  │  │                                                                  │  │     │
-│  │  │  -- Option B: Clone validated objects                            │  │     │
-│  │  │  CREATE OR REPLACE VIEW CURATED_PROD.SALES.NEW_VIEW              │  │     │
-│  │  │    CLONE TEAM_SALES_DEV.STAGING.NEW_VIEW;                        │  │     │
-│  │  │                                                                  │  │     │
-│  │  │  -- Option C: Swap tables (for large changes)                    │  │     │
-│  │  │  ALTER TABLE CURATED_PROD.SALES.FACT_SALES                       │  │     │
-│  │  │    SWAP WITH TEAM_SALES_DEV.STAGING.FACT_SALES_V2;               │  │     │
-│  │  └──────────────────────────────────────────────────────────────────┘  │     │
-│  │                                                                        │     │
-│  │  DEV ─────────────────► STAGING ─────────────────► PROD                │     │
-│  │                                                                        │     │
-│  │        All gates passed         Final validation                       │     │
-│  │                                                                        │     │
-│  └────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                 │
-│  ┌────────────────────────────────────────────────────────────────────────┐     │
-│  │ STEP 5: POST-DEPLOYMENT                                                │     │
-│  │                                                                        │     │
-│  │  • Update contract registry with new version                           │     │
-│  │  • Notify downstream consumers                                         │     │
-│  │  • Monitor for issues (automated alerting)                             │     │
-│  │  • Drop stale development clones (cost management)                     │     │
-│  │                                                                        │     │
-│  └────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+
+#### Step 1: Clone Production to Development
+
+```sql
+-- Team requests development environment (automated)
+CREATE DATABASE TEAM_SALES_DEV CLONE RAW_PROD;
+CREATE DATABASE TEAM_SALES_CURATED_DEV CLONE CURATED_PROD;
+
+-- Zero-copy, instant, cost-effective
+-- Team has full read/write in their clone
+-- Production data is point-in-time snapshot
 ```
+
+```mermaid
+flowchart LR
+    PROD["PROD\nSource of truth\nProtected"] -->|"zero-copy clone"| DEV["DEV\nTeam's sandbox\nFull autonomy"]
+```
+
+#### Step 2: Develop & Test
+
+```mermaid
+flowchart LR
+    subgraph GIT["Git Repository"]
+        MAIN["main (prod)"]
+        DEV_BR["develop"]
+        FEAT["feature/new-metric"]
+        MAIN --> DEV_BR --> FEAT
+    end
+    subgraph DEV_DB["TEAM_SALES_DEV DB"]
+        TABLES["• New tables\n• Modified views\n• New measures\n• Contract drafts"]
+    end
+    subgraph CICD["CI/CD Pipeline"]
+        CHECKS["• Lint SQL\n• Run tests\n• Validate contracts\n• Security scan"]
+    end
+    FEAT --> DEV_DB --> CICD -->|"PR + Review"| MAIN
+```
+
+#### Step 3: Promotion Gates (Checks & Balances)
+
+```mermaid
+flowchart TD
+    G1["GATE 1: CONTRACT VALIDATION\n✓ Schema matches contract\n✓ All quality rules pass\n✓ No breaking changes\n✓ SLA targets achievable"]
+    G2["GATE 2: GOVERNANCE CHECK\n✓ All PII columns tagged\n✓ Masking policies applied\n✓ Data classification assigned\n✓ No compliance violations"]
+    G3["GATE 3: PEER REVIEW\n✓ Code review by team member\n✓ Data steward approval\n✓ Platform team approval"]
+    G4["GATE 4: UAT/STAGING\n✓ Deploy to staging\n✓ Integration tests\n✓ Downstream impact validated\n✓ Performance benchmarks pass"]
+    G1 --> G2 --> G3 --> G4
+```
+
+#### Step 4: Deploy to Production
+
+```sql
+-- Automated deployment (after all gates pass)
+
+-- Option A: Execute DDL from Git
+EXECUTE IMMEDIATE FROM @git_repo/sql/curated/new_view.sql;
+
+-- Option B: Clone validated objects
+CREATE OR REPLACE VIEW CURATED_PROD.SALES.NEW_VIEW
+  CLONE TEAM_SALES_DEV.STAGING.NEW_VIEW;
+
+-- Option C: Swap tables (for large changes)
+ALTER TABLE CURATED_PROD.SALES.FACT_SALES
+  SWAP WITH TEAM_SALES_DEV.STAGING.FACT_SALES_V2;
+```
+
+```mermaid
+flowchart LR
+    DEV2["DEV"] -->|"All gates passed"| STAGING["STAGING"] -->|"Final validation"| PROD2["PROD"]
+```
+
+#### Step 5: Post-Deployment
+
+- Update contract registry with new version
+- Notify downstream consumers
+- Monitor for issues (automated alerting)
+- Drop stale development clones (cost management)
 
 #### Diagram Notes: SDLC Workflow
 
@@ -1222,42 +1023,18 @@ $$;
 
 Many organizations use a **hybrid approach**:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         HYBRID ARCHITECTURE                                     │
-│               Multi-Account for Isolation + Single-Account SDLC                 │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                    PRODUCTION ACCOUNTS (by region/BU)                     │  │
-│  │                                                                           │  │
-│  │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐            │  │
-│  │  │  US_PROD        │  │   EU_PROD       │  │  APAC_PROD      │            │  │
-│  │  │                 │  │                 │  │                 │            │  │
-│  │  │  Uses single-   │  │  Uses single-   │  │  Uses single-   │            │  │
-│  │  │  account SDLC   │  │  account SDLC   │  │  account SDLC   │            │  │
-│  │  │  internally     │  │  internally     │  │  internally     │            │  │
-│  │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘            │  │
-│  │           │                    │                    │                     │  │
-│  │           └────────────────────┼────────────────────┘                     │  │
-│  │                                │                                          │  │
-│  │                         Secure Shares                                     │  │
-│  │                                │                                          │  │
-│  │                                ▼                                          │  │
-│  │  ┌───────────────────────────────────────────────────────────────────┐    │  │
-│  │  │                    GLOBAL DATA HUB ACCOUNT                        │    │  │
-│  │  │                                                                   │    │  │
-│  │  │   Aggregates from regional accounts                               │    │  │
-│  │  │   Uses single-account SDLC for global analytics                   │    │  │
-│  │  │   Publishes to global marketplace                                 │    │  │
-│  │  └───────────────────────────────────────────────────────────────────┘    │  │
-│  │                                                                           │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                 │
-│  Within each account: Clone-based dev, team autonomy, promotion gates           │
-│  Across accounts: Secure sharing, contract validation, replication              │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph PROD_ACCTS["PRODUCTION ACCOUNTS (by region/BU)"]
+        US["US_PROD\nSingle-account SDLC\ninternally"]
+        EU["EU_PROD\nSingle-account SDLC\ninternally"]
+        APAC["APAC_PROD\nSingle-account SDLC\ninternally"]
+    end
+    US -->|"Secure Shares"| HUB
+    EU -->|"Secure Shares"| HUB
+    APAC -->|"Secure Shares"| HUB
+    HUB["GLOBAL DATA HUB ACCOUNT\nAggregates from regional accounts\nSingle-account SDLC for global analytics\nPublishes to global marketplace"]
+    NOTE["Within each account: Clone-based dev, team autonomy, promotion gates\nAcross accounts: Secure sharing, contract validation, replication"]
 ```
 
 ---

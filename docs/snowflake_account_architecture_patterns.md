@@ -8,81 +8,35 @@ Reference architectures for organizing Snowflake accounts for CDO/Innovation tea
 
 A new account (e.g., `ORG-CDO_LAB`) created under your current organization umbrella.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SNOWFLAKE ORGANIZATION                              │
-│                         (Single Org Contract)                               │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  ┌─────────────────────────────┐     ┌─────────────────────────────┐        │
-│  │     IT PRODUCTION ACCOUNT   │     │      CDO SANDBOX ACCOUNT    │        │
-│  │     (ORG-PROD)              │     │      (ORG-CDO_LAB)          │        │
-│  │                             │     │                             │        │
-│  │  ┌─────────────────────┐    │     │  ┌─────────────────────┐    │        │
-│  │  │ ACCOUNTADMIN        │    │     │  │ ACCOUNTADMIN        │    │        │
-│  │  │ (IT Controlled)     │    │     │  │ (CDO Controlled)    │    │        │
-│  │  └─────────────────────┘    │     │  └─────────────────────┘    │        │
-│  │                             │     │                             │        │
-│  │  ┌─────────────────────┐    │     │  ┌─────────────────────┐    │        │
-│  │  │ Production Data     │    │     │  │ DATA_ADMIN Role     │    │        │
-│  │  │ • Strict SDLC       │    │     │  │ • Full freedom      │    │        │
-│  │  │ • Change Control    │◄── ┼──┬──┼──│ • Rapid prototyping │    │        │
-│  │  │ • Audit Compliance  │    │  │  │  │ • POC development   │    │        │
-│  │  └─────────────────────┘    │  │  │  └─────────────────────┘    │        │
-│  │                             │  │  │                             │        │
-│  │  ┌─────────────────────┐    │  │  │  ┌─────────────────────┐    │        │
-│  │  │ Validated Work      │    │  │  │  │ Resource Monitor    │    │        │
-│  │  │ (After SDLC)        │◄── ┼──┘  │  │ (Budget Cap)        │    │        │
-│  │  └─────────────────────┘    │     │  │ $X/month limit      │    │        │
-│  │                             │     │  └─────────────────────┘    │        │
-│  └─────────────────────────────┘     └─────────────────────────────┘        │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │                    ORGANIZATION-LEVEL FEATURES                      │    │
-│  │  • Shared Identity (Organization Users - same person in both)       │    │
-│  │  • Account Replication (IT pulls validated work into SDLC)          │    │
-│  │  • Centralized Billing (Single contract, split cost centers)        │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                           ACCOUNT REPLICATION
-                    ┌─────────────────────────────────┐
-                    │                                 │
-   CDO_LAB Account  │  ────────────────────────────►  │  PROD Account
-   (Innovation)     │        Validated Objects        │  (SDLC Process)
-                    │        Replicated to IT         │
-                    │                                 │
-                    └─────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ORG["SNOWFLAKE ORGANIZATION (Single Org Contract)"]
+        subgraph IT["IT PRODUCTION ACCOUNT (ORG-PROD)"]
+            IT_ADMIN["ACCOUNTADMIN\n(IT Controlled)"]
+            IT_DATA["Production Data\n• Strict SDLC\n• Change Control\n• Audit Compliance"]
+            IT_VAL["Validated Work\n(After SDLC)"]
+        end
+        subgraph CDO["CDO SANDBOX ACCOUNT (ORG-CDO_LAB)"]
+            CDO_ADMIN["ACCOUNTADMIN\n(CDO Controlled)"]
+            CDO_DATA["DATA_ADMIN Role\n• Full freedom\n• Rapid prototyping\n• POC development"]
+            CDO_MON["Resource Monitor\n(Budget Cap)\n$X/month limit"]
+        end
+        ORG_FEAT["ORGANIZATION-LEVEL FEATURES\n• Shared Identity\n• Account Replication\n• Centralized Billing"]
+    end
+    CDO_DATA -->|"Validated Objects\nReplicated to IT"| IT_DATA
+    CDO_DATA -->|"Validated Objects"| IT_VAL
 ```
 
 ### Pros
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  ✓ SHARED IDENTITY                                                         │
-│    Organization Users - data scientist is the same person in both accounts │
-│                                                                            │
-│  ✓ EASY PROMOTION                                                          │
-│    IT uses Account Replication to "pull" validated work into SDLC          │
-│                                                                            │
-│  ✓ COST CONTROL                                                            │
-│    Account-level Resource Monitor prevents budget overruns                 │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+- **Shared Identity** — Organization Users: data scientist is the same person in both accounts
+- **Easy Promotion** — IT uses Account Replication to "pull" validated work into SDLC
+- **Cost Control** — Account-level Resource Monitor prevents budget overruns
 
 ### Cons
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  ✗ EDITION DIFFERENCES                                                     │
-│    If CDO needs different edition (Business Critical vs Enterprise),       │
-│    costs must be managed separately                                        │
-│                                                                            │
-│  ✗ NO CROSS-ACCOUNT CLONING                                                │
-│    Must pay for data transfer/storage when replicating large datasets      │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+- **Edition Differences** — If CDO needs different edition (Business Critical vs Enterprise), costs must be managed separately
+- **No Cross-Account Cloning** — Must pay for data transfer/storage when replicating large datasets
 
 ---
 
@@ -90,88 +44,28 @@ A new account (e.g., `ORG-CDO_LAB`) created under your current organization umbr
 
 Treating the CDO's team like an outside company with complete separation.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    IT ORGANIZATION                                  │   │
-│   │                    (Org Contract #1)                                │   │
-│   │                                                                     │   │
-│   │  ┌──────────────────────┐  ┌──────────────────────┐                 │   │
-│   │  │  ORGADMIN            │  │  IT PRODUCTION       │                 │   │
-│   │  │  (IT Controlled)     │  │  ACCOUNT             │                 │   │
-│   │  └──────────────────────┘  │                      │                 │   │
-│   │                            │  • Strict SDLC       │                 │   │
-│   │                            │  • Prod Data         │                 │   │
-│   │                            │  • Audit Trail       │                 │   │
-│   │                            └──────────────────────┘                 │   │
-│   │                                                                     │   │
-│   └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-│                          ╔═══════════════════╗                              │
-│                          ║   FIREWALL        ║                              │
-│                          ║   (Complete       ║                              │
-│                          ║    Isolation)     ║                              │
-│                          ╚═══════════════════╝                              │
-│                                   │                                         │
-│                                   │  External Data Sharing                  │
-│                                   │  (Like sharing with                     │
-│                                   │   an outside company)                   │
-│                                   ▼                                         │
-│   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    CDO ORGANIZATION                                 │   │
-│   │                    (Org Contract #2)                                │   │
-│   │                                                                     │   │
-│   │  ┌──────────────────────┐  ┌──────────────────────┐                 │   │
-│   │  │  ORGADMIN            │  │  CDO INNOVATION      │                 │   │
-│   │  │  (CDO Controlled)    │  │  ACCOUNT             │                 │   │
-│   │  │  • Own accounts      │  │                      │                 │   │
-│   │  │  • Full autonomy     │  │  • DATA_ADMIN        │                 │   │
-│   │  └──────────────────────┘  │  • Rapid POCs        │                 │   │
-│   │                            │  • No IT dependency  │                 │   │
-│   │                            └──────────────────────┘                 │   │
-│   │                                                                     │   │
-│   └─────────────────────────────────────────────────────────────────────┘   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-                    CROSS-ORG DATA MOVEMENT
-        ┌─────────────────────────────────────────────┐
-        │                                             │
-        │   CDO Org ◄══════════════════════► IT Org   │
-        │                                             │
-        │   • External Data Sharing Only              │
-        │   • Separate Contracts                      │
-        │   • Separate Security Audits                │
-        │   • Separate Credentials                    │
-        │                                             │
-        └─────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph IT_ORG["IT ORGANIZATION (Org Contract #1)"]
+        IT_ORGADMIN["ORGADMIN\n(IT Controlled)"]
+        IT_PROD["IT PRODUCTION ACCOUNT\n• Strict SDLC\n• Prod Data\n• Audit Trail"]
+    end
+    subgraph CDO_ORG["CDO ORGANIZATION (Org Contract #2)"]
+        CDO_ORGADMIN["ORGADMIN\n(CDO Controlled)\n• Own accounts\n• Full autonomy"]
+        CDO_INNOV["CDO INNOVATION ACCOUNT\n• DATA_ADMIN\n• Rapid POCs\n• No IT dependency"]
+    end
+    IT_ORG <-->|"FIREWALL\nExternal Data Sharing\n(Like sharing with\nan outside company)"| CDO_ORG
 ```
 
 ### Pros
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  ✓ ULTIMATE AUTONOMY                                                       │
-│    CDO has own ORGADMIN, creates accounts without asking IT                │
-│                                                                            │
-│  ✓ ZERO LEAKAGE                                                            │
-│    Impossible for CDO config error to affect IT production                 │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+- **Ultimate Autonomy** — CDO has own ORGADMIN, creates accounts without asking IT
+- **Zero Leakage** — Impossible for CDO config error to affect IT production
 
 ### Cons
 
-```
-┌────────────────────────────────────────────────────────────────────────────┐
-│  ✗ MASSIVE FRICTION                                                        │
-│    Moving "Public Preview" objects requires External Data Sharing          │
-│    You are essentially sharing with yourself as an outside company         │
-│                                                                            │
-│  ✗ ADMIN OVERHEAD                                                          │
-│    Double the credentials, contracts, and security audits                  │
-└────────────────────────────────────────────────────────────────────────────┘
-```
+- **Massive Friction** — Moving "Public Preview" objects requires External Data Sharing. You are essentially sharing with yourself as an outside company
+- **Admin Overhead** — Double the credentials, contracts, and security audits
 
 ---
 
@@ -179,162 +73,78 @@ Treating the CDO's team like an outside company with complete separation.
 
 The most successful high-velocity teams use this hybrid model within a Single Organization.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         SNOWFLAKE ORGANIZATION                              │
-│                      (Single Org - Hub & Spoke Model)                       │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│                        ┌───────────────────────┐                            │
-│                        │      THE BRIDGE       │                            │
-│                        │  (Secure Data Share)  │                            │
-│                        │  • Zero Cost          │                            │
-│                        │  • Real-Time          │                            │
-│                        │  • No Data Movement   │                            │
-│                        └───────────┬───────────┘                            │
-│                                    │                                        │
-│              ┌─────────────────────┼─────────────────────┐                  │
-│              │                     │                     │                  │
-│              ▼                     │                     ▼                  │
-│  ┌───────────────────────┐         │         ┌───────────────────────┐      │
-│  │                       │         │         │                       │      │
-│  │    THE HUB            │         │         │    THE SPOKE          │      │
-│  │    (IT Account)       │◄────────┴────────►│    (CDO Account)      │      │
-│  │                       │   Data Sharing    │                       │      │
-│  │  ┌─────────────────┐  │   (Both Ways)     │  ┌─────────────────┐  │      │
-│  │  │ PRODUCTION DATA │  │                   │  │ DATA_ADMIN      │  │      │
-│  │  │                 │──┼──────────────────►│  │ Role Rules      │  │      │
-│  │  │ • Curated       │  │  IT shares prod   │  │                 │  │      │
-│  │  │ • Validated     │  │  data to CDO      │  │ • Experiment    │  │      │
-│  │  │ • Production    │  │                   │  │ • Prototype     │  │      │
-│  │  └─────────────────┘  │                   │  │ • Build Logic   │  │      │
-│  │                       │                   │  └─────────────────┘  │      │
-│  │  ┌─────────────────┐  │                   │                       │      │
-│  │  │ STRICT SDLC     │  │                   │  ┌─────────────────┐  │      │
-│  │  │                 │◄─┼───────────────────┼──│ NEW LOGIC       │  │      │
-│  │  │ • Change Ctrl   │  │  CDO shares new   │  │                 │  │      │
-│  │  │ • Code Review   │  │  logic back to IT │  │ • ML Models     │  │      │
-│  │  │ • Testing       │  │                   │  │ • Analytics     │  │      │
-│  │  │ • Deployment    │  │                   │  │ • Dashboards    │  │      │
-│  │  └─────────────────┘  │                   │  └─────────────────┘  │      │
-│  │                       │                   │                       │      │
-│  │  ┌─────────────────┐  │                   │  ┌─────────────────┐  │      │
-│  │  │ RESTRICTED      │  │                   │  │ FREEDOM TO      │  │      │
-│  │  │ ACCESS          │  │                   │  │ EXPERIMENT      │  │      │
-│  │  └─────────────────┘  │                   │  └─────────────────┘  │      │
-│  │                       │                   │                       │      │
-│  └───────────────────────┘                   └───────────────────────┘      │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph ORG["SNOWFLAKE ORGANIZATION (Single Org - Hub & Spoke)"]
+        BRIDGE["THE BRIDGE\n(Secure Data Share)\n• Zero Cost\n• Real-Time\n• No Data Movement"]
+        subgraph HUB["THE HUB (IT Account)"]
+            HUB_PROD["PRODUCTION DATA\n• Curated\n• Validated\n• Production"]
+            HUB_SDLC["STRICT SDLC\n• Change Ctrl\n• Code Review\n• Testing\n• Deployment"]
+            HUB_ACCESS["RESTRICTED ACCESS"]
+        end
+        subgraph SPOKE["THE SPOKE (CDO Account)"]
+            SPOKE_ADMIN["DATA_ADMIN Role Rules\n• Experiment\n• Prototype\n• Build Logic"]
+            SPOKE_LOGIC["NEW LOGIC\n• ML Models\n• Analytics\n• Dashboards"]
+            SPOKE_FREE["FREEDOM TO EXPERIMENT"]
+        end
+    end
+    BRIDGE --> HUB
+    BRIDGE --> SPOKE
+    HUB_PROD -->|"IT shares prod\ndata to CDO"| SPOKE_ADMIN
+    SPOKE_LOGIC -->|"CDO shares new\nlogic back to IT"| HUB_SDLC
 ```
 
 ### The Workflow
 
-```
-                           THE WORKFLOW
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   1. SHARE                    2. BUILD                   3. RETURN          │
-│   ─────────                   ─────────                  ─────────          │
-│                                                                             │
-│   ┌─────────┐                ┌─────────┐                ┌─────────┐         │
-│   │   IT    │   Secure       │   CDO   │   Secure       │   IT    │         │
-│   │   HUB   │───Share───────►│  SPOKE  │───Share───────►│   HUB   │         │
-│   │         │   (Zero $)     │         │   (Zero $)     │         │         │
-│   └─────────┘                └─────────┘                └─────────┘         │
-│                                                                             │
-│   IT shares                  CDO builds new             IT copies logic     │
-│   production data            logic on shared            into Git repo       │
-│   to CDO account             data (no copy!)            for formal SDLC     │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    SHARE["1. SHARE\nIT HUB"] -->|"Secure Share\n(Zero $)\nIT shares production\ndata to CDO account"| BUILD["2. BUILD\nCDO SPOKE"]
+    BUILD -->|"Secure Share\n(Zero $)\nCDO builds new logic\non shared data"| RETURN["3. RETURN\nIT HUB"]
 ```
 
 ### Secure Data Sharing Details
 
-```
-                    SECURE DATA SHARING DETAILS
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                                                                             │
-│   IT ACCOUNT                                      CDO ACCOUNT               │
-│   ──────────                                      ───────────               │
-│                                                                             │
-│   ┌─────────────────────┐                        ┌─────────────────────┐    │
-│   │ SALES_DB.PROD       │    ════════════════►   │ SHARED_DATA.SALES   │    │
-│   │ (Source of Truth)   │    CREATE SHARE        │ (Read-Only View)    │    │
-│   └─────────────────────┘    Zero-Copy           └─────────────────────┘    │
-│                              Real-Time                                      │
-│   ┌─────────────────────┐    No ETL              ┌─────────────────────┐    │
-│   │ CUSTOMER_DB.PROD    │    ════════════════►   │ SHARED_DATA.CUST    │    │
-│   │                     │                        │                     │    │
-│   └─────────────────────┘                        └─────────────────────┘    │
-│                                                                             │
-│                                                                             │
-│   ┌─────────────────────┐                        ┌─────────────────────┐    │
-│   │ CDO_VALIDATED.      │    ◄════════════════   │ CDO_LAB.MODELS      │    │
-│   │ ML_MODELS           │    CDO shares back     │ (CDO Development)   │    │
-│   │ (Ready for SDLC)    │    after validation    └─────────────────────┘    │
-│   └─────────────────────┘                                                   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    subgraph IT["IT ACCOUNT"]
+        SALES_PROD["SALES_DB.PROD\n(Source of Truth)"]
+        CUST_PROD["CUSTOMER_DB.PROD"]
+        CDO_VAL["CDO_VALIDATED.ML_MODELS\n(Ready for SDLC)"]
+    end
+    subgraph CDO["CDO ACCOUNT"]
+        SHARED_SALES["SHARED_DATA.SALES\n(Read-Only View)"]
+        SHARED_CUST["SHARED_DATA.CUST"]
+        CDO_MODELS["CDO_LAB.MODELS\n(CDO Development)"]
+    end
+    SALES_PROD -->|"CREATE SHARE\nZero-Copy\nReal-Time\nNo ETL"| SHARED_SALES
+    CUST_PROD -->|"CREATE SHARE"| SHARED_CUST
+    CDO_MODELS -->|"CDO shares back\nafter validation"| CDO_VAL
 ```
 
 ### Comparison Matrix
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          COMPARISON MATRIX                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   Criteria              Sandbox    Separate Org    Hub-Spoke (Winner)       │
-│   ────────              ───────    ────────────    ──────────────────       │
-│                                                                             │
-│   Data Sharing Cost      Medium       High             ★ Zero               │
-│                                                                             │
-│   Real-Time Access       Yes          No               ★ Yes                │
-│                                                                             │
-│   Identity Management    ★ Shared     Separate         ★ Shared             │
-│                                                                             │
-│   CDO Autonomy           Medium       ★ Full           ★ Full               │
-│                                                                             │
-│   IT Governance          ★ Strong     Weak             ★ Strong             │
-│                                                                             │
-│   Admin Overhead         Low          ★★ High          ★ Low                │
-│                                                                             │
-│   SDLC Integration       Medium       Hard             ★ Easy               │
-│                                                                             │
-│   Security Isolation     Medium       ★ Maximum        Strong               │
-│                                                                             │
-│   Production Impact      Possible     ★ None           ★ None               │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Criteria | Sandbox | Separate Org | Hub-Spoke (Winner) |
+|----------|---------|-------------|-------------------|
+| Data Sharing Cost | Medium | High | **Zero** |
+| Real-Time Access | Yes | No | **Yes** |
+| Identity Management | **Shared** | Separate | **Shared** |
+| CDO Autonomy | Medium | **Full** | **Full** |
+| IT Governance | **Strong** | Weak | **Strong** |
+| Admin Overhead | Low | High | **Low** |
+| SDLC Integration | Medium | Hard | **Easy** |
+| Security Isolation | Medium | **Maximum** | Strong |
+| Production Impact | Possible | **None** | **None** |
 
 ### Key Benefits
 
-```
-                    KEY BENEFITS OF HUB-AND-SPOKE
-
-    ┌────────────────────────────────────────────────────────────────┐
-    │                                                                │
-    │   ✓ Zero-Copy Data Sharing (No storage duplication)            │
-    │                                                                │
-    │   ✓ Real-Time Data (CDO always sees current production)        │
-    │                                                                │
-    │   ✓ Clear Ownership (IT owns prod, CDO owns innovation)        │
-    │                                                                │
-    │   ✓ Easy Promotion (Share back → Copy to Git → SDLC)           │
-    │                                                                │
-    │   ✓ Budget Control (Resource Monitors per account)             │
-    │                                                                │
-    │   ✓ Single Contract (One vendor relationship)                  │
-    │                                                                │
-    │   ✓ Shared Identity (SSO, same user across accounts)           │
-    │                                                                │
-    │   ✓ Hybrid Transformation (Dynamic Tables + dbt coexist)       │
-    │                                                                │
-    └────────────────────────────────────────────────────────────────┘
-```
+- **Zero-Copy Data Sharing** — No storage duplication
+- **Real-Time Data** — CDO always sees current production
+- **Clear Ownership** — IT owns prod, CDO owns innovation
+- **Easy Promotion** — Share back → Copy to Git → SDLC
+- **Budget Control** — Resource Monitors per account
+- **Single Contract** — One vendor relationship
+- **Shared Identity** — SSO, same user across accounts
+- **Hybrid Transformation** — Dynamic Tables + dbt coexist
 
 ---
 
@@ -342,32 +152,14 @@ The most successful high-velocity teams use this hybrid model within a Single Or
 
 ### Setup Sequence
 
-```
-                        IMPLEMENTATION SEQUENCE
-
-    ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-    │   STEP 1     │      │   STEP 2     │      │   STEP 3     │
-    │              │      │              │      │              │
-    │  ORGADMIN    │─────►│  IT ACCOUNT  │─────►│ CDO ACCOUNT  │
-    │  creates     │      │  creates     │      │  mounts      │
-    │  CDO account │      │  share       │      │  share       │
-    └──────────────┘      └──────────────┘      └──────────────┘
-           │                                           │
-           │                                           ▼
-           │                                   ┌──────────────┐
-           │                                   │   STEP 4     │
-           │                                   │              │
-           │                                   │  CDO builds  │
-           │                                   │  models      │
-           │                                   └──────────────┘
-           │                                           │
-           ▼                                           ▼
-    ┌──────────────┐      ┌──────────────┐      ┌──────────────┐
-    │   STEP 6     │      │   STEP 5     │      │   STEP 5     │
-    │              │      │              │      │              │
-    │  IT begins   │◄─────│  IT mounts   │◄─────│  CDO shares  │
-    │  SDLC        │      │  CDO share   │      │  back to IT  │
-    └──────────────┘      └──────────────┘      └──────────────┘
+```mermaid
+flowchart LR
+    S1["Step 1\nORGADMIN creates\nCDO account"] --> S2["Step 2\nIT ACCOUNT creates\nshare"]
+    S2 --> S3["Step 3\nCDO ACCOUNT\nmounts share"]
+    S3 --> S4["Step 4\nCDO builds\nmodels"]
+    S4 --> S5a["Step 5\nCDO shares\nback to IT"]
+    S5a --> S5b["Step 5\nIT mounts\nCDO share"]
+    S5b --> S6["Step 6\nIT begins\nSDLC"]
 ```
 
 ### SQL Implementation
@@ -453,45 +245,15 @@ ALTER ACCOUNT SET RESOURCE_MONITOR = CDO_MONTHLY_BUDGET;
 
 ## Decision Flowchart
 
-```
-                              DECISION TREE
-
-                    ┌─────────────────────────────┐
-                    │  How should we organize     │
-                    │  CDO's Snowflake access?    │
-                    └─────────────┬───────────────┘
-                                  │
-                                  ▼
-                    ┌─────────────────────────────┐
-                    │  Does CDO need COMPLETE     │
-                    │  autonomy from IT?          │
-                    └─────────────┬───────────────┘
-                                  │
-                    ┌─────────────┴───────────────┐
-                    │                             │
-                   NO                            YES
-                    │                             │
-                    ▼                             ▼
-    ┌───────────────────────────┐   ┌───────────────────────────┐
-    │                           │   │  Is data sharing          │
-    │  OPTION 1: SANDBOX        │   │  FRICTION acceptable?     │
-    │                           │   │                           │
-    │  ✓ Shared identity        │   └─────────────┬─────────────┘
-    │  ✓ Easy replication       │                 │
-    │  ✗ Some coupling          │   ┌─────────────┴───────────────┐
-    │                           │   │                             │
-    └───────────────────────────┘  YES                           NO
-                                    │                             │
-                                    ▼                             ▼
-                    ┌───────────────────────────┐   ┌───────────────────────────┐
-                    │                           │   │                           │
-                    │  OPTION 2: SEPARATE ORG   │   │  OPTION 3: HUB-SPOKE ⭐   │
-                    │                           │   │                           │
-                    │  ✓ Complete isolation     │   │  ✓ Zero-cost sharing      │
-                    │  ✗ High friction          │   │  ✓ Real-time data         │
-                    │  ✗ Double admin           │   │  ✓ Easy promotion         │
-                    │                           │   │  ✓ RECOMMENDED            │
-                    └───────────────────────────┘   └───────────────────────────┘
+```mermaid
+flowchart TD
+    Q1["How should we organize\nCDO's Snowflake access?"]
+    Q2{"Does CDO need COMPLETE\nautonomy from IT?"}
+    Q1 --> Q2
+    Q2 -->|NO| OPT1["OPTION 1: SANDBOX\n• Shared identity\n• Easy replication\n• Some coupling"]
+    Q2 -->|YES| Q3{"Is data sharing\nFRICTION acceptable?"}
+    Q3 -->|YES| OPT2["OPTION 2: SEPARATE ORG\n• Complete isolation\n• High friction\n• Double admin"]
+    Q3 -->|NO| OPT3["OPTION 3: HUB-SPOKE ⭐\n• Zero-cost sharing\n• Real-time data\n• Easy promotion\n• RECOMMENDED"]
 ```
 
 ---

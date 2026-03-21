@@ -19,58 +19,22 @@ This is intentional. Real enterprises don't pick one tool for everything. Teams 
 
 ## Head-to-Head Comparison
 
-```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                   dbt vs DYNAMIC TABLES — AT A GLANCE                          │
-├──────────────────────┬──────────────────────────┬──────────────────────────────┤
-│  Capability          │  dbt                     │  Dynamic Tables              │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Orchestration       │  External (CI/CD, cron,  │  Built-in (Snowflake-managed │
-│                      │  Airflow, dbt Cloud)     │  refresh via TARGET_LAG)     │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Refresh Model       │  Push (dbt run triggers  │  Pull (Snowflake detects     │
-│                      │  materialization)        │  upstream changes)           │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Freshness SLA       │  Manual (dbt source      │  Declarative (TARGET_LAG     │
-│                      │  freshness checks)       │  = '1 hour')                 │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Testing             │  Built-in (not_null,     │  None built-in (requires     │
-│                      │  unique, relationships,  │  external quality checks     │
-│                      │  custom SQL tests)       │  or DMFs)                    │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Documentation       │  Auto-generated (dbt     │  Table comments only         │
-│                      │  docs serve + catalog)   │                              │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Lineage             │  Full DAG visualization  │  Snowflake ACCESS_HISTORY    │
-│                      │  (ref() tracking)        │  and OBJECT_DEPENDENCIES     │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Version Control     │  Native (SQL files in    │  Possible via Git            │
-│                      │  Git, PR workflows)      │  integration, but DDL-based  │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  CI/CD Integration   │  Native (dbt build in    │  Requires SQL execution      │
-│                      │  GitHub Actions, etc.)   │  in pipeline                 │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Incremental Logic   │  Explicit (developer     │  Automatic (Snowflake        │
-│                      │  writes incremental      │  manages incremental vs      │
-│                      │  strategy)               │  full refresh)               │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Learning Curve      │  Moderate (Jinja, ref,   │  Low (just SQL + TARGET_LAG) │
-│                      │  YAML configs, profiles) │                              │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Operational Overhead│  Medium (scheduler,      │  Minimal (Snowflake manages  │
-│                      │  compute, monitoring)    │  everything)                 │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Portability         │  High (adapters for      │  Snowflake-only              │
-│                      │  Snowflake, BigQuery,    │                              │
-│                      │  Redshift, Databricks)   │                              │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Cost Model          │  Warehouse credits when  │  Warehouse credits on        │
-│                      │  dbt run executes        │  refresh (auto-managed)      │
-├──────────────────────┼──────────────────────────┼──────────────────────────────┤
-│  Ecosystem           │  dbt packages (dbt-utils,│  Snowflake-native only       │
-│                      │  dbt-expectations, etc.) │                              │
-└──────────────────────┴──────────────────────────┴──────────────────────────────┘
-```
+| Capability | dbt | Dynamic Tables |
+|------------|-----|----------------|
+| **Orchestration** | External (CI/CD, cron, Airflow, dbt Cloud) | Built-in (Snowflake-managed refresh via TARGET_LAG) |
+| **Refresh Model** | Push (dbt run triggers materialization) | Pull (Snowflake detects upstream changes) |
+| **Freshness SLA** | Manual (dbt source freshness checks) | Declarative (TARGET_LAG = '1 hour') |
+| **Testing** | Built-in (not_null, unique, relationships, custom SQL tests) | None built-in (requires external quality checks or DMFs) |
+| **Documentation** | Auto-generated (dbt docs serve + catalog) | Table comments only |
+| **Lineage** | Full DAG visualization (ref() tracking) | Snowflake ACCESS_HISTORY and OBJECT_DEPENDENCIES |
+| **Version Control** | Native (SQL files in Git, PR workflows) | Possible via Git integration, but DDL-based |
+| **CI/CD Integration** | Native (dbt build in GitHub Actions, etc.) | Requires SQL execution in pipeline |
+| **Incremental Logic** | Explicit (developer writes incremental strategy) | Automatic (Snowflake manages incremental vs full refresh) |
+| **Learning Curve** | Moderate (Jinja, ref, YAML configs, profiles) | Low (just SQL + TARGET_LAG) |
+| **Operational Overhead** | Medium (scheduler, compute, monitoring) | Minimal (Snowflake manages everything) |
+| **Portability** | High (adapters for Snowflake, BigQuery, Redshift, Databricks) | Snowflake-only |
+| **Cost Model** | Warehouse credits when dbt run executes | Warehouse credits on refresh (auto-managed) |
+| **Ecosystem** | dbt packages (dbt-utils, dbt-expectations, etc.) | Snowflake-native only |
 
 ---
 
@@ -109,12 +73,15 @@ where f.caller_key is not null and u.user_key is null
 
 dbt's `ref()` function creates an explicit dependency graph:
 
-```
-stg_servicenow__users ──► dim_user ──┬──► fact_incidents
-                                     ├──► fact_changes
-stg_servicenow__incidents ───────────┘    fact_problems
-                                          fact_requests
-stg_servicenow__cmdb_ci ──► dim_cmdb_ci
+```mermaid
+flowchart LR
+    STG_USERS["stg_servicenow__users"] --> DIM_USER["dim_user"]
+    DIM_USER --> FACT_INC["fact_incidents"]
+    DIM_USER --> FACT_CHG["fact_changes"]
+    STG_INC["stg_servicenow__incidents"] --> FACT_INC
+    STG_INC --> FACT_PROB["fact_problems"]
+    STG_INC --> FACT_REQ["fact_requests"]
+    STG_CMDB["stg_servicenow__cmdb_ci"] --> DIM_CMDB["dim_cmdb_ci"]
 ```
 
 This DAG is:
@@ -133,9 +100,13 @@ This DAG is:
 
 ### 4. CI/CD-Native Workflow
 
-```
-Developer writes model → Git push → PR triggers dbt build --target ci
-→ Tests pass → Reviewer approves → Merge → dbt build --target prod
+```mermaid
+flowchart LR
+    DEV["Developer writes model"] --> PUSH["Git push"]
+    PUSH --> CI["PR triggers\ndbt build --target ci"]
+    CI --> REVIEW["Tests pass\nReviewer approves"]
+    REVIEW --> MERGE["Merge"]
+    MERGE --> PROD["dbt build --target prod"]
 ```
 
 This fits naturally into existing engineering workflows. Every model change is reviewed, tested, and deployed through the same Git pipeline as application code.
@@ -221,38 +192,23 @@ Dynamic Tables natively integrate with Snowflake's:
 
 ## When to Use Which
 
-```
-┌────────────────────────────────────────────────────────────────────────────────┐
-│                         DECISION FRAMEWORK                                     │
-├────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                │
-│  USE dbt WHEN:                          USE DYNAMIC TABLES WHEN:               │
-│  ─────────────                          ────────────────────────               │
-│                                                                                │
-│  • Team already has dbt expertise       • Team wants minimal operational       │
-│    and existing dbt projects              overhead                             │
-│                                                                                │
-│  • Heavy testing requirements           • Near-real-time freshness SLAs        │
-│    (regulatory, contractual)              (TARGET_LAG < 1 hour)                │
-│                                                                                │
-│  • Multi-warehouse strategy             • Simple pass-through or light         │
-│    (Snowflake + BigQuery, etc.)           transformations                      │
-│                                                                                │
-│  • Complex business logic that          • Team is Snowflake-native and         │
-│    benefits from version-controlled       prefers fewer tools                  │
-│    Jinja macros                                                                │
-│                                                                                │
-│  • CI/CD-driven deployment is           • No existing scheduler                │
-│    already established                    infrastructure                       │
-│                                                                                │
-│  • Auto-generated documentation         • Rapid prototyping (just write SQL)   │
-│    and lineage are high priority                                               │
-│                                                                                │
-│  • Source freshness checks and          • Dozens of similar tables that         │
-│    data quality gates in pipeline         can be config-driven                 │
-│                                                                                │
-└────────────────────────────────────────────────────────────────────────────────┘
-```
+**Use dbt when:**
+- Team already has dbt expertise and existing dbt projects
+- Heavy testing requirements (regulatory, contractual)
+- Multi-warehouse strategy (Snowflake + BigQuery, etc.)
+- Complex business logic that benefits from version-controlled Jinja macros
+- CI/CD-driven deployment is already established
+- Auto-generated documentation and lineage are high priority
+- Source freshness checks and data quality gates in pipeline
+
+**Use Dynamic Tables when:**
+- Team wants minimal operational overhead
+- Near-real-time freshness SLAs (TARGET_LAG < 1 hour)
+- Simple pass-through or light transformations
+- Team is Snowflake-native and prefers fewer tools
+- No existing scheduler infrastructure
+- Rapid prototyping (just write SQL)
+- Dozens of similar tables that can be config-driven
 
 ---
 
@@ -260,65 +216,28 @@ Dynamic Tables natively integrate with Snowflake's:
 
 This demo proves that dbt and Dynamic Tables coexist cleanly. Here's how:
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                      HYBRID TRANSFORMATION ARCHITECTURE                          │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│  ┌─────────────────────────────────────────────────────────────────────────┐     │
-│  │                         RAW LAYER (Bronze)                              │     │
-│  │  RAW_DEV.SAP │ RAW_DEV.SALESFORCE │ RAW_DEV.ORACLE │ RAW_DEV.FHIR     │     │
-│  │  RAW_DEV.WORKDAY │ RAW_DEV.SERVICENOW                                  │     │
-│  │                                                                         │     │
-│  │  All source systems land here via INFER_SCHEMA + SCD Type 2             │     │
-│  └────────────────────────┬────────────────────────┬───────────────────────┘     │
-│                           │                        │                             │
-│              ┌────────────┴──────────┐    ┌────────┴────────────┐                │
-│              │                       │    │                     │                │
-│              ▼                       │    ▼                     │                │
-│  ┌───────────────────────┐           │  ┌───────────────────────┐                │
-│  │   DYNAMIC TABLES      │           │  │   dbt PROJECT         │                │
-│  │   (5 source systems)  │           │  │   (ServiceNow)        │                │
-│  │                       │           │  │                       │                │
-│  │  • SAP S/4HANA        │           │  │  staging/             │                │
-│  │  • Salesforce         │           │  │   stg_servicenow__*   │                │
-│  │  • Oracle EBS         │           │  │                       │                │
-│  │  • FHIR R4            │           │  │  marts/dimensions/    │                │
-│  │  • Workday            │           │  │   dim_user             │                │
-│  │                       │           │  │   dim_cmdb_ci          │                │
-│  │  Config-driven via    │           │  │                       │                │
-│  │  CURATED_CONFIG table │           │  │  marts/facts/         │                │
-│  │  TARGET_LAG SLAs      │           │  │   fact_incidents       │                │
-│  │  ~30 dim/fact tables  │           │  │   fact_changes         │                │
-│  │                       │           │  │   fact_problems        │                │
-│  │  Refresh: Automatic   │           │  │   fact_requests        │                │
-│  │  Tests: None built-in │           │  │                       │                │
-│  │  Docs: Table comments │           │  │  Refresh: dbt run     │                │
-│  │                       │           │  │  Tests: dbt test       │                │
-│  └───────────┬───────────┘           │  │  Docs: dbt docs        │                │
-│              │                       │  │  Lineage: ref() DAG    │                │
-│              │                       │  └───────────┬───────────┘                │
-│              │                       │              │                             │
-│              └───────────────────────┴──────────────┘                             │
-│                                      │                                           │
-│                                      ▼                                           │
-│  ┌─────────────────────────────────────────────────────────────────────────┐     │
-│  │                     CURATED LAYER (Silver)                              │     │
-│  │  CURATED_DEV.SAP │ CURATED_DEV.SALESFORCE │ CURATED_DEV.ORACLE         │     │
-│  │  CURATED_DEV.FHIR │ CURATED_DEV.WORKDAY │ CURATED_DEV.DBT_SERVICENOW  │     │
-│  │                                                                         │     │
-│  │  All tables look the same to consumers — regardless of engine           │     │
-│  └────────────────────────────────┬────────────────────────────────────────┘     │
-│                                   │                                              │
-│                                   ▼                                              │
-│  ┌─────────────────────────────────────────────────────────────────────────┐     │
-│  │                     SEMANTIC LAYER (Gold)                               │     │
-│  │  Semantic Views │ Cortex Analyst │ Marketplace Data Products            │     │
-│  │                                                                         │     │
-│  │  Consumers don't know (or care) which engine produced the data          │     │
-│  └─────────────────────────────────────────────────────────────────────────┘     │
-│                                                                                  │
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph RAW["RAW LAYER (Bronze)"]
+        R["RAW_DEV.SAP | SALESFORCE | ORACLE | FHIR | WORKDAY | SERVICENOW\nAll source systems land here via INFER_SCHEMA + SCD Type 2"]
+    end
+    RAW --> DT
+    RAW --> DBT
+    subgraph DT["DYNAMIC TABLES (5 source systems)"]
+        DT_DETAIL["SAP S/4HANA | Salesforce | Oracle EBS | FHIR R4 | Workday\nConfig-driven via CURATED_CONFIG table\nTARGET_LAG SLAs | ~30 dim/fact tables\nRefresh: Automatic | Tests: None built-in"]
+    end
+    subgraph DBT["dbt PROJECT (ServiceNow)"]
+        DBT_DETAIL["staging/ stg_servicenow__*\nmarts/dimensions/ dim_user, dim_cmdb_ci\nmarts/facts/ fact_incidents, fact_changes, fact_problems, fact_requests\nRefresh: dbt run | Tests: dbt test | Docs: dbt docs | Lineage: ref() DAG"]
+    end
+    DT --> CURATED
+    DBT --> CURATED
+    subgraph CURATED["CURATED LAYER (Silver)"]
+        C["CURATED_DEV.SAP | SALESFORCE | ORACLE | FHIR | WORKDAY | DBT_SERVICENOW\nAll tables look the same to consumers — regardless of engine"]
+    end
+    CURATED --> SEMANTIC
+    subgraph SEMANTIC["SEMANTIC LAYER (Gold)"]
+        S["Semantic Views | Cortex Analyst | Marketplace Data Products\nConsumers don't know (or care) which engine produced the data"]
+    end
 ```
 
 ### Key Design Principle
@@ -331,34 +250,27 @@ This demo proves that dbt and Dynamic Tables coexist cleanly. Here's how:
 
 ### Project Structure
 
-```
-dbt_servicenow/
-├── dbt_project.yml              # Project config (materialization, schemas)
-├── profiles.yml.example         # Snowflake connection template
-├── models/
-│   ├── staging/                 # Thin views — rename, filter, type-cast
-│   │   ├── _sources.yml         # Source definitions + freshness checks
-│   │   ├── _stg_servicenow.yml  # Staging model tests + docs
-│   │   ├── stg_servicenow__users.sql
-│   │   ├── stg_servicenow__incidents.sql
-│   │   ├── stg_servicenow__changes.sql
-│   │   ├── stg_servicenow__problems.sql
-│   │   ├── stg_servicenow__cmdb_ci.sql
-│   │   └── stg_servicenow__requests.sql
-│   └── marts/                   # Business-ready tables — joins, metrics
-│       ├── _marts_servicenow.yml  # Mart model tests + docs
-│       ├── dimensions/
-│       │   ├── dim_user.sql
-│       │   └── dim_cmdb_ci.sql
-│       └── facts/
-│           ├── fact_incidents.sql   # SLA breach detection
-│           ├── fact_changes.sql
-│           ├── fact_problems.sql
-│           └── fact_requests.sql
-├── tests/
-│   └── assert_no_orphaned_incidents.sql  # Custom referential integrity test
-└── macros/
-    └── generate_sla_thresholds.sql       # Reusable SLA logic
+```mermaid
+graph LR
+    ROOT["dbt_servicenow/"]
+    ROOT --> PROJ["dbt_project.yml"]
+    ROOT --> PROF["profiles.yml.example"]
+    ROOT --> MODELS["models/"]
+    ROOT --> TESTS["tests/"]
+    ROOT --> MACROS["macros/"]
+
+    MODELS --> STG["staging/"]
+    STG --> SOURCES["_sources.yml"]
+    STG --> STG_YML["_stg_servicenow.yml"]
+    STG --> STG_SQL["stg_servicenow__*.sql (6)"]
+
+    MODELS --> MARTS["marts/"]
+    MARTS --> MARTS_YML["_marts_servicenow.yml"]
+    MARTS --> DIMS["dimensions/ (dim_user, dim_cmdb_ci)"]
+    MARTS --> FACTS["facts/ (fact_incidents, fact_changes,\nfact_problems, fact_requests)"]
+
+    TESTS --> CUSTOM["assert_no_orphaned_incidents.sql"]
+    MACROS --> SLA["generate_sla_thresholds.sql"]
 ```
 
 ### Running the Pipeline
@@ -393,23 +305,34 @@ dbt build --select +fact_incidents
 
 When you run `dbt docs serve`, you see the full lineage graph:
 
+```mermaid
+flowchart LR
+    subgraph SOURCES["SOURCES (RAW_DEV.SERVICENOW)"]
+        SYS_USER["SYS_USER"]
+        INCIDENT["INCIDENT"]
+        CHANGE_REQ["CHANGE_REQUEST"]
+        PROBLEM["PROBLEM"]
+        CMDB_CI["CMDB_CI"]
+        SC_REQ["SC_REQUEST"]
+    end
+    SYS_USER --> stg_users["stg_servicenow__users"]
+    INCIDENT --> stg_inc["stg_servicenow__incidents"]
+    CHANGE_REQ --> stg_chg["stg_servicenow__changes"]
+    PROBLEM --> stg_prob["stg_servicenow__problems"]
+    CMDB_CI --> stg_cmdb["stg_servicenow__cmdb_ci"]
+    SC_REQ --> stg_req["stg_servicenow__requests"]
+
+    stg_users --> dim_user["dim_user"]
+    stg_cmdb --> dim_cmdb_ci["dim_cmdb_ci"]
+    dim_user --> facts["fact_incidents\nfact_changes\nfact_problems\nfact_requests"]
+    stg_inc --> facts
+    stg_chg --> facts
+    stg_prob --> facts
+    stg_req --> facts
 ```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│  ServiceNow dbt DAG                                                          │
-│                                                                              │
-│  SOURCES (RAW_DEV.SERVICENOW)                                                │
-│  ═══════════════════════════                                                 │
-│  SYS_USER ─────────────► stg_servicenow__users ──────► dim_user ──┐          │
-│  INCIDENT ─────────────► stg_servicenow__incidents ───────────────┼► fact_*  │
-│  CHANGE_REQUEST ───────► stg_servicenow__changes ─────────────────┘          │
-│  PROBLEM ──────────────► stg_servicenow__problems                            │
-│  CMDB_CI ──────────────► stg_servicenow__cmdb_ci ────► dim_cmdb_ci           │
-│  SC_REQUEST ───────────► stg_servicenow__requests                            │
-│                                                                              │
-│  6 sources → 6 staging views → 2 dimensions + 4 facts = 12 models           │
-│  23 schema tests + 1 custom test + 7 source freshness checks                │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+
+**6 sources → 6 staging views → 2 dimensions + 4 facts = 12 models**
+**23 schema tests + 1 custom test + 7 source freshness checks**
 
 ---
 
