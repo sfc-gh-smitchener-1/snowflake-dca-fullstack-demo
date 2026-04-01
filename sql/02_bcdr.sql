@@ -191,8 +191,20 @@ SHOW FAILOVER GROUPS LIKE 'DCA_BCDR_DB_FG';
 CREATE CONNECTION IF NOT EXISTS SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_DEMO_CONNECTION
     AS REPLICA OF SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_DEMO_CONNECTION;
 
+-- !! ACCOUNT GUARD — read this result before running REFRESH !!
+-- If ACCOUNT_CHECK does not show 'CORRECT ACCOUNT', stop immediately
+-- and switch your connection to SNOW_BCDR_SECONDARY (OZC55031).
+SELECT
+    CURRENT_ACCOUNT()           AS CURRENT_ACCOUNT,
+    CURRENT_REGION()            AS CURRENT_REGION,
+    IFF(CURRENT_ACCOUNT() = 'OZC55031',
+        'CORRECT ACCOUNT — safe to run REFRESH',
+        '*** WRONG ACCOUNT — switch to SNOW_BCDR_SECONDARY before continuing ***'
+    )                           AS ACCOUNT_CHECK;
+
 -- Trigger an immediate refresh of the DCA DB group rather than waiting
 -- for the first scheduled interval.
+-- PREREQ: ACCOUNT_CHECK above must show 'CORRECT ACCOUNT'.
 ALTER FAILOVER GROUP DCA_BCDR_DB_FG REFRESH;
 
 -- Verify replicated databases are visible on secondary
