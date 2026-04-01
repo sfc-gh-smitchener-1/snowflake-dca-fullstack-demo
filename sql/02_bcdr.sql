@@ -214,14 +214,21 @@ SHOW DATABASES LIKE 'SEM_DEV';
 -- CREATE STREAMLIT is not a replicated object type, and SEM_DEV on the
 -- secondary is read-only so the app cannot be created there directly.
 --
--- Solution: create the app in BCDR_DEMO.STREAMLIT (a native writable database
--- on the secondary) pointing at the already-replicated stage in SEM_DEV.
--- The ROOT_LOCATION path is identical on both accounts so no edits are
--- needed after failover — the app works immediately.
+-- BCDR_DEMO does not replicate from the primary — it is created here as a
+-- native writable database on the secondary, solely to host the Streamlit app.
+-- Its ROOT_LOCATION points at @SEM_DEV.STREAMLIT.STREAMLIT_STAGE, which
+-- replicates with SEM_DEV on the 10-minute schedule. After failover SEM_DEV
+-- becomes the primary (writable) and the same path continues to work — no
+-- changes to the app are needed.
 
 USE ROLE ACCOUNTADMIN;
-USE DATABASE BCDR_DEMO;
-USE SCHEMA   BCDR_DEMO.STREAMLIT;
+
+-- Create a native (non-replicated) database on the secondary to host the app.
+CREATE DATABASE IF NOT EXISTS BCDR_DEMO
+    COMMENT = 'Native secondary database — hosts the DCA demo Streamlit warm standby. Not replicated from primary.';
+
+CREATE SCHEMA IF NOT EXISTS BCDR_DEMO.STREAMLIT
+    COMMENT = 'Streamlit warm standby for DCA fullstack demo.';
 
 CREATE STREAMLIT IF NOT EXISTS BCDR_DEMO.STREAMLIT.DCA_DEMO_APP
     ROOT_LOCATION   = '@SEM_DEV.STREAMLIT.STREAMLIT_STAGE'
@@ -230,6 +237,18 @@ CREATE STREAMLIT IF NOT EXISTS BCDR_DEMO.STREAMLIT.DCA_DEMO_APP
     COMMENT         = 'DCA fullstack demo — BCDR secondary warm standby. Mirrors SEM_DEV.STREAMLIT.DCA_DEMO_APP on primary.';
 
 -- Mirror the grants from 09_streamlit.sql.
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE DATA_ADMIN;
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE DATA_ENGINEER;
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE DATA_STEWARD;
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE ANALYST;
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE MANAGER;
+GRANT USAGE ON DATABASE BCDR_DEMO TO ROLE VIEWER;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE DATA_ADMIN;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE DATA_ENGINEER;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE DATA_STEWARD;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE ANALYST;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE MANAGER;
+GRANT USAGE ON SCHEMA BCDR_DEMO.STREAMLIT TO ROLE VIEWER;
 GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_ADMIN;
 GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_ENGINEER;
 GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_STEWARD;
