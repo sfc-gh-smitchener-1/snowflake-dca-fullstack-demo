@@ -101,14 +101,13 @@ SHOW GIT BRANCHES IN GIT REPOSITORY GOVERNANCE.LINEAGE.DCA_FULLSTACK_DEMO_REPO;
 -- (Git Repository objects themselves are database-level and replicate with
 -- the GOVERNANCE database via DCA_BCDR_DB_FG.)
 --
--- NOTE: SET replaces the existing list — STORAGE INTEGRATIONS must be retained.
--- GIT_REPOSITORIES is not a valid integration type; the GIT_API backing
--- integration is an API integration and is covered by API INTEGRATIONS.
--- Git Repository database objects themselves replicate with the GOVERNANCE
--- database via DCA_BCDR_DB_FG — no separate type entry is required.
+-- NOTE: ADD appends to the existing list — STORAGE INTEGRATIONS is preserved.
+-- Using ADD (not SET) avoids having to restate existing types and sidesteps
+-- the multi-value comma parsing issue with SET ALLOWED_INTEGRATION_TYPES.
+-- We add only the one new type needed to cover the GIT_API integration.
 
 ALTER FAILOVER GROUP ICEBERG_BCDR_ACCOUNT_FG
-    SET ALLOWED_INTEGRATION_TYPES = STORAGE INTEGRATIONS, API INTEGRATIONS;
+    ADD ALLOWED_INTEGRATION_TYPES = API INTEGRATIONS;
 
 -- Verify the change
 SHOW FAILOVER GROUPS LIKE 'ICEBERG_BCDR_ACCOUNT_FG';
