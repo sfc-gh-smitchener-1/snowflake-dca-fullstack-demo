@@ -31,11 +31,12 @@
 --   PART 5 : SECONDARY — Pre-flight + GIT_API prerequisite
 --   PART 6 : SECONDARY — Replica failover group
 --   PART 7 : SECONDARY — Replica Connection + initial refresh
---   PART 8 : BOTH      — Validation queries
---   PART 9 : BOTH      — Failover / Failback runbook (commented)
+--   PART 8 : SECONDARY — Streamlit app warm standby
+--   PART 9 : BOTH      — Validation queries
+--   PART 10: BOTH      — Failover / Failback runbook (commented)
 --
 -- RUN AS   : ACCOUNTADMIN on each account
--- CONNECTIONS: SNOW_BCDR_PRIMARY (Parts 1–4), SNOW_BCDR_SECONDARY (Parts 5–7)
+-- CONNECTIONS: SNOW_BCDR_PRIMARY (Parts 1–4), SNOW_BCDR_SECONDARY (Parts 5–8)
 -- PREREQ   : 01_setup.sql must have been run on SNOW_BCDR_PRIMARY
 --
 -- ============================================================================
@@ -207,6 +208,39 @@ SHOW DATABASES LIKE 'CURATED_DEV';
 SHOW DATABASES LIKE 'SEM_DEV';
 
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PART 8 — SECONDARY ACCOUNT — STREAMLIT APP WARM STANDBY
+-- ═══════════════════════════════════════════════════════════════════════════
+-- CREATE STREAMLIT is not a replicated object type, and SEM_DEV on the
+-- secondary is read-only so the app cannot be created there directly.
+--
+-- Solution: create the app in BCDR_DEMO.STREAMLIT (a native writable database
+-- on the secondary) pointing at the already-replicated stage in SEM_DEV.
+-- The ROOT_LOCATION path is identical on both accounts so no edits are
+-- needed after failover — the app works immediately.
+
+USE ROLE ACCOUNTADMIN;
+USE DATABASE BCDR_DEMO;
+USE SCHEMA   BCDR_DEMO.STREAMLIT;
+
+CREATE STREAMLIT IF NOT EXISTS BCDR_DEMO.STREAMLIT.DCA_DEMO_APP
+    ROOT_LOCATION   = '@SEM_DEV.STREAMLIT.STREAMLIT_STAGE'
+    MAIN_FILE       = 'app.py'
+    QUERY_WAREHOUSE = ANALYTICS_WH
+    COMMENT         = 'DCA fullstack demo — BCDR secondary warm standby. Mirrors SEM_DEV.STREAMLIT.DCA_DEMO_APP on primary.';
+
+-- Mirror the grants from 09_streamlit.sql.
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_ADMIN;
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_ENGINEER;
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE DATA_STEWARD;
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE ANALYST;
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE MANAGER;
+GRANT USAGE ON STREAMLIT BCDR_DEMO.STREAMLIT.DCA_DEMO_APP TO ROLE VIEWER;
+
+-- Verify app was created and is accessible.
+SHOW STREAMLITS IN SCHEMA BCDR_DEMO.STREAMLIT;
+
+
 -- ============================================================================
 -- ─────────────────────────────────────────────────────────────────────────────
 -- VALIDATION QUERIES — run on either account after replication is established
@@ -215,16 +249,16 @@ SHOW DATABASES LIKE 'SEM_DEV';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 8 — VALIDATION
+-- PART 9 — VALIDATION
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- 8a. Failover group status (run on PRIMARY).
+-- 9a. Failover group status (run on PRIMARY).
 SHOW FAILOVER GROUPS;
 
--- 8b. Connection status (run on PRIMARY).
+-- 9b. Connection status (run on PRIMARY).
 SHOW CONNECTIONS;
 
--- 8c. Replication refresh history — last 10 runs.
+-- 9c. Replication refresh history — last 10 runs.
 --     Healthy: STATUS = 'SUCCEEDED', ERROR_COUNT = 0.
 SELECT
     REPLICATION_GROUP_NAME,
@@ -238,7 +272,7 @@ WHERE REPLICATION_GROUP_NAME = 'DCA_BCDR_DB_FG'
 ORDER BY PHASE_TIME DESC
 LIMIT 10;
 
--- 8d. Replication lag in minutes.
+-- 9d. Replication lag in minutes.
 SELECT
     PRIMARY_SNAPSHOT_TIMESTAMP,
     LAST_REFRESH_COMPLETED_ON,
@@ -250,10 +284,10 @@ WHERE REPLICATION_GROUP_NAME = 'DCA_BCDR_DB_FG'
 ORDER BY PRIMARY_SNAPSHOT_TIMESTAMP DESC
 LIMIT 5;
 
--- 8e. Verify Git Repository replicated (run on SECONDARY after refresh).
+-- 9e. Verify Git Repository replicated (run on SECONDARY after refresh).
 SHOW GIT REPOSITORIES IN DATABASE GOVERNANCE;
 
--- 8f. Verify replicated databases show as SECONDARY kind (run on SECONDARY).
+-- 9f. Verify replicated databases show as SECONDARY kind (run on SECONDARY).
 SHOW DATABASES LIKE 'GOVERNANCE';
 SHOW DATABASES LIKE 'RAW_DEV';
 SHOW DATABASES LIKE 'CURATED_DEV';
@@ -262,7 +296,7 @@ SHOW DATABASES LIKE 'SEM_DEV';
 
 -- ============================================================================
 -- ─────────────────────────────────────────────────────────────────────────────
--- PART 9 — FAILOVER / FAILBACK RUNBOOK
+-- PART 10 — FAILOVER / FAILBACK RUNBOOK
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Execute these steps manually during a failover or failback event.
 -- Blocks are intentionally commented out to prevent accidental execution.
