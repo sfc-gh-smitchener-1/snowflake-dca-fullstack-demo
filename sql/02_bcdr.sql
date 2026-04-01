@@ -46,7 +46,7 @@
 -- Run as: ACCOUNTADMIN on SNOW_BCDR_PRIMARY
 
 USE ROLE ACCOUNTADMIN;
-
+USE DATABASE GOVERNANCE;
 -- Verify we are on the correct account before making any changes.
 -- Expected: ACCOUNT = OAB74379 | REGION = AWS_US_WEST_2 | ORG = SFSENORTHAMERICA
 SELECT
@@ -95,14 +95,20 @@ SHOW GIT BRANCHES IN GIT REPOSITORY GOVERNANCE.LINEAGE.DCA_FULLSTACK_DEMO_REPO;
 -- PART 3 — PRIMARY ACCOUNT — EXTEND ACCOUNT FAILOVER GROUP
 -- ═══════════════════════════════════════════════════════════════════════════
 -- The existing ICEBERG_BCDR_ACCOUNT_FG already replicates INTEGRATIONS with
--- ALLOWED_INTEGRATION_TYPES = STORAGE. We extend it to also include
--- GIT_REPOSITORIES so the GIT_API integration is replicated, making Git
--- Repository objects on the secondary fully operational after failover.
+-- ALLOWED_INTEGRATION_TYPES = STORAGE INTEGRATIONS. We extend it to also
+-- include API INTEGRATIONS so the GIT_API integration is replicated to the
+-- secondary, making Git Repository objects functional after failover.
+-- (Git Repository objects themselves are database-level and replicate with
+-- the GOVERNANCE database via DCA_BCDR_DB_FG.)
 --
--- NOTE: SET replaces the existing list — STORAGE must be retained.
+-- NOTE: SET replaces the existing list — STORAGE INTEGRATIONS must be retained.
+-- GIT_REPOSITORIES is not a valid integration type; the GIT_API backing
+-- integration is an API integration and is covered by API INTEGRATIONS.
+-- Git Repository database objects themselves replicate with the GOVERNANCE
+-- database via DCA_BCDR_DB_FG — no separate type entry is required.
 
 ALTER FAILOVER GROUP ICEBERG_BCDR_ACCOUNT_FG
-    SET ALLOWED_INTEGRATION_TYPES = STORAGE, GIT_REPOSITORIES;
+    SET ALLOWED_INTEGRATION_TYPES = STORAGE INTEGRATIONS, API INTEGRATIONS;
 
 -- Verify the change
 SHOW FAILOVER GROUPS LIKE 'ICEBERG_BCDR_ACCOUNT_FG';
