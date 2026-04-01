@@ -152,20 +152,23 @@ SELECT
 -- successfully: SHOW FAILOVER GROUPS LIKE 'DCA_BCDR_DB_FG';
 SHOW REPLICATION GROUPS;
 
--- GIT_API prerequisite:
--- Git Repository objects replicate as database-level objects with GOVERNANCE.
--- For them to be functional after failover, a GIT_API integration must exist
--- on this account. Each account manages its own Git credentials — create it
--- here directly rather than relying on replication from primary.
+-- GIT_API integration:
+-- Git Repository objects do NOT replicate with the database — confirmed by
+-- testing. The repository must be created directly on the secondary.
+-- GOVERNANCE is a read-only replica here, so the repo cannot go in
+-- GOVERNANCE.LINEAGE until after failover. It is created in BCDR_DEMO.PUBLIC
+-- in Part 8, after BCDR_DEMO is provisioned.
 --
--- Skip this block if a compatible GIT_API integration already exists.
--- Verify with: SHOW API INTEGRATIONS LIKE 'GIT_API';
---
---   CREATE API INTEGRATION IF NOT EXISTS GIT_API
---       API_PROVIDER         = git_https_api
---       API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-smitchener-1/')
---       ENABLED              = TRUE
---       COMMENT              = 'Git API integration for DCA fullstack demo repo';
+-- First, ensure the GIT_API integration exists on this account.
+-- Skip if already present: SHOW API INTEGRATIONS LIKE 'GIT_API';
+
+CREATE API INTEGRATION IF NOT EXISTS GIT_API
+    API_PROVIDER         = git_https_api
+    API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-smitchener-1/')
+    ENABLED              = TRUE
+    COMMENT              = 'Git API integration for DCA fullstack demo repo';
+
+SHOW API INTEGRATIONS LIKE 'GIT_API';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -229,6 +232,20 @@ CREATE DATABASE IF NOT EXISTS BCDR_DEMO
 
 CREATE SCHEMA IF NOT EXISTS BCDR_DEMO.STREAMLIT
     COMMENT = 'Streamlit warm standby for DCA fullstack demo.';
+
+-- Git Repository:
+-- Git Repositories do NOT replicate with the database. GOVERNANCE is read-only
+-- here so the repo is created in BCDR_DEMO.PUBLIC instead.
+-- After failover (GOVERNANCE becomes writable) it can be recreated in
+-- GOVERNANCE.LINEAGE if preferred — the origin URL is identical either way.
+CREATE GIT REPOSITORY IF NOT EXISTS BCDR_DEMO.PUBLIC.DCA_FULLSTACK_DEMO_REPO
+    API_INTEGRATION = GIT_API
+    ORIGIN          = 'https://github.com/sfc-gh-smitchener-1/snowflake-dca-fullstack-demo.git'
+    COMMENT         = 'DCA fullstack demo repo — secondary instance. Primary lives in GOVERNANCE.LINEAGE.';
+
+ALTER GIT REPOSITORY BCDR_DEMO.PUBLIC.DCA_FULLSTACK_DEMO_REPO FETCH;
+SHOW GIT BRANCHES IN GIT REPOSITORY BCDR_DEMO.PUBLIC.DCA_FULLSTACK_DEMO_REPO;
+
 
 CREATE STREAMLIT IF NOT EXISTS BCDR_DEMO.STREAMLIT.DCA_DEMO_APP
     ROOT_LOCATION   = '@SEM_DEV.STREAMLIT.STREAMLIT_STAGE'
