@@ -67,6 +67,24 @@ DROP ROLE IF EXISTS DATA_ADMIN;
 */
 
 -- -----------------------------------------------------------------------------
+-- DROP BCDR OBJECTS
+-- Run PRIMARY steps on SNOW_BCDR_PRIMARY, SECONDARY steps on SNOW_BCDR_SECONDARY
+-- -----------------------------------------------------------------------------
+/*
+-- SECONDARY: drop replica connection and failover group first
+-- DROP CONNECTION DCA_DEMO_CONNECTION;
+-- DROP FAILOVER GROUP DCA_BCDR_DB_FG;
+
+-- PRIMARY: drop connection, failover group, and git repository
+-- DROP CONNECTION DCA_DEMO_CONNECTION;
+-- DROP FAILOVER GROUP DCA_BCDR_DB_FG;
+-- DROP GIT REPOSITORY IF EXISTS GOVERNANCE.LINEAGE.DCA_FULLSTACK_DEMO_REPO;
+
+-- PRIMARY: revert account failover group integration types (remove GIT_REPOSITORIES)
+-- ALTER FAILOVER GROUP ICEBERG_BCDR_ACCOUNT_FG SET ALLOWED_INTEGRATION_TYPES = STORAGE;
+*/
+
+-- -----------------------------------------------------------------------------
 -- VERIFICATION
 -- -----------------------------------------------------------------------------
 
