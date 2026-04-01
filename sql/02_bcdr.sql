@@ -92,25 +92,28 @@ SHOW GIT BRANCHES IN GIT REPOSITORY GOVERNANCE.LINEAGE.DCA_FULLSTACK_DEMO_REPO;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 3 — PRIMARY ACCOUNT — EXTEND ACCOUNT FAILOVER GROUP
+-- PART 3 — SECONDARY ACCOUNT — GIT API INTEGRATION PREREQUISITE
 -- ═══════════════════════════════════════════════════════════════════════════
--- The existing ICEBERG_BCDR_ACCOUNT_FG already replicates INTEGRATIONS with
--- ALLOWED_INTEGRATION_TYPES = STORAGE INTEGRATIONS. We extend it to also
--- include API INTEGRATIONS so the GIT_API integration is replicated to the
--- secondary, making Git Repository objects functional after failover.
--- (Git Repository objects themselves are database-level and replicate with
--- the GOVERNANCE database via DCA_BCDR_DB_FG.)
+-- The GIT REPOSITORY object replicates as a database-level object with the
+-- GOVERNANCE database via DCA_BCDR_DB_FG — no account-level integration
+-- replication is needed for that.
 --
--- NOTE: ADD appends to the existing list — STORAGE INTEGRATIONS is preserved.
--- Using ADD (not SET) avoids having to restate existing types and sidesteps
--- the multi-value comma parsing issue with SET ALLOWED_INTEGRATION_TYPES.
--- We add only the one new type needed to cover the GIT_API integration.
-
-ALTER FAILOVER GROUP ICEBERG_BCDR_ACCOUNT_FG
-    ADD ALLOWED_INTEGRATION_TYPES = API INTEGRATIONS;
-
--- Verify the change
-SHOW FAILOVER GROUPS LIKE 'ICEBERG_BCDR_ACCOUNT_FG';
+-- However, for Git Repository objects to be functional on the secondary
+-- after failover, a GIT_API integration must exist there. Each account
+-- manages its own Git credentials, so create it directly on the secondary
+-- rather than replicating from primary.
+--
+-- Run this block on SNOW_BCDR_SECONDARY before the initial refresh:
+--
+--   USE ROLE ACCOUNTADMIN;
+--   CREATE API INTEGRATION IF NOT EXISTS GIT_API
+--       API_PROVIDER     = git_https_api
+--       API_ALLOWED_PREFIXES = ('https://github.com/sfc-gh-smitchener-1/')
+--       ENABLED          = TRUE
+--       COMMENT          = 'Git API integration for DCA fullstack demo repo';
+--
+-- If the secondary already has a compatible GIT_API integration this step
+-- can be skipped. Verify with: SHOW API INTEGRATIONS LIKE 'GIT_API';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
