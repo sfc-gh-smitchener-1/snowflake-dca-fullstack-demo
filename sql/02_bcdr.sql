@@ -176,7 +176,7 @@ SELECT
 
 -- Create the secondary replica of the DCA database failover group.
 -- After this, Snowflake begins replicating on the 10-minute schedule.
-CREATE FAILOVER GROUP IF NOT EXISTS SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_BCDR_DB_FG
+CREATE FAILOVER GROUP IF NOT EXISTS DCA_BCDR_DB_FG
     AS REPLICA OF SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_BCDR_DB_FG;
 
 -- Verify replica was created
@@ -188,7 +188,7 @@ SHOW FAILOVER GROUPS LIKE 'DCA_BCDR_DB_FG';
 -- ═══════════════════════════════════════════════════════════════════════════
 
 -- Create replica of the client-redirect Connection on the secondary.
-CREATE CONNECTION IF NOT EXISTS SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_DEMO_CONNECTION
+CREATE CONNECTION IF NOT EXISTS DCA_DEMO_CONNECTION
     AS REPLICA OF SFSENORTHAMERICA.SNOW_BCDR_PRIMARY.DCA_DEMO_CONNECTION;
 
 -- !! ACCOUNT GUARD — read this result before running REFRESH !!
