@@ -1,22 +1,72 @@
 # Streamlit App Registry Pattern — BCDR Reference Architecture
 
-> **Production gap pattern for managing hundreds of Streamlit apps across primary and secondary accounts.**
-> `CREATE STREAMLIT` objects do not replicate natively. This pattern bridges that gap using a metadata registry, a sync procedure, and a scheduled task.
+> **Production bridge pattern for managing Streamlit apps across primary and DR accounts.**
+> `CREATE STREAMLIT` objects do not replicate natively via failover groups. This pattern bridges that gap using a metadata registry, a sync procedure, and a scheduled task — and is designed to be replaced by a native product solution when available.
 
 ---
 
 ## Table of Contents
 
-1. [Problem Statement](#problem-statement)
-2. [System Architecture](#system-architecture)
-3. [Component Reference](#component-reference)
-4. [Process Flow — Normal Operations](#process-flow--normal-operations)
-5. [App Lifecycle](#app-lifecycle)
-6. [Registry Table Schema](#registry-table-schema)
-7. [Sync Procedure Logic](#sync-procedure-logic)
-8. [Git-Based Code Management](#git-based-code-management)
-9. [Drift Detection](#drift-detection)
-10. [Post-Failover Considerations](#post-failover-considerations)
+1. [Design Scenario](#design-scenario)
+2. [Problem Statement](#problem-statement)
+3. [DR Deployment Options](#dr-deployment-options)
+4. [System Architecture](#system-architecture)
+5. [Component Reference](#component-reference)
+6. [Process Flow — Normal Operations](#process-flow--normal-operations)
+7. [App Lifecycle](#app-lifecycle)
+8. [Registry Table Schema](#registry-table-schema)
+9. [Sync Procedure Logic](#sync-procedure-logic)
+10. [Git-Based Code Management](#git-based-code-management)
+11. [Drift Detection](#drift-detection)
+12. [Post-Failover Considerations](#post-failover-considerations)
+
+---
+
+## Design Scenario
+
+> **This is a DR design engagement, not an active outage.** The pattern documented here is being validated for production readiness ahead of a planned failover exercise.
+
+### Context
+
+An enterprise customer operates **14 Streamlit applications** on a Snowflake account in `us-east-1`. As part of a broader BCDR programme, they need all 14 apps to be available in a DR account in `us-west-2` within their defined RTO window.
+
+```
+┌──────────────────────────────────┐         ┌──────────────────────────────────┐
+│  PRIMARY ACCOUNT                 │         │  DR ACCOUNT                      │
+│  Region: us-east-1               │  ─────► │  Region: us-west-2               │
+│                                  │         │                                  │
+│  14 Streamlit apps (live)        │         │  14 Streamlit apps (standby)     │
+│  SEM_DEV.STREAMLIT.*             │         │  DR_APPS.STREAMLIT.*             │
+│  GOVERNANCE.STREAMLIT.APP_REGISTRY│         │  GOVERNANCE (read-only replica)  │
+└──────────────────────────────────┘         └──────────────────────────────────┘
+         DCA_BCDR_DB_FG replicates databases (10 min)
+         CREATE STREAMLIT objects do NOT replicate — this is the gap
+```
+
+### App Inventory (14 apps)
+
+| # | Placeholder Name | Domain |
+|---|-----------------|--------|
+| 01 | `APP_001` | To be populated |
+| 02 | `APP_002` | To be populated |
+| 03 | `APP_003` | To be populated |
+| 04 | `APP_004` | To be populated |
+| 05 | `APP_005` | To be populated |
+| 06 | `APP_006` | To be populated |
+| 07 | `APP_007` | To be populated |
+| 08 | `APP_008` | To be populated |
+| 09 | `APP_009` | To be populated |
+| 10 | `APP_010` | To be populated |
+| 11 | `APP_011` | To be populated |
+| 12 | `APP_012` | To be populated |
+| 13 | `APP_013` | To be populated |
+| 14 | `APP_014` | To be populated |
+
+> Replace placeholders with actual app names as inventory is confirmed. Each app maps to one registry file in `streamlit_registry/`.
+
+### Requirement: Production Before Native Solution
+
+Snowflake Product is working on native support for Streamlit replication. Until that capability is generally available, **this registry pattern must be in production** to cover the DR gap. The pattern is designed to be removed cleanly when native replication ships — the registry table and sync task can be dropped; the `CREATE STREAMLIT` objects remain.
 
 ---
 
@@ -38,7 +88,55 @@ Snowflake does not replicate `CREATE STREAMLIT` objects as part of database repl
 └─────────────────────────────────────────────┘
 ```
 
-At small scale (1–2 apps) this is handled by a warm standby — a manually scripted `CREATE STREAMLIT` in a native writable database (`BCDR_DEMO`) on the secondary. At large scale (hundreds of apps) that approach becomes unmanageable without a systematic pattern.
+At small scale (1–2 apps) this is handled by a warm standby — a manually scripted `CREATE STREAMLIT` in a native writable database on the secondary. At 14 apps in production, that approach becomes operationally fragile without a systematic pattern.
+
+---
+
+## DR Deployment Options
+
+Two viable options exist for getting Streamlit apps into the DR account. The registry pattern (Option A) is recommended for production use at 14+ apps.
+
+```mermaid
+flowchart LR
+    GAP["CREATE STREAMLIT\nnot replicated"]
+
+    GAP --> OA["Option A\nStage-Based + Registry"]
+    GAP --> OB["Option B\nManual Upload"]
+
+    OA --> OA1["App source files replicate\nautomatically with SEM_DEV stage"]
+    OA --> OA2["Registry table replicates\nwith GOVERNANCE database"]
+    OA --> OA3["Sync procedure creates\napps on DR automatically"]
+    OA --> OA4["Zero-touch DR readiness\nonce set up"]
+
+    OB --> OB1["App source files uploaded\ndirectly to DR account stage"]
+    OB --> OB2["CREATE STREAMLIT run\nmanually per app"]
+    OB --> OB3["14 manual steps\nper DR exercise"]
+    OB --> OB4["No drift detection\nno lifecycle automation"]
+```
+
+| Criterion | Option A: Stage-Based + Registry | Option B: Manual Upload |
+|-----------|----------------------------------|------------------------|
+| **App source files** | Replicate automatically with `SEM_DEV` stage (10 min) | Uploaded manually to DR stage |
+| **App definitions** | Created automatically by sync task | Created manually per app |
+| **Operational effort (steady state)** | None — task runs continuously | None |
+| **Operational effort (DR exercise)** | Verify 14 standby apps exist | Upload files + run 14 `CREATE STREAMLIT` |
+| **Operational effort (actual failover)** | Alter connection + verify | Upload files + run 14 creates |
+| **Drift risk** | Low — drift detection query catches gaps | High — no automated reconciliation |
+| **New app onboarding** | Add one registry file + CI/CD | Remember to duplicate to DR manually |
+| **Decommission** | Set `IS_ACTIVE=FALSE` in git | Remember to drop from DR manually |
+| **Audit trail** | Git history per app | None |
+| **Production readiness** | Yes — automated, testable, repeatable | No — manual, error-prone at scale |
+
+> **Recommendation:** Option A for all production deployments. Option B is acceptable only for a one-time proof-of-concept or a scenario where CI/CD cannot be established before a DR test.
+
+### Current Testing Status
+
+The DR account initially hit a **read-only secondary error** when attempting to create apps directly inside a replicated database. The fix is to create apps in a **native writable database** (`DR_APPS`) on the DR account — not inside the replicated `SEM_DEV` replica. App source files are read from the replicated stage path; only the `CREATE STREAMLIT` DDL object lives in the native DB.
+
+```
+READ  from: @SEM_DEV.STREAMLIT.STREAMLIT_STAGE/...  (replicated — read-only is fine)
+WRITE to:   DR_APPS.STREAMLIT.APP_NAME              (native writable DB on DR account)
+```
 
 ---
 
@@ -46,33 +144,35 @@ At small scale (1–2 apps) this is handled by a warm standby — a manually scr
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│  SNOW_BCDR_PRIMARY (OAB74379 · us-west-2)                                    │
+│  PRIMARY ACCOUNT · us-east-1                                                 │
 │                                                                              │
 │  ┌──────────────────────┐    ┌───────────────────────────────────────────┐  │
 │  │  Git Repository      │    │  GOVERNANCE.STREAMLIT.APP_REGISTRY        │  │
 │  │  (source of truth)   │    │  (metadata — replicates with GOVERNANCE)  │  │
-│  │  streamlit_registry/ │    │  app_name · root_location · main_file     │  │
-│  │  001_app.sql         │    │  query_warehouse · is_active · version     │  │
-│  │  002_app.sql         │    └───────────────────────────────────────────┘  │
-│  │  ...NNN_app.sql      │                       │                           │
-│  └──────────────────────┘                       │                           │
-│            │  CI/CD MERGE                       │ DCA_BCDR_DB_FG            │
+│  │  streamlit_registry/ │    │  14 rows · one per app                    │  │
+│  │  001_app.sql         │    └───────────────────────────────────────────┘  │
+│  │  002_app.sql         │                       │                           │
+│  │  ...014_app.sql      │                       │                           │
+│  └──────────────────────┘                       │ DCA_BCDR_DB_FG            │
+│            │  CI/CD MERGE                       │ 10-min replication        │
 └────────────┼───────────────────────────────────┼───────────────────────────┘
-             │                                   │ 10-min replication
-             │                   ┌───────────────▼───────────────────────────┐
-             │                   │  SNOW_BCDR_SECONDARY (OZC55031 · us-east-1)│
+             │                                   │
+             │                   ┌───────────────▼────────────────────────────┐
+             │                   │  DR ACCOUNT · us-west-2                    │
              │                   │                                            │
              │                   │  GOVERNANCE.STREAMLIT.APP_REGISTRY (r/o)  │
+             │                   │  14 rows replicated                        │
              │                   │            │                               │
              │                   │            ▼                               │
-             │                   │  BCDR_DEMO.PUBLIC.SYNC_STREAMLIT_APPS()   │
+             │                   │  DR_DEMO.PUBLIC.SYNC_STREAMLIT_APPS()     │
              │                   │  (stored procedure — reconciles app state) │
              │                   │            │                               │
              │                   │            ▼  triggered every 10 min      │
-             │                   │  BCDR_DEMO.PUBLIC.SYNC_STREAMLIT_TASK     │
+             │                   │  DR_DEMO.PUBLIC.SYNC_STREAMLIT_TASK       │
              │                   │            │                               │
              │                   │            ▼                               │
-             │                   │  BCDR_APPS.STREAMLIT.*  (warm standby)    │
+             │                   │  DR_APPS.STREAMLIT.*  (14 warm standby)   │
+             │                   │  APP_001 ... APP_014                       │
              │                   └────────────────────────────────────────────┘
              │
              ▼ (post-failover only)
@@ -84,7 +184,7 @@ At small scale (1–2 apps) this is handled by a warm standby — a manually scr
 ```mermaid
 flowchart TB
     subgraph GIT["Git Repository — source of truth"]
-        REG["streamlit_registry/\n001_app.sql\n002_app.sql\n...NNN_app.sql"]
+        REG["streamlit_registry/\n001_app.sql → 014_app.sql\n(14 MERGE files)"]
         PROC["sql/02_bcdr.sql\n(sync procedure + task DDL)"]
     end
 
@@ -93,21 +193,21 @@ flowchart TB
         PIPE["MERGE INTO\nGOVERNANCE.STREAMLIT.APP_REGISTRY"]
     end
 
-    subgraph PRIMARY["SNOW_BCDR_PRIMARY"]
-        REG_TABLE["GOVERNANCE.STREAMLIT.APP_REGISTRY\n(authoritative app catalog)"]
-        LIVE_APPS["SEM_DEV.STREAMLIT.*\n(live apps)"]
+    subgraph PRIMARY["PRIMARY ACCOUNT · us-east-1"]
+        REG_TABLE["GOVERNANCE.STREAMLIT.APP_REGISTRY\n14 rows — authoritative app catalog"]
+        LIVE_APPS["SEM_DEV.STREAMLIT.*\n14 live apps"]
     end
 
     subgraph FG["DCA_BCDR_DB_FG · 10-min schedule"]
-        REPL["GOVERNANCE database\n(APP_REGISTRY travels with it)"]
+        REPL["GOVERNANCE database\n(APP_REGISTRY + 14 rows travel with it)"]
     end
 
-    subgraph SECONDARY["SNOW_BCDR_SECONDARY"]
-        REG_REPLICA["GOVERNANCE.STREAMLIT.APP_REGISTRY\n(read-only replica)"]
-        SYNC["BCDR_DEMO.PUBLIC\n.SYNC_STREAMLIT_APPS()"]
+    subgraph SECONDARY["DR ACCOUNT · us-west-2"]
+        REG_REPLICA["GOVERNANCE.STREAMLIT.APP_REGISTRY\n14 rows — read-only replica"]
+        SYNC["DR_DEMO.PUBLIC\n.SYNC_STREAMLIT_APPS()"]
         TASK["SYNC_STREAMLIT_TASK\nevery 10 min + 5 min offset"]
-        STANDBY["BCDR_APPS.STREAMLIT.*\n(warm standby apps)"]
-        DRIFT["Drift Detection\norphaned app alert"]
+        STANDBY["DR_APPS.STREAMLIT.*\nAPP_001 ... APP_014\n(14 warm standby apps)"]
+        DRIFT["Drift Detection\nmissing or orphaned app alert"]
     end
 
     DEV["Developer"] -->|commit + PR| REG
@@ -127,12 +227,12 @@ flowchart TB
 
 | Component | Account | Object | Purpose |
 |-----------|---------|--------|---------|
-| App Registry | PRIMARY | `GOVERNANCE.STREAMLIT.APP_REGISTRY` | Single source of truth — replicates automatically |
-| Sync Procedure | SECONDARY | `BCDR_DEMO.PUBLIC.SYNC_STREAMLIT_APPS()` | Reconciles live apps against replicated registry |
-| Sync Task | SECONDARY | `BCDR_DEMO.PUBLIC.SYNC_STREAMLIT_TASK` | Drives sync on a schedule (10 min + offset) |
-| Warm Standby DB | SECONDARY | `BCDR_APPS.STREAMLIT.*` | Native writable database — hosts secondary apps |
-| Git Registry Files | Both | `streamlit_registry/NNN_app.sql` | One MERGE file per app — version-controlled lifecycle |
-| Stage (files) | PRIMARY → SECONDARY | `SEM_DEV.STREAMLIT.STREAMLIT_STAGE` | App source files — replicates with SEM_DEV |
+| App Registry | PRIMARY (us-east-1) | `GOVERNANCE.STREAMLIT.APP_REGISTRY` | 14-row source of truth — replicates automatically |
+| Sync Procedure | DR (us-west-2) | `DR_DEMO.PUBLIC.SYNC_STREAMLIT_APPS()` | Reconciles 14 live standby apps against replicated registry |
+| Sync Task | DR (us-west-2) | `DR_DEMO.PUBLIC.SYNC_STREAMLIT_TASK` | Drives sync on a schedule (10 min + offset) |
+| Warm Standby DB | DR (us-west-2) | `DR_APPS.STREAMLIT.*` | Native writable database — hosts 14 DR standby apps |
+| Git Registry Files | Both | `streamlit_registry/001_app.sql … 014_app.sql` | One MERGE file per app — version-controlled lifecycle |
+| Stage (files) | PRIMARY → DR | `SEM_DEV.STREAMLIT.STREAMLIT_STAGE` | App source files — replicates with SEM_DEV |
 
 ---
 
@@ -143,20 +243,20 @@ sequenceDiagram
     participant DEV as Developer
     participant GIT as GitHub
     participant CICD as CI/CD Pipeline
-    participant PRI as Primary Registry
+    participant PRI as Primary Registry (us-east-1)
     participant FG as DCA_BCDR_DB_FG
-    participant SEC as Secondary Sync Task
+    participant SEC as DR Sync Task (us-west-2)
 
-    DEV->>GIT: commit streamlit_registry/042_new_app.sql
+    DEV->>GIT: commit streamlit_registry/014_new_app.sql
     GIT->>CICD: PR opened → review → merge
     CICD->>PRI: MERGE INTO GOVERNANCE.STREAMLIT.APP_REGISTRY
-    Note over PRI: APP_REGISTRY row inserted (IS_ACTIVE=TRUE)
+    Note over PRI: Row 14 inserted (IS_ACTIVE=TRUE)\nTotal: 14 active apps
     PRI->>FG: scheduled 10-min refresh
-    FG->>SEC: replica updated
+    FG->>SEC: replica updated (14 rows)
     Note over SEC: SYNC_STREAMLIT_TASK fires (10 min + 5 min offset)
     SEC->>SEC: SYNC_STREAMLIT_APPS() runs
-    Note over SEC: CREATE STREAMLIT IF NOT EXISTS\nin BCDR_APPS.STREAMLIT
-    SEC->>SEC: warm standby app live
+    Note over SEC: CREATE STREAMLIT IF NOT EXISTS APP_014\nin DR_APPS.STREAMLIT
+    SEC->>SEC: all 14 warm standby apps live
 ```
 
 **End-to-end lag: ≤ 25 minutes** (10 min replication + 5 min offset + procedure runtime)
@@ -275,10 +375,11 @@ Each app has exactly one registry file. The file contains a single idempotent `M
 
 ```
 streamlit_registry/
-├── 001_dca_demo_app.sql
-├── 002_contracts_explorer.sql
-├── 003_governance_dashboard.sql
-└── ...
+├── 001_app.sql
+├── 002_app.sql
+├── 003_app.sql
+├── ...
+└── 014_app.sql      ← 14 apps total for this DR scenario
 ```
 
 **Example registry file (`042_cost_monitor.sql`):**
@@ -417,19 +518,31 @@ However, the **canonical** app location (`SEM_DEV.STREAMLIT.*`) still needs to b
                          │       PRODUCT GAP            │
                          │  CREATE STREAMLIT does not   │
                          │  replicate with databases    │
+                         │  Native solution: in preview │
                          └──────────────┬──────────────┘
                                         │
                                         ▼
          ┌──────────────────────────────────────────────────────┐
-         │                  REGISTRY PATTERN                     │
+         │             REGISTRY BRIDGE PATTERN                   │
+         │             (production until native ships)           │
          │                                                       │
-         │  Metadata replicates (GOVERNANCE table)               │
+         │  14 apps · us-east-1 PRIMARY → us-west-2 DR          │
+         │                                                       │
+         │  Metadata replicates (GOVERNANCE table · 14 rows)     │
          │  Stage files replicate (SEM_DEV stage)                │
-         │  Sync procedure reconciles app definitions            │
+         │  Sync procedure reconciles 14 app definitions         │
          │  Task drives continuous reconciliation                │
          │                                                       │
-         │  RTO for warm standby:  already live                  │
+         │  RTO for warm standby:  already live pre-failover     │
          │  RTO for canonical apps: minutes (run one script)     │
          │  RPO:  ≤ 10 min (registry + stage files)             │
          └──────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │   NATIVE SOLUTION (future)   │
+                         │  When available: drop task,  │
+                         │  drop registry, DROP SYNC    │
+                         │  procedure. Apps remain.     │
+                         └─────────────────────────────┘
 ```
