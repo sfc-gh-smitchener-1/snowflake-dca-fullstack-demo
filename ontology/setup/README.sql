@@ -1,0 +1,65 @@
+-- ============================================================
+-- DCA Demo | Run Order & Prerequisites
+-- ============================================================
+--
+-- PREREQUISITES
+--   • A Snowflake account (Trial, Standard, Enterprise, or Business Critical)
+--   • ACCOUNTADMIN role access
+--   • A warehouse named COMPUTE_WH (or edit the USE WAREHOUSE lines)
+--
+-- MODULES — run in this order:
+--
+--   01_roles.sql               Creates role hierarchy (CDO → RDO → Consumer)
+--   02_schemas_and_data.sql    Creates DCA_DEMO database, layer schemas
+--                              (RAW / CURATED / SEMANTIC_FINANCE / SEMANTIC_SALES)
+--                              and synthetic data (~500 rows across all layers)
+--   03_governance.sql          Tags, masking policies, data contracts,
+--                              and the DATA_PRODUCT_CATALOG governance table
+--   04_governance_gaps.sql     Intentional gaps for the Diagnostic Tool demo
+--                              (conflicting definitions, unmasked PII, orphaned objects)
+--
+-- ── QUICK START ──────────────────────────────────────────────
+--
+--   Run each file top-to-bottom in a Snowsight worksheet.
+--   Each file ends with a SELECT that confirms successful completion.
+--
+-- ── STREAMLIT IN SNOWFLAKE DEPLOYMENT ────────────────────────
+--
+--   After running all 4 setup files:
+--
+--   1. Create a stage for the Streamlit source:
+--        CREATE OR REPLACE STAGE DCA_DEMO.GOVERNANCE.STREAMLIT_STAGE
+--          DIRECTORY = (ENABLE = TRUE);
+--
+--   2. Upload the streamlit/ folder contents to the stage via SnowSQL or UI:
+--        PUT file:///path/to/streamlit/app.py          @DCA_DEMO.GOVERNANCE.STREAMLIT_STAGE;
+--        PUT file:///path/to/streamlit/pages/*.py      @DCA_DEMO.GOVERNANCE.STREAMLIT_STAGE/pages/;
+--        PUT file:///path/to/streamlit/environment.yml @DCA_DEMO.GOVERNANCE.STREAMLIT_STAGE;
+--
+--   3. Create the Streamlit object:
+--        CREATE STREAMLIT DCA_DEMO.GOVERNANCE.DCA_DEMO_APP
+--          ROOT_LOCATION = '@DCA_DEMO.GOVERNANCE.STREAMLIT_STAGE'
+--          MAIN_FILE     = 'app.py'
+--          QUERY_WAREHOUSE = COMPUTE_WH
+--          COMMENT = 'Data Contracts Architecture Demo — SE enablement lab';
+--
+--   4. Grant access:
+--        GRANT USAGE ON STREAMLIT DCA_DEMO.GOVERNANCE.DCA_DEMO_APP
+--          TO ROLE finance_data_owner;
+--        GRANT USAGE ON STREAMLIT DCA_DEMO.GOVERNANCE.DCA_DEMO_APP
+--          TO ROLE sales_data_owner;
+--
+-- ── DEMO CLEANUP ─────────────────────────────────────────────
+--
+--   DROP DATABASE IF EXISTS DCA_DEMO CASCADE;
+--   DROP ROLE IF EXISTS dca_governance_admin;
+--   DROP ROLE IF EXISTS dca_platform_admin;
+--   DROP ROLE IF EXISTS finance_data_owner;
+--   DROP ROLE IF EXISTS finance_data_consumer;
+--   DROP ROLE IF EXISTS sales_data_owner;
+--   DROP ROLE IF EXISTS sales_data_consumer;
+--   DROP ROLE IF EXISTS dca_bronze_loader;
+--
+-- ============================================================
+
+SELECT 'README loaded — proceed with 01_roles.sql' AS next_step;

@@ -1,0 +1,8 @@
+name: dca_demo_env
+channels:
+  - snowflake
+dependencies:
+  - streamlit
+  - pandas
+  - plotly
+  - altair
