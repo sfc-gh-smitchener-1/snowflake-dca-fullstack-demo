@@ -1,0 +1,300 @@
+// ============================================================================
+// ONTOLOGY KNOWLEDGE GRAPH - RAI REL MODEL
+// ============================================================================
+//
+// This Rel model defines the graph schema, integrity constraints, inference
+// rules, and graph algorithms for the Ontology Knowledge Graph.
+//
+// Loaded into the ONTOLOGY_ENGINE via RAI.API.EXEC_REL from the
+// SP_SYNC_TO_RAI stored procedure.
+//
+// ============================================================================
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 1: BASE RELATIONS
+// ─────────────────────────────────────────────────────────────────────────────
+// These relations are populated from Snowflake tables via data streams.
+// The raw data stream relations (ontology_graph_nodes, ontology_graph_edges)
+// are created by RAI.API.CREATE_DATA_STREAM.
+
+// Project node attributes from the raw data stream
+def node(id, type, layer, source_system, fqn, display_name) =
+    ontology_graph_nodes(id, type, layer, source_system, fqn, display_name, _, _)
+
+// Project edge attributes from the raw data stream
+def edge(id, src, tgt, type, layer, weight) =
+    ontology_graph_edges(id, src, tgt, type, layer, weight, _, _)
+
+// Convenience relations for filtering by layer
+def metadata_node(id) = node(id, _, "METADATA", _, _, _)
+def business_node(id) = node(id, _, "BUSINESS", _, _, _)
+
+// Convenience relations for filtering by node type
+def table_node(id) = node(id, "TABLE", _, _, _, _)
+def column_node(id) = node(id, "COLUMN", _, _, _, _)
+def role_node(id) = node(id, "ROLE", _, _, _, _)
+def tag_node(id) = node(id, "TAG", _, _, _, _)
+def customer_node(id) = node(id, "CUSTOMER", _, _, _, _)
+def patient_node(id) = node(id, "PATIENT", _, _, _, _)
+def employee_node(id) = node(id, "EMPLOYEE", _, _, _, _)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 2: INTEGRITY CONSTRAINTS
+// ─────────────────────────────────────────────────────────────────────────────
+// These ensure referential integrity within the graph model.
+
+// Every edge source must reference a valid node
+ic edge_source_valid(e, src, tgt, t, l, w) {
+    edge(e, src, tgt, t, l, w) implies
+        exists(ty, la, ss, fq, dn: node(src, ty, la, ss, fq, dn))
+}
+
+// Every edge target must reference a valid node
+ic edge_target_valid(e, src, tgt, t, l, w) {
+    edge(e, src, tgt, t, l, w) implies
+        exists(ty, la, ss, fq, dn: node(tgt, ty, la, ss, fq, dn))
+}
+
+// Node IDs must be unique (enforced by primary key, but state explicitly)
+ic node_id_unique(id, t1, t2) {
+    node(id, t1, _, _, _, _) and node(id, t2, _, _, _, _) implies t1 = t2
+}
+
+// Edge layer must be valid
+ic edge_layer_valid(e, src, tgt, t, l, w) {
+    edge(e, src, tgt, t, l, w) implies
+        l = "METADATA" or l = "BUSINESS" or l = "CROSS"
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 3: INFERENCE RULES
+// ─────────────────────────────────────────────────────────────────────────────
+// These derive new facts from the graph structure.
+
+// --- PII Propagation Detection ---
+// If a column receives data (LINEAGE_FROM) from a PII-tagged column,
+// it should also be tagged as PII. Detect untagged downstream columns.
+def pii_tag_node(tag_id) =
+    node(tag_id, "TAG", _, _, _, dn) and
+    (contains(dn, "PII") or contains(dn, "SENSITIVE") or contains(dn, "PHI"))
+
+def is_pii_tagged(col_id) =
+    edge(_, col_id, tag_id, "TAGGED_WITH", _, _) and pii_tag_node(tag_id)
+
+def receives_from_pii(col_id) =
+    edge(_, col_id, source_col, "LINEAGE_FROM", _, _) and
+    column_node(col_id) and
+    is_pii_tagged(source_col)
+
+// Columns that receive PII data but are NOT themselves tagged
+def inferred_pii_propagation(col_id, source_col) =
+    receives_from_pii(col_id) and
+    edge(_, col_id, source_col, "LINEAGE_FROM", _, _) and
+    is_pii_tagged(source_col) and
+    not is_pii_tagged(col_id)
+
+// --- Ownership Gap Detection ---
+// Tables that have no ownership/contract tag (missing data steward)
+def has_ownership(table_id) =
+    edge(_, table_id, _, "TAGGED_WITH", _, _) and
+    node(_, "TAG", _, _, _, dn) and
+    (contains(dn, "OWNER") or contains(dn, "CONTRACT") or contains(dn, "STEWARD"))
+
+def ownership_gap(table_id, display_name) =
+    table_node(table_id) and
+    node(table_id, _, _, _, _, display_name) and
+    not has_ownership(table_id)
+
+// --- Layer Bypass Detection ---
+// Roles that have direct grants to both RAW and SEMANTIC layers (bypasses curation)
+def has_raw_grant(role_id) =
+    edge(_, role_id, table_id, "GRANTED_TO", _, _) and
+    node(table_id, "TABLE", _, _, fqn, _) and
+    contains(fqn, "RAW")
+
+def has_semantic_grant(role_id) =
+    edge(_, role_id, table_id, "GRANTED_TO", _, _) and
+    node(table_id, "TABLE", _, _, fqn, _) and
+    contains(fqn, "SEMANTIC")
+
+def layer_bypass(role_id, display_name) =
+    role_node(role_id) and
+    node(role_id, _, _, _, _, display_name) and
+    has_raw_grant(role_id) and
+    has_semantic_grant(role_id)
+
+// --- Entity Resolution (Cross-System Matching) ---
+// Match entities across source systems using word-token Jaccard similarity
+def tokenize(str, token) =
+    string:split(string:lower(str), " ", token)
+
+def jaccard_similarity(id1, id2, score) =
+    node(id1, _, "BUSINESS", sys1, _, dn1) and
+    node(id2, _, "BUSINESS", sys2, _, dn2) and
+    sys1 != sys2 and
+    id1 < id2 and  // avoid duplicates
+    count[t: tokenize(dn1, t) and tokenize(dn2, t)](intersection_size) and
+    count[t: tokenize(dn1, t) or tokenize(dn2, t)](union_size) and
+    union_size > 0 and
+    score = intersection_size / union_size
+
+// Entities with high similarity across different source systems
+def entity_resolution_candidate(id1, id2, score) =
+    jaccard_similarity(id1, id2, score) and
+    score >= 0.7
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 4: GRAPH ALGORITHMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// --- Lineage Path (Transitive Closure) ---
+// Compute all reachable nodes via LINEAGE_FROM edges
+def lineage_step(src, tgt) =
+    edge(_, src, tgt, "LINEAGE_FROM", _, _)
+
+def lineage_path(src, tgt) = lineage_step(src, tgt)
+def lineage_path(src, tgt) =
+    lineage_step(src, mid) and lineage_path(mid, tgt)
+
+// --- Connected Components ---
+// Undirected connectivity for entity clustering
+def connected(a, b) = edge(_, a, b, _, _, _)
+def connected(a, b) = edge(_, b, a, _, _, _)
+def connected(a, b) = connected(a, mid) and connected(mid, b)
+
+// Component ID is the minimum node_id in the component
+def component_id(n, comp) =
+    comp = min[m: connected(n, m) or m = n]
+
+// --- PageRank ---
+// Identify critical hub nodes by connection count (simplified degree centrality)
+def out_degree(n, deg) =
+    deg = count[e: edge(e, n, _, _, _, _)]
+
+def in_degree(n, deg) =
+    deg = count[e: edge(e, _, n, _, _, _)]
+
+def total_degree(n, deg) =
+    out_degree(n, out_d) and
+    in_degree(n, in_d) and
+    deg = out_d + in_d
+
+// Normalized centrality score (proxy for PageRank in declarative setting)
+def max_degree(m) = m = max[d: total_degree(_, d)]
+def centrality_score(n, score) =
+    total_degree(n, deg) and
+    max_degree(m) and
+    m > 0 and
+    score = deg / m
+
+// --- Shortest Path ---
+// BFS-style shortest path computation
+def path_length(src, tgt, 1) =
+    edge(_, src, tgt, _, _, _) or edge(_, tgt, src, _, _, _)
+
+def path_length(src, tgt, len) =
+    path_length(src, mid, len - 1) and
+    (edge(_, mid, tgt, _, _, _) or edge(_, tgt, mid, _, _, _)) and
+    len <= 10  // limit depth to prevent infinite recursion
+
+def shortest_path_length(src, tgt, min_len) =
+    min_len = min[l: path_length(src, tgt, l)]
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 5: GOVERNANCE SCORING
+// ─────────────────────────────────────────────────────────────────────────────
+// Composite governance health score per node.
+
+// Tag coverage: proportion of expected tag categories present
+def tag_count(n, cnt) =
+    cnt = count[tag_id: edge(_, n, tag_id, "TAGGED_WITH", _, _)]
+
+def expected_tag_count = 4  // PII, OWNER, DOMAIN, QUALITY
+
+def tag_coverage_score(n, score) =
+    table_node(n) and
+    tag_count(n, cnt) and
+    score = min[1.0, cnt / expected_tag_count]
+
+def tag_coverage_score(n, 0.0) =
+    table_node(n) and
+    not exists(cnt: tag_count(n, cnt))
+
+// Contract coverage: does the node have an associated data contract?
+def has_contract(n) =
+    edge(_, n, _, "HAS_CONTRACT", _, _)
+
+def contract_coverage_score(n, 1.0) =
+    table_node(n) and has_contract(n)
+
+def contract_coverage_score(n, 0.0) =
+    table_node(n) and not has_contract(n)
+
+// Ownership: does the node have an identifiable owner?
+def has_owner(n) =
+    edge(_, n, _, "OWNED_BY", _, _) or
+    edge(_, n, tag_id, "TAGGED_WITH", _, _) and
+    node(tag_id, "TAG", _, _, _, dn) and contains(dn, "OWNER")
+
+def ownership_score(n, 1.0) =
+    table_node(n) and has_owner(n)
+
+def ownership_score(n, 0.0) =
+    table_node(n) and not has_owner(n)
+
+// Quality monitoring: does the node have quality check edges?
+def has_quality_monitoring(n) =
+    edge(_, n, _, "MONITORED_BY", _, _) or
+    edge(_, n, _, "QUALITY_CHECK", _, _)
+
+def quality_score(n, 1.0) =
+    table_node(n) and has_quality_monitoring(n)
+
+def quality_score(n, 0.0) =
+    table_node(n) and not has_quality_monitoring(n)
+
+// Composite governance score (weighted average)
+// Weights: tag_coverage=0.3, contract=0.3, ownership=0.25, quality=0.15
+def governance_score(n, score) =
+    table_node(n) and
+    tag_coverage_score(n, tag_s) and
+    contract_coverage_score(n, contract_s) and
+    ownership_score(n, own_s) and
+    quality_score(n, qual_s) and
+    score = (tag_s * 0.3) + (contract_s * 0.3) + (own_s * 0.25) + (qual_s * 0.15)
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OUTPUT RELATIONS (for querying from Snowflake)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Materialized outputs that will be written back to Snowflake tables
+def output:pii_propagation(col_id, source_col) =
+    inferred_pii_propagation(col_id, source_col)
+
+def output:ownership_gaps(table_id, display_name) =
+    ownership_gap(table_id, display_name)
+
+def output:layer_bypasses(role_id, display_name) =
+    layer_bypass(role_id, display_name)
+
+def output:entity_matches(id1, id2, score) =
+    entity_resolution_candidate(id1, id2, score)
+
+def output:governance_scores(n, overall, tag_s, contract_s, own_s, qual_s) =
+    governance_score(n, overall) and
+    tag_coverage_score(n, tag_s) and
+    contract_coverage_score(n, contract_s) and
+    ownership_score(n, own_s) and
+    quality_score(n, qual_s)
+
+def output:centrality(n, score) =
+    centrality_score(n, score) and score > 0.1
+
+def output:components(n, comp) =
+    component_id(n, comp)

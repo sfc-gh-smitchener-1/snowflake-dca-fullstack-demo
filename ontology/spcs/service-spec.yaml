@@ -1,0 +1,22 @@
+spec:
+  containers:
+    - name: ontology-graph-api
+      image: /DCA_DEMO/GOVERNANCE/ONTOLOGY_GRAPH_REPO/ontology-graph-api:latest
+      resources:
+        requests:
+          memory: 2Gi
+          cpu: "1"
+        limits:
+          memory: 2Gi
+          cpu: "1"
+      readinessProbe:
+        port: 8080
+        path: /health
+      env:
+        SNOWFLAKE_ACCOUNT: "{{snowflake.account}}"
+        RAI_ENGINE: "ONTOLOGY_ENGINE"
+  endpoints:
+    - name: ontology-api
+      port: 8080
+      public: true
+  computePool: RAI_COMPUTE_POOL

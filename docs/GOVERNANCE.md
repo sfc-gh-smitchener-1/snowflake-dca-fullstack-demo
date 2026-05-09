@@ -113,22 +113,26 @@ ACCOUNTADMIN
             ├── DATA_STEWARD    ← Governance management
             │   ├── ANALYST     ← Business analytics
             │   ├── MANAGER     ← Department access
-            │   └── AUDITOR     ← Compliance monitoring
+            │   ├── AUDITOR     ← Compliance monitoring
+            │   └── ONTOLOGY_CONSUMER ← Graph queries, scores
+            ├── ONTOLOGY_ADMIN  ← Graph management, RAI inference
             └── PII_VIEWER      ← Privileged PII access
 ```
 
 ### Access by Layer
 
-| Role | GOVERNANCE | RAW | CURATED | SEMANTIC | MARKETPLACE |
-|------|------------|-----|---------|----------|-------------|
-| DATA_ADMIN | Full | Full | Full | Full | Full |
-| DATA_ENGINEER | Read | Full | Full | Read | - |
-| DATA_STEWARD | Full | Read | Read | Read | Read |
-| ANALYST | - | - | - | Read | Read |
-| MANAGER | - | - | - | Read | Read |
-| VIEWER | - | - | - | Aggregates | Read |
-| AI_AGENT | - | - | - | Pseudonymized | Read |
-| EXTERNAL_PARTNER | - | - | - | - | Limited |
+| Role | GOVERNANCE | RAW | CURATED | SEMANTIC | MARKETPLACE | ONTOLOGY_GRAPH |
+|------|------------|-----|---------|----------|-------------|----------------|
+| DATA_ADMIN | Full | Full | Full | Full | Full | Full |
+| DATA_ENGINEER | Read | Full | Full | Read | - | - |
+| DATA_STEWARD | Full | Read | Read | Read | Read | Read |
+| ANALYST | - | - | - | Read | Read | - |
+| MANAGER | - | - | - | Read | Read | - |
+| VIEWER | - | - | - | Aggregates | Read | - |
+| AI_AGENT | - | - | - | Pseudonymized | Read | - |
+| EXTERNAL_PARTNER | - | - | - | - | Limited | - |
+| ONTOLOGY_ADMIN | Full | - | - | - | - | Full |
+| ONTOLOGY_CONSUMER | - | - | - | - | - | Read |
 
 ## Compliance Implementation
 
@@ -225,6 +229,63 @@ All generated records include:
 - `_LOADED_AT`: Ingestion timestamp
 - `_IS_CURRENT`, `_VALID_FROM`, `_VALID_TO`: SCD Type 2 tracking
 
+## Graph-Based Governance Analysis (RAI)
+
+The DCA includes an **Ontology Knowledge Graph** powered by RelationalAI (RAI) on SPCS that provides automated governance gap detection and remediation recommendations.
+
+### How It Works
+
+The knowledge graph ingests metadata from `INFORMATION_SCHEMA`, `TAG_REFERENCES`, and curated business entity tables, then applies RAI inference rules to detect governance issues that are invisible to point-in-time checks.
+
+### Detected Governance Gaps
+
+The RAI model detects the four intentional governance gaps introduced by `ontology/setup/04_governance_gaps.sql`:
+
+| Gap | Type | Detection Method |
+|-----|------|-----------------|
+| 1 | Conflicting revenue definitions | Entity resolution finds two "revenue" nodes with different calculation properties |
+| 2 | Unmasked PII extract | PII propagation rule detects data flowing from PII-tagged sources to unmasked targets |
+| 3 | Orphaned data product (no owner/contract) | Ownership gap rule finds SEMANTIC tables with no contract_owner tag |
+| 4 | Raw layer bypass | Layer bypass rule finds consumer roles with GRANTED_TO edges to RAW-layer tables |
+
+### Recommendation Workflow
+
+```mermaid
+flowchart LR
+    DETECT["RAI Inference\ndetects gap"] --> REC["Recommendation\ncreated (OPEN)"]
+    REC --> REVIEW["Data Steward\nreviews in Streamlit"]
+    REVIEW -->|Approve| APPLY["SP_APPLY_RECOMMENDATIONS\napplies fix (tag/policy)"]
+    REVIEW -->|Dismiss| CLOSE["Recommendation\nmarked DISMISSED"]
+    APPLY --> RESOLVED["Recommendation\nmarked RESOLVED"]
+```
+
+### Governance Scoring
+
+Each node in the graph receives a composite governance score (0.0 - 1.0):
+
+| Component | Weight | What It Measures |
+|-----------|--------|-----------------|
+| Tag Coverage | 30% | % of expected governance tags present |
+| Contract Coverage | 30% | Whether the object has an active data contract |
+| Ownership | 25% | Whether a non-SYSADMIN owner is assigned |
+| Quality Monitoring | 15% | Whether quality checks/DMFs are configured |
+
+**Score Interpretation:**
+- **> 0.7 (Green):** Well-governed — meets enterprise standards
+- **0.4 - 0.7 (Yellow):** Partially governed — gaps exist but manageable
+- **< 0.4 (Red):** Under-governed — immediate attention required
+
+### Roles
+
+| Role | Permissions |
+|------|------------|
+| `ONTOLOGY_ADMIN` | Full CRUD on graph tables, execute inference, apply recommendations |
+| `ONTOLOGY_CONSUMER` | Read-only access to graph tables, scores, and SPCS API endpoint |
+
+See [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md) for full technical documentation.
+
+---
+
 ## Best Practices
 
 1. **Tag Everything**
@@ -318,3 +379,4 @@ After `dbt build`, Snowflake Horizon tags and masking policies are applied to th
 - [Row Access Policies](https://docs.snowflake.com/en/user-guide/security-row-intro)
 - [GDPR Guide](https://gdpr.eu/)
 - [HIPAA Guide](https://www.hhs.gov/hipaa/)
+- [RelationalAI](https://relational.ai/docs/snowflake)

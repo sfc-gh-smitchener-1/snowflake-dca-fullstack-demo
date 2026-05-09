@@ -296,3 +296,40 @@ A fully ontologically healthy DCA has the following properties:
 ---
 
 *Next: [05 — SE Enablement Lab](05-se-enablement-lab.md) — hands-on walkthrough of the DCA for internal enablement, with talking points, SQL scripts, and architectural decision exercises.*
+
+---
+
+## Operational Implementation
+
+The ontological map above is no longer purely theoretical. It is materialized as the **Ontology Knowledge Graph** — a working node/edge model powered by RelationalAI on Snowpark Container Services.
+
+### What Was Built
+
+The full DCA ontological map is now encoded as:
+- **Nodes** — Every table, column, tag, role, policy, customer, patient, employee, and product is a node with typed identity
+- **Edges** — Every ownership grant, tag assignment, masking policy, lineage path, and business relationship is a typed edge
+- **Inference Rules** — RAI Rel rules implement the diagnostic questions as computable checks:
+  - "Are there conflicting definitions?" → Entity resolution across systems
+  - "Is anyone personally accountable?" → Ownership gap detection
+  - "Is PII propagating without classification?" → PII lineage tracing
+  - "Are consumers bypassing the governed path?" → Layer bypass detection
+
+### The Diagnostic Questions, Automated
+
+The Five Discovery Questions from [05 — SE Enablement Lab](05-se-enablement-lab.md) are now partially automatable through graph analysis:
+
+| Question | Graph-Based Detection |
+|----------|-----------------------|
+| Conflicting definitions of "revenue" | Entity resolution finds nodes with same display_name but different properties |
+| Who is accountable for wrong data? | Ownership gap rule: nodes with no GRANTED_TO edge from a non-SYSADMIN role |
+| How do consumers learn of schema changes? | Contract edge presence: nodes with/without active data contract edges |
+| Does the CDO have authority? | PageRank on role nodes: institutional authority correlates with graph centrality |
+| Do consumers use governed tables? | Layer bypass detection: consumer roles with direct RAW access edges |
+
+### Files
+
+- `python/rai_models/ontology_graph.rel` — The formal ontology as Rel rules
+- `sql/11-15` — Infrastructure, tables, population, inference, sharing
+- `ontology/spcs/` — REST API exposing the graph
+- `ontology/streamlit/pages/6_Knowledge_Graph.py` — Interactive visualization
+- Full documentation: [docs/KNOWLEDGE_GRAPH.md](../docs/KNOWLEDGE_GRAPH.md)

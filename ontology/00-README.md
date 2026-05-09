@@ -51,3 +51,37 @@ Take these into any customer conversation:
 3. "How do consumers find out when a schema has changed?"
 4. "Does your CDO have the authority to mandate a definition that Engineering must implement?"
 5. "Do your data scientists use the governed tables, or do they keep their own copies?"
+
+---
+
+## Operational Implementation — Knowledge Graph
+
+The philosophical framework in this folder is now **operationalized** as a working Knowledge Graph using RelationalAI on SPCS. The abstract ontological map from [04 — DCA Ontological Synthesis](04-dca-ontological-synthesis.md) is materialized as queryable nodes and edges with RAI-powered inference.
+
+### Implementation Files
+
+| File | What It Does | Ontological Role |
+|------|-------------|-----------------|
+| `sql/11_rai_setup.sql` | Creates RAI engine, compute pool, roles | Infrastructure for graph computation |
+| `sql/12_ontology_graph_tables.sql` | Creates node/edge tables | The ontological substrate — where entities and relations live |
+| `sql/13_ontology_graph_populate.sql` | Populates graph from metadata + business data | Grounds the ontology in actual platform state |
+| `sql/14_rai_graph_sync.sql` | Syncs to RAI, runs inference | Applies ontological reasoning (inference rules) |
+| `sql/15_ontology_sharing.sql` | Makes graph shareable | Extends institutional facts across boundaries |
+| `python/rai_models/ontology_graph.rel` | Rel inference model | The formal ontology expressed as computable rules |
+| `ontology/spcs/` | FastAPI service on SPCS | Exposes the ontology as a queryable service |
+| `ontology/streamlit/pages/6_Knowledge_Graph.py` | Interactive visualization | Makes the ontology visible and navigable |
+
+### How Philosophy Maps to Implementation
+
+| Ontological Concept (from 01-04) | Implementation |
+|----------------------------------|----------------|
+| Institutional facts (Searle) | Nodes with `layer=METADATA` — tags, roles, policies exist by collective agreement |
+| Identity conditions (Guarino) | `node_id` = MD5 of fully qualified name — identity grounded in naming |
+| Dependence relationships | Edges encode what depends on what (LINEAGE_FROM, HAS_COLUMN) |
+| Status functions | Role nodes and GRANTED_TO edges — who has authority over what |
+| Constitutive rules | Data contracts as edges linking producers to quality expectations |
+| The six critical interfaces | Detectable as edge patterns between layers |
+
+### Full Documentation
+
+See [docs/KNOWLEDGE_GRAPH.md](../docs/KNOWLEDGE_GRAPH.md) for deployment instructions, API reference, and troubleshooting.

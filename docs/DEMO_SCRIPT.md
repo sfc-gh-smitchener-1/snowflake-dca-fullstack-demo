@@ -1,8 +1,8 @@
-# Demo Script - 15 Minute Walkthrough
+# Demo Script - 18 Minute Walkthrough
 
 ## Overview
 
-This guide provides a structured 15-minute demonstration of the Snowflake Data Cloud Architecture demo, showcasing Horizon governance, Dynamic Tables, dbt, Cortex Analyst, and the Internal Data Marketplace.
+This guide provides a structured 18-minute demonstration of the Snowflake Data Cloud Architecture demo, showcasing Horizon governance, Dynamic Tables, dbt, Cortex Analyst, the Internal Data Marketplace, and the Ontology Knowledge Graph.
 
 ## Prerequisites
 
@@ -19,8 +19,16 @@ Before the demo:
    cd dbt_servicenow
    dbt build
    ```
-4. Ensure Streamlit app is deployed
-5. Have Snowsight open and logged in
+4. Deploy the Ontology Knowledge Graph:
+   ```sql
+   @sql/11_rai_setup.sql
+   @sql/12_ontology_graph_tables.sql
+   @sql/13_ontology_graph_populate.sql
+   @sql/14_rai_graph_sync.sql
+   @sql/15_ontology_sharing.sql
+   ```
+5. Ensure Streamlit app is deployed
+6. Have Snowsight open and logged in
 
 ## Demo Flow
 
@@ -220,6 +228,54 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 
 > "Data products are pre-packaged, governed datasets ready for consumption. Internal teams can discover and use them through our marketplace - no data engineering tickets required."
 
+### Part 7: Knowledge Graph — RAI on SPCS (3 minutes)
+
+#### Show the Graph in Streamlit
+
+Navigate to **Streamlit Page 6: Knowledge Graph**
+
+> "Now let's look at how the platform can reason about its own governance health. This Knowledge Graph connects everything we've seen — tables, columns, tags, roles, business entities — into a single graph that RAI can analyze."
+
+#### Show Graph Explorer Tab
+
+> "Each node represents something in our platform — a table, a column, a customer, a patient. Edges represent relationships — ownership, tagging, lineage, business relationships. Blue nodes are metadata objects from Snowflake. Green nodes are business entities from our source systems."
+
+#### Show Governance Scores Tab
+
+> "RAI scores every object on four dimensions: tag coverage, data contracts, ownership, and quality monitoring. Red means under-governed. The graph detected that our intentional governance gaps score below 0.4."
+
+```sql
+-- Show governance scores
+USE ROLE ONTOLOGY_ADMIN;
+SELECT n.display_name, n.node_type, s.overall_score, s.tag_coverage, s.ownership_score
+FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES s
+JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES n ON s.node_id = n.node_id
+ORDER BY s.overall_score ASC
+LIMIT 10;
+```
+
+#### Show RAI Recommendations Tab
+
+> "RAI found the four governance gaps we intentionally introduced: the conflicting revenue definition, unmasked PII, the orphaned churn model, and the raw layer bypass. These aren't just alerts — they're actionable recommendations with suggested fixes."
+
+```sql
+-- Show recommendations
+SELECT recommendation_type, severity, description, suggested_action
+FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
+WHERE status = 'OPEN'
+ORDER BY severity;
+```
+
+#### Show SPCS API (Optional)
+
+```sql
+-- The graph is also available as a REST API
+-- GET https://<service-endpoint>/nodes?layer=METADATA&node_type=TABLE
+-- GET https://<service-endpoint>/governance-scores?min_score=0.0&max_score=0.4
+```
+
+> "The same graph is exposed as a REST API via SPCS — other applications, notebooks, or even Cortex Agents can query it programmatically."
+
 ### Closing (1 minute)
 
 > "To summarize what we've seen:
@@ -228,8 +284,9 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 > 3. **Semantic Views** enable natural language analytics through Cortex
 > 4. **Horizon Governance** enforces security at the data layer
 > 5. **Data Marketplace** enables self-service data consumption
+> 6. **Knowledge Graph** detects governance gaps automatically using RAI inference on SPCS
 >
-> Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. All of this runs entirely in Snowflake."
+> Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. All of this runs entirely in Snowflake — including the graph inference engine."
 
 ## Common Questions
 

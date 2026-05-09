@@ -524,6 +524,7 @@ flowchart TB
     end
     subgraph GOVERNANCE["GOVERNANCE LAYER"]
         G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary, including contracts"]
+        KG["KNOWLEDGE GRAPH (RAI on SPCS)\nNode/Edge Model | Inference | Scoring | Recommendations"]
     end
     subgraph CONSUMPTION["CONSUMPTION LAYER"]
         CORTEX["CORTEX ANALYST\nNatural Language"]
@@ -584,6 +585,87 @@ For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md]
 
 ---
 
+## Ontology Knowledge Graph (RAI on SPCS)
+
+The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis using RelationalAI (RAI) on Snowpark Container Services (SPCS).
+
+### Purpose
+
+The Knowledge Graph operationalizes the ontological framework described in `ontology/04-dca-ontological-synthesis.md`. It materializes the relationships between metadata objects (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable graph with RAI-powered inference.
+
+### Architecture
+
+```mermaid
+flowchart TB
+    subgraph SOURCES["DATA SOURCES"]
+        META["INFORMATION_SCHEMA\nTables, Columns, Tags, Roles"]
+        BIZ["CURATED LAYER\nDIM_ACCOUNT, DIM_PATIENT,\nDIM_WORKER, DIM_MATERIAL"]
+    end
+    subgraph GRAPH["KNOWLEDGE GRAPH (DCA_DEMO.GOVERNANCE)"]
+        NODES["ONTOLOGY_GRAPH_NODES\n(Unified entity table)"]
+        EDGES["ONTOLOGY_GRAPH_EDGES\n(Relationship table)"]
+        SNAP["ONTOLOGY_GRAPH_SNAPSHOTS"]
+    end
+    subgraph RAI["RAI ENGINE (SPCS)"]
+        MODEL["ontology_graph.rel\n(Rel inference model)"]
+        INFER["Inference Rules:\n• PII propagation\n• Ownership gaps\n• Entity resolution\n• Governance scoring"]
+    end
+    subgraph OUTPUT["RAI OUTPUTS"]
+        RECS["RAI_RECOMMENDATIONS\n(Governance gaps)"]
+        CLUSTERS["RAI_ENTITY_CLUSTERS\n(Cross-system matches)"]
+        SCORES["RAI_GOVERNANCE_SCORES\n(Per-node scores)"]
+    end
+    subgraph CONSUME["CONSUMPTION"]
+        API["SPCS REST API\n(FastAPI service)"]
+        ST["Streamlit Page 6\n(Interactive graph viz)"]
+        SHARE["ONTOLOGY_GRAPH_DATA_SHARE\n(Snowflake Share)"]
+    end
+    SOURCES --> GRAPH
+    GRAPH --> RAI
+    RAI --> OUTPUT
+    OUTPUT --> CONSUME
+```
+
+### Graph Layers
+
+| Layer | Node Types | Edge Types | Source |
+|-------|-----------|------------|--------|
+| **METADATA** | TABLE, COLUMN, TAG, ROLE, POLICY | HAS_COLUMN, TAGGED_WITH, GRANTED_TO, MASKED_BY, LINEAGE_FROM | INFORMATION_SCHEMA, TAG_REFERENCES |
+| **BUSINESS** | CUSTOMER, PATIENT, EMPLOYEE, PRODUCT, INCIDENT, ORDER | PURCHASES, TREATED_BY, WORKS_FOR, ASSIGNED_TO | Curated dimension/fact tables |
+| **CROSS** | (links between layers) | REPRESENTS, STORED_IN | Mapping business entities to their metadata tables |
+
+### RAI Inference
+
+The Rel model (`python/rai_models/ontology_graph.rel`) defines:
+
+1. **PII Propagation Detection** — If a column receives data from a PII-tagged upstream column via lineage, infer it should also be tagged
+2. **Ownership Gap Detection** — Tables in SEMANTIC schemas with no `data_contract_owner` tag
+3. **Entity Resolution** — Cross-system entity matching using name similarity (e.g., same customer in SAP and Salesforce)
+4. **Governance Scoring** — Composite score per node: tag coverage (30%), contract (30%), ownership (25%), quality monitoring (15%)
+
+### SPCS Service Endpoint
+
+A FastAPI container running on `RAI_COMPUTE_POOL` exposes the graph as a REST API:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Service health check |
+| `/nodes` | GET | List/filter nodes |
+| `/nodes/{id}/neighbors` | GET | Get connected nodes |
+| `/edges/path/{from}/{to}` | GET | Shortest path between nodes |
+| `/governance-scores` | GET | Governance scores with threshold filter |
+| `/query` | POST | Execute arbitrary Rel queries (ONTOLOGY_ADMIN only) |
+
+### Sharing
+
+The graph is shareable via:
+- **Snowflake Share** (`ONTOLOGY_GRAPH_DATA_SHARE`) — secure views over node/edge/score tables
+- **SPCS Service Endpoint** — granted to `ONTOLOGY_CONSUMER` role for live graph queries
+
+For full documentation, see [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md).
+
+---
+
 ## References
 
 - [Snowflake Data Sharing](https://docs.snowflake.com/en/user-guide/data-sharing-intro)
@@ -594,3 +676,5 @@ For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md]
 - [dbt Best Practices](https://docs.getdbt.com/best-practices)
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
 - [dbt vs Dynamic Tables — Decision Framework](DBT_VS_DYNAMIC_TABLES.md)
+- [RelationalAI](https://relational.ai/docs/snowflake)
+- [Snowpark Container Services](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview)

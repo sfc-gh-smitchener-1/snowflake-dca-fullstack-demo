@@ -91,6 +91,7 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 | **Snowflake Horizon** | Tag-based governance, masking, row-level security |
 | **Compliance Framework** | GDPR, HIPAA, FERPA, CCPA, SOC2, PCI-DSS patterns |
 | **Data Marketplace** | Secure data products for internal/external consumption |
+| **Ontology Knowledge Graph** | RAI-powered node/edge graph linking metadata and business entities with governance scoring via SPCS |
 | **Streamlit in Snowflake** | Interactive demo with role-switching |
 
 ## Architecture Overview
@@ -115,7 +116,7 @@ flowchart TB
         D_NOTE["Data flows ONLY when contracts are satisfied"]
     end
     subgraph GOVERNANCE["GOVERNANCE LAYER"]
-        G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary"]
+        G["Tags | Masking | Row Access | Compliance | Audit | Knowledge Graph\nGovernance protects at EVERY boundary — RAI detects gaps automatically"]
     end
     subgraph CONSUMPTION["CONSUMPTION LAYER"]
         CORTEX["CORTEX ANALYST\nNatural Language"]
@@ -208,6 +209,11 @@ flowchart LR
 @sql/08_contracts.sql          -- Data contracts & validation
 @sql/09_streamlit_app.sql      -- Deploy Streamlit app
 @sql/10_marketplace.sql        -- Data products
+@sql/11_rai_setup.sql          -- RAI engine, compute pool, graph roles
+@sql/12_ontology_graph_tables.sql -- Knowledge graph node/edge tables
+@sql/13_ontology_graph_populate.sql -- Populate graph from metadata + curated
+@sql/14_rai_graph_sync.sql     -- RAI sync, inference, recommendations
+@sql/15_ontology_sharing.sql   -- Share graph data + SPCS endpoint
 ```
 
 ### dbt Pipeline (ServiceNow)
@@ -285,6 +291,8 @@ graph LR
     ROOT --> ST["streamlit/"]
     ROOT --> TOOLS["tools/"]
     ROOT --> DATA["data/ (gitignored)"]
+    ROOT --> PYTHON["python/"]
+    ROOT --> ONTSPCS["ontology/spcs/"]
 
     DOCS --> ARCH["ARCHITECTURE.md"]
     DOCS --> SDLC["SDLC_ARCHITECTURE.md"]
@@ -307,6 +315,10 @@ graph LR
 
     ST --> APP["app.py"]
     TOOLS --> GEN["data_generator.py"]
+
+    PYTHON --> RAI["rai_models/ontology_graph.rel"]
+    ONTSPCS --> DOCKER["Dockerfile + service-spec.yaml"]
+    ONTSPCS --> FASTAPI["app/ (FastAPI endpoints)"]
 
     DATA --> SAP["sap_s4hana/"]
     DATA --> SF["salesforce/"]
@@ -345,9 +357,11 @@ graph TD
     DATA_ADMIN --> DATA_ENGINEER
     DATA_ADMIN --> DATA_STEWARD
     DATA_ADMIN --> PII_VIEWER
+    DATA_ADMIN --> ONTOLOGY_ADMIN["ONTOLOGY_ADMIN\n(Graph management)"]
     DATA_STEWARD --> ANALYST
     DATA_STEWARD --> MANAGER
     DATA_STEWARD --> AUDITOR
+    DATA_STEWARD --> ONTOLOGY_CONSUMER["ONTOLOGY_CONSUMER\n(Graph queries)"]
     DATA_ENGINEER --> VIEWER
     ANALYST --> VIEWER
     MANAGER --> VIEWER
@@ -363,6 +377,7 @@ graph TD
 - [DBT_VS_DYNAMIC_TABLES.md](docs/DBT_VS_DYNAMIC_TABLES.md) — dbt vs Dynamic Tables: comparison, decision framework, hybrid architecture
 - [DATA_GENERATION.md](docs/DATA_GENERATION.md) — Source system data generation (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)
 - [GOVERNANCE.md](docs/GOVERNANCE.md) — Compliance framework details
+- [KNOWLEDGE_GRAPH.md](docs/KNOWLEDGE_GRAPH.md) — Ontology Knowledge Graph: RAI on SPCS, graph schema, API reference
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
 - [SAMPLE_QUESTIONS.md](docs/SAMPLE_QUESTIONS.md) — Cortex Analyst examples
 
@@ -384,6 +399,8 @@ Customer-specific applications of DCA patterns — each demo maps the core archi
 - [Data Sharing](https://docs.snowflake.com/en/user-guide/data-sharing-intro)
 - [Cross-Region Replication](https://docs.snowflake.com/en/user-guide/database-replication-intro)
 - [Git Integration](https://docs.snowflake.com/en/developer-guide/git/git-setting-up)
+- [RelationalAI on Snowflake](https://relational.ai/docs/snowflake)
+- [Snowflake SPCS](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview)
 
 ## License
 

@@ -29,6 +29,7 @@ The SQL is the easy part. The hard part is knowing *what* you are building and *
 | 4 | Governance Interfaces | Human agreement → platform enforcement |
 | 5 | Sharing with Enforcement | Cross-account institutional facts |
 | 6 | Diagnostic Exercises | Field readiness |
+| 7 | Knowledge Graph Exploration | Ontology made operational |
 
 ---
 
@@ -625,6 +626,167 @@ But adoption is at 23%. Most consumers still query Bronze directly.
 
 ---
 
+## Module 7 — Knowledge Graph Exploration
+
+### Context
+
+The philosophical frameworks from Modules 1-6 are now operational. The Ontology Knowledge
+Graph materializes the DCA ontological map as a computable node/edge model. Every
+institutional fact — ownership, classification, lineage, access — becomes a queryable
+graph relation.
+
+This module uses the graph to answer the Five Discovery Questions automatically.
+
+### Prerequisites
+- Scripts 11-15 deployed (`sql/11_rai_setup.sql` through `sql/15_ontology_sharing.sql`)
+- Graph populated: `CALL DCA_DEMO.GOVERNANCE.SP_REFRESH_GRAPH();`
+- RAI inference run: `CALL DCA_DEMO.GOVERNANCE.SP_RUN_INFERENCE();`
+
+### Exercise 7A: Explore the Graph
+
+```sql
+-- ============================================================
+-- MODULE 7A: GRAPH STRUCTURE EXPLORATION
+-- ============================================================
+
+USE ROLE ONTOLOGY_ADMIN;
+USE DATABASE DCA_DEMO;
+USE WAREHOUSE COMPUTE_WH;
+
+-- How many nodes and edges?
+SELECT 
+    (SELECT COUNT(*) FROM GOVERNANCE.ONTOLOGY_GRAPH_NODES) AS total_nodes,
+    (SELECT COUNT(*) FROM GOVERNANCE.ONTOLOGY_GRAPH_EDGES) AS total_edges;
+
+-- Node distribution by layer and type
+SELECT layer, node_type, COUNT(*) AS cnt
+FROM GOVERNANCE.ONTOLOGY_GRAPH_NODES
+GROUP BY layer, node_type
+ORDER BY layer, cnt DESC;
+
+-- Edge distribution by type
+SELECT edge_type, layer, COUNT(*) AS cnt
+FROM GOVERNANCE.ONTOLOGY_GRAPH_EDGES
+GROUP BY edge_type, layer
+ORDER BY cnt DESC;
+
+-- Cross-layer edges (the ontological bridges)
+SELECT source_node_id, target_node_id, edge_type
+FROM GOVERNANCE.ONTOLOGY_GRAPH_EDGES
+WHERE layer = 'CROSS'
+LIMIT 20;
+```
+
+**Discussion:**
+- What does the ratio of METADATA to BUSINESS nodes tell you about this platform?
+- Why are CROSS edges the most ontologically interesting?
+- Which edge type has the highest count? What does that imply about the architecture?
+
+### Exercise 7B: Governance Scoring
+
+```sql
+-- ============================================================
+-- MODULE 7B: GOVERNANCE HEALTH VIA GRAPH SCORING
+-- ============================================================
+
+-- Worst-governed objects
+SELECT n.display_name, n.node_type, n.source_system,
+       s.overall_score, s.tag_coverage, s.contract_coverage, s.ownership_score
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES s
+JOIN GOVERNANCE.ONTOLOGY_GRAPH_NODES n ON s.node_id = n.node_id
+WHERE s.overall_score < 0.4
+ORDER BY s.overall_score ASC;
+
+-- Score distribution
+SELECT 
+    CASE 
+        WHEN overall_score >= 0.7 THEN 'GREEN (well-governed)'
+        WHEN overall_score >= 0.4 THEN 'YELLOW (gaps exist)'
+        ELSE 'RED (under-governed)'
+    END AS governance_band,
+    COUNT(*) AS node_count
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES
+GROUP BY governance_band
+ORDER BY governance_band;
+```
+
+**Discussion:**
+- Do the red-scored objects correspond to the intentional gaps from Module 4 (`04_governance_gaps.sql`)?
+- If a customer showed you this score distribution, what would you recommend?
+- What is the relationship between governance score and consumer trust?
+
+### Exercise 7C: RAI Recommendations
+
+```sql
+-- ============================================================
+-- MODULE 7C: AUTOMATED GOVERNANCE RECOMMENDATIONS
+-- ============================================================
+
+-- All open recommendations
+SELECT recommendation_type, severity, description, suggested_action
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
+WHERE status = 'OPEN'
+ORDER BY 
+    CASE severity WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END;
+
+-- Recommendations by type
+SELECT recommendation_type, COUNT(*) AS cnt,
+       SUM(CASE WHEN severity = 'HIGH' THEN 1 ELSE 0 END) AS high_sev
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
+WHERE status = 'OPEN'
+GROUP BY recommendation_type;
+```
+
+**Discussion:**
+- Map each recommendation back to one of the Four Governance Gaps. Did RAI find all four?
+- Which recommendation type is most dangerous to ignore? Why?
+- In a customer conversation, how would you present these recommendations without
+  making governance feel like punishment?
+
+### Exercise 7D: The Five Questions, Answered by the Graph
+
+```sql
+-- ============================================================
+-- MODULE 7D: DISCOVERY QUESTIONS VIA GRAPH ANALYSIS
+-- ============================================================
+
+-- Q1: "Do we have conflicting definitions?"
+-- Look for entity clusters with the same display_name but different sources
+SELECT cluster_id, node_id, cluster_label, confidence
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_ENTITY_CLUSTERS
+WHERE confidence > 0.7
+ORDER BY cluster_id, confidence DESC;
+
+-- Q2: "Who is accountable?"
+-- Find tables with no ownership edge (no non-SYSADMIN GRANTED_TO)
+SELECT n.display_name, n.fqn
+FROM GOVERNANCE.ONTOLOGY_GRAPH_NODES n
+WHERE n.node_type = 'TABLE' AND n.layer = 'METADATA'
+  AND NOT EXISTS (
+      SELECT 1 FROM GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+      WHERE e.target_node_id = n.node_id
+        AND e.edge_type = 'GRANTED_TO'
+        AND e.source_node_id NOT IN (
+            SELECT node_id FROM GOVERNANCE.ONTOLOGY_GRAPH_NODES
+            WHERE display_name IN ('SYSADMIN', 'ACCOUNTADMIN')
+        )
+  );
+
+-- Q4: "Are consumers bypassing the governed path?"
+SELECT r.description, r.suggested_action
+FROM GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS r
+WHERE r.recommendation_type = 'LAYER_BYPASS';
+```
+
+**Discussion:**
+- For each of the Five Discovery Questions, can the graph provide a definitive answer
+  or only a signal? Where does human judgment still matter?
+- What additional edges would make the graph more powerful?
+- How would you use this in a customer workshop to move from "we think governance is fine"
+  to "here's proof of where it's not"?
+
+---
+
 ## Lab Completion Checklist
 
 By the end of this lab, you should be able to:
@@ -649,6 +811,13 @@ By the end of this lab, you should be able to:
 
 □  Ask the five discovery questions that reveal whether a customer
    has governance or the appearance of governance
+
+□  Query the Knowledge Graph to identify governance gaps that
+   traditional point-in-time checks would miss
+
+□  Explain how RAI inference rules map to the Five Discovery Questions
+
+□  Use governance scores to prioritize remediation in a customer conversation
 ```
 
 ---
