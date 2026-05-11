@@ -1,0 +1,13 @@
+# HCLS Demo — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Data Generation
+faker>=18.0.0
+pyarrow>=14.0.0
+
+# Snowflake Connectivity (required for build_and_load.py)
+snowflake-connector-python>=3.6.0
+
+# Optional: Streamlit development
+# streamlit>=1.30.0
+# streamlit-agraph>=0.0.45
