@@ -1,6 +1,8 @@
 -- ============================================================================
 -- HCLS DATA LOADING — Schema Setup & Manual Load Helpers
 -- ============================================================================
+-- NOTE: After loading raw data, run BUILD_CURATED_LAYER for each source system
+-- to create Dynamic Tables in CURATED_DEV (FHIR, WORKDAY_HCM, PAYER schemas).
 -- Creates HCLS-specific schemas in RAW_DEV and provides COPY INTO
 -- statements for manual loading. Use this if the automated
 -- build_and_load.py script isn't available.

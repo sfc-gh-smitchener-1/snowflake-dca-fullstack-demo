@@ -55,7 +55,7 @@ flowchart TB
             SCORES["HIPAA Scores (0-1)"]
             CLUSTERS["Entity Clusters"]
             PATHWAYS["Care Pathways"]
-        end
+        end2
         subgraph VIZ["CONSUMPTION"]
             STREAMLIT["Streamlit\nCompliance Dashboard"]
             API["SPCS API\nClinical Apps"]
