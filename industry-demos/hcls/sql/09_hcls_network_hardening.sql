@@ -36,7 +36,7 @@ USE ROLE ACCOUNTADMIN;
 --   Corporate VPN:    e.g., 203.0.113.0/24
 --   Office network:   e.g., 198.51.100.0/24
 --   Cloud egress NAT: e.g., 100.64.0.0/10
-CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_CORPORATE_ACCESS
+CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_CORPORATE_ACCESS
     TYPE = IPV4
     VALUE_LIST = ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')  -- PLACEHOLDER: Replace with customer CIDRs
     MODE = INGRESS
@@ -44,7 +44,7 @@ CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_CORPORATE_ACCESS
 
 -- Network Rule for Snowflake internal services (required for SPCS, tasks,
 -- Dynamic Tables, replication, and other platform services).
-CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_SNOWFLAKE_INTERNAL
+CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_SNOWFLAKE_INTERNAL
     TYPE = HOST_PORT
     VALUE_LIST = ('*.snowflakecomputing.com:443', '*.amazonaws.com:443')
     MODE = EGRESS
@@ -58,7 +58,7 @@ CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_SNOWFLAKE_INTERNAL
 -- inbound access to authorized corporate networks only.
 
 CREATE OR REPLACE NETWORK POLICY HCLS_RESTRICTED_ACCESS
-    ALLOWED_NETWORK_RULE_LIST = ('DCA_DEMO.GOVERNANCE.HCLS_CORPORATE_ACCESS')
+    ALLOWED_NETWORK_RULE_LIST = ('SEM_DEV.HCLS_ANALYTICS.HCLS_CORPORATE_ACCESS')
     BLOCKED_NETWORK_RULE_LIST = ()
     COMMENT = 'HIPAA-grade network restriction — only authorized corporate networks allowed';
 
@@ -88,7 +88,7 @@ CREATE OR REPLACE NETWORK POLICY HCLS_RESTRICTED_ACCESS
 -- Session policies enforce automatic logoff after inactivity, required by
 -- HIPAA §164.312(a)(2)(iii) — "Automatic Logoff" safeguard.
 
-CREATE OR REPLACE SESSION POLICY DCA_DEMO.GOVERNANCE.HCLS_SESSION_POLICY
+CREATE OR REPLACE SESSION POLICY SEM_DEV.HCLS_ANALYTICS.HCLS_SESSION_POLICY
     SESSION_IDLE_TIMEOUT_MINS = 30           -- 30 min idle timeout (HIPAA §164.312(a)(2)(iii))
     SESSION_UI_IDLE_TIMEOUT_MINS = 15        -- 15 min UI idle timeout (Snowsight/Streamlit)
     COMMENT = 'HIPAA-compliant session management — auto-lock after inactivity';
@@ -96,10 +96,10 @@ CREATE OR REPLACE SESSION POLICY DCA_DEMO.GOVERNANCE.HCLS_SESSION_POLICY
 -- Apply to specific sensitive roles first, then account-wide.
 --
 -- Per-user (test first):
--- ALTER USER <ADMIN_USER> SET SESSION_POLICY = 'DCA_DEMO.GOVERNANCE.HCLS_SESSION_POLICY';
+-- ALTER USER <ADMIN_USER> SET SESSION_POLICY = 'SEM_DEV.HCLS_ANALYTICS.HCLS_SESSION_POLICY';
 --
 -- Account-wide (uncomment when ready):
--- ALTER ACCOUNT SET SESSION_POLICY = 'DCA_DEMO.GOVERNANCE.HCLS_SESSION_POLICY';
+-- ALTER ACCOUNT SET SESSION_POLICY = 'SEM_DEV.HCLS_ANALYTICS.HCLS_SESSION_POLICY';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -140,7 +140,7 @@ SHOW PARAMETERS LIKE '%KEY%' IN ACCOUNT;
 -- This ensures containers (including the inference Native App) cannot
 -- exfiltrate data to external endpoints.
 
-CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_SPCS_EGRESS
+CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_SPCS_EGRESS
     TYPE = HOST_PORT
     VALUE_LIST = ('*.snowflakecomputing.com:443')
     MODE = EGRESS
@@ -151,7 +151,7 @@ CREATE OR REPLACE NETWORK RULE DCA_DEMO.GOVERNANCE.HCLS_SPCS_EGRESS
 -- ensures all clinical data stays within Snowflake's security perimeter.
 --
 -- ALTER COMPUTE POOL RAI_COMPUTE_POOL SET
---     ALLOWED_NETWORK_RULE_LIST = ('DCA_DEMO.GOVERNANCE.HCLS_SPCS_EGRESS');
+--     ALLOWED_NETWORK_RULE_LIST = ('SEM_DEV.HCLS_ANALYTICS.HCLS_SPCS_EGRESS');
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

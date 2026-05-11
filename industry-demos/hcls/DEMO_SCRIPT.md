@@ -143,7 +143,7 @@ SELECT
     ROUND(AVG(sc.overtime_pct) * 100, 1) AS overtime_pct,
     ROUND(SUM(CASE WHEN e.readmission_30day THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) * 100, 1) AS readmission_rate_pct,
     COUNT(*) AS encounter_count
-FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc
 JOIN CURATED_DEV.FHIR.FACT_ENCOUNTERS e 
     ON sc.org_id = e.org_id AND e.admit_date = sc.shift_date
 WHERE sc.actual_ratio > sc.target_nurse_ratio * 1.2
@@ -187,7 +187,7 @@ SELECT
     ROUND(AVG(e.total_charges), 0) AS avg_cost_per_encounter,
     ROUND(AVG(e.los_days), 1) AS avg_los,
     ROUND(SUM(CASE WHEN e.readmission_30day THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) * 100, 1) AS readmission_pct
-FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY pc
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY pc
 JOIN CURATED_DEV.FHIR.FACT_ENCOUNTERS e ON pc.patient_id = e.patient_id
 WHERE e.encounter_class = 'INPATIENT'
 GROUP BY 1
@@ -201,7 +201,7 @@ SQL 2 — Top comorbidity clusters (condition co-occurrence):
 -- Most common comorbidity pairs
 SELECT condition_a_desc, condition_b_desc, shared_patient_count, 
        ROUND(co_occurrence_rate * 100, 1) AS co_occurrence_pct
-FROM DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS
 ORDER BY shared_patient_count DESC
 LIMIT 10;
 ```
@@ -221,7 +221,7 @@ SELECT cci_tier, payer_name,
        ROUND(avg_adjudication_days, 0) AS days_to_decide,
        ROUND(prior_auth_rate * 100, 1) AS prior_auth_pct,
        total_claims
-FROM DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS
 WHERE total_claims > 100
 ORDER BY cci_tier, denial_rate DESC;
 ```
@@ -236,7 +236,7 @@ SELECT cci_tier, payer_name,
        ROUND(AVG(actual_days), 1) AS avg_actual,
        ROUND(AVG(variance_days), 1) AS avg_gap,
        ROUND(SUM(CASE WHEN readmitted_30day THEN 1 ELSE 0 END)::FLOAT / NULLIF(COUNT(*), 0) * 100, 1) AS readmit_pct_early_discharge
-FROM DCA_DEMO.GOVERNANCE.HCLS_CARE_GAPS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CARE_GAPS
 WHERE gap_type = 'EARLY_DISCHARGE'
 GROUP BY 1, 2
 ORDER BY avg_gap DESC;

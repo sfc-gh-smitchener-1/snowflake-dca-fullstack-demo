@@ -14,6 +14,9 @@ USE DATABASE DCA_DEMO;
 USE SCHEMA GOVERNANCE;
 USE WAREHOUSE COMPUTE_WH;
 
+-- Ensure semantic schema exists for analytics outputs
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.HCLS_ANALYTICS;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PROCEDURE 1: SP_HCLS_COMORBIDITY_INDEX
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -39,7 +42,7 @@ BEGIN
         RETURN 'Comorbidity index skipped — FACT_CONDITIONS not found.';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY AS
     WITH charlson_map AS (
         -- Weight 1 categories
         SELECT 'MI' AS category, 1 AS weight, code_prefix
@@ -139,7 +142,7 @@ BEGIN
     FROM patient_cci;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY;
 
     RETURN 'Comorbidity index computed. Patients scored: ' || :v_row_count;
 END;
@@ -171,7 +174,7 @@ BEGIN
     END IF;
 
     -- Build co-occurrence pairs
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS AS
     WITH patient_conditions AS (
         SELECT DISTINCT
             PATIENT_ID,
@@ -214,7 +217,7 @@ BEGIN
     WHERE p.shared_patient_count::FLOAT / NULLIF(ca.patient_count, 0) > 0.05;
 
     SELECT COUNT(*) INTO :v_pair_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS;
 
     -- Create COMORBID_WITH edges in Knowledge Graph
     MERGE INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES AS tgt
@@ -232,7 +235,7 @@ BEGIN
                 'condition_a', condition_a_desc,
                 'condition_b', condition_b_desc
             ) AS properties
-        FROM DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS
     ) AS src
     ON tgt.edge_id = src.edge_id
     WHEN MATCHED THEN UPDATE SET
@@ -278,7 +281,7 @@ BEGIN
         RETURN 'Payer response skipped — required tables not found (CCI: ' || :v_cci_exists || ', Claims: ' || :v_claims_exists || ').';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS AS
     WITH claims_with_cci AS (
         SELECT
             cd.CLAIM_ID,
@@ -296,7 +299,7 @@ BEGIN
             pc.cci_score,
             pc.cci_tier
         FROM CURATED_DEV.PAYER.FACT_CLAIMS_DETAIL cd
-        JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY pc
+        JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY pc
             ON cd.PATIENT_ID = pc.patient_id
         WHERE cd.SERVICE_DATE IS NOT NULL
     ),
@@ -306,7 +309,7 @@ BEGIN
             pa.ENCOUNTER_ID,
             COUNT(*) AS auth_count,
             SUM(CASE WHEN pa.AUTH_STATUS = 'APPROVED' THEN 1 ELSE 0 END) AS approved_count
-        FROM CURATED_DEV.PAYER.FACT_PRIOR_AUTHORIZATIONS pa
+        FROM CURATED_DEV.PAYER.FACT_PRIOR_AUTH pa
         GROUP BY 1, 2
     )
     SELECT
@@ -331,7 +334,7 @@ BEGIN
     GROUP BY 1, 2, 3;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS;
 
     RETURN 'Payer response metrics computed. Rows: ' || :v_row_count;
 END;
@@ -371,7 +374,7 @@ BEGIN
         RETURN 'Care gaps skipped — required tables not found.';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_CARE_GAPS AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_CARE_GAPS AS
     WITH encounter_los AS (
         SELECT
             e.ENCOUNTER_ID,
@@ -398,7 +401,7 @@ BEGIN
             ur.PAYER_NAME,
             ur.APPROVED_DAYS,
             ur.REVIEW_TYPE
-        FROM CURATED_DEV.PAYER.FACT_UTILIZATION_REVIEWS ur
+        FROM CURATED_DEV.PAYER.FACT_UTIL_REVIEWS ur
         WHERE ur.REVIEW_STATUS = 'APPROVED'
           AND ur.APPROVED_DAYS IS NOT NULL
     )
@@ -419,11 +422,11 @@ BEGIN
     FROM encounter_los el
     JOIN review_approved ra
         ON el.ENCOUNTER_ID = ra.ENCOUNTER_ID
-    LEFT JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY pc
+    LEFT JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY pc
         ON el.PATIENT_ID = pc.patient_id;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_CARE_GAPS;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CARE_GAPS;
 
     RETURN 'Care gaps identified. Rows: ' || :v_row_count;
 END;
@@ -476,7 +479,7 @@ BEGIN
                 'top_conditions', top_conditions_json,
                 'calculation_date', calculation_date
             ) AS properties
-        FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY
     ) AS src
     ON tgt.node_id = src.node_id
     WHEN MATCHED THEN UPDATE SET
@@ -542,7 +545,7 @@ BEGIN
                 'cci_tier', cci_tier,
                 'condition_count', condition_count
             ) AS properties
-        FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY
     ) AS src
     ON tgt.edge_id = src.edge_id
     WHEN MATCHED THEN UPDATE SET
@@ -576,7 +579,7 @@ BEGIN
                     'end_date', cp.COVERAGE_END,
                     'coverage_status', cp.COVERAGE_STATUS
                 ) AS properties
-            FROM CURATED_DEV.PAYER.FACT_COVERAGE_PERIODS cp
+            FROM CURATED_DEV.PAYER.FACT_COVERAGE cp
             WHERE cp.PATIENT_ID IS NOT NULL
               AND cp.PLAN_ID IS NOT NULL
         ) AS src
@@ -661,11 +664,11 @@ BEGIN
         SELECT DISTINCT
             'PYR_EDGE_' || MD5(
                 n.node_id ||
-                'META_' || MD5('DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY') ||
+                'META_' || MD5('SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY') ||
                 'STORED_IN'
             ) AS edge_id,
             n.node_id AS source_node_id,
-            'META_' || MD5('DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY') AS target_node_id,
+            'META_' || MD5('SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY') AS target_node_id,
             'STORED_IN' AS edge_type,
             'CROSS' AS layer,
             1.0 AS weight
@@ -768,3 +771,9 @@ GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_PAYER_RESPONSE() TO ROLE ON
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_PLAN_OF_CARE_GAPS() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_POPULATE_PAYER_GRAPH() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_COMORBIDITY_PAYER_RUN_ALL() TO ROLE ONTOLOGY_ADMIN;
+
+-- Grants for semantic analytics tables
+GRANT USAGE ON SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ANALYST;

@@ -482,7 +482,7 @@ SELECT
     ROUND(AVG(actual_ratio) / NULLIF(AVG(target_nurse_ratio), 0) * 100, 0) AS pct_of_target,
     ROUND(AVG(overtime_pct) * 100, 1) AS overtime_pct,
     COUNT(DISTINCT shift_date) AS shifts_observed
-FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT
 GROUP BY 1, 2
 ORDER BY pct_of_target DESC;
 ```
@@ -499,7 +499,7 @@ SELECT
     unit_type,
     ROUND(AVG(overtime_pct) * 100, 1) AS overtime_pct,
     COUNT(DISTINCT worker_id) AS unique_nurses
-FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT
 WHERE shift_date >= DATEADD('month', -3, CURRENT_DATE())
 GROUP BY 1, 2
 ORDER BY 1, 2;
@@ -521,7 +521,7 @@ SELECT
         WHEN ABS(correlation_coefficient) >= 0.4 THEN 'MODERATE'
         ELSE 'WEAK'
     END AS strength
-FROM DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS
 ORDER BY ABS(correlation_coefficient) DESC;
 ```
 
@@ -596,10 +596,10 @@ SELECT
     COUNT(DISTINCT patient_id) AS patient_count,
     ROUND(AVG(cci_score), 1) AS avg_score,
     ROUND(COUNT(DISTINCT patient_id)::FLOAT /
-        (SELECT COUNT(DISTINCT patient_id) FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY) * 100, 1
+        (SELECT COUNT(DISTINCT patient_id) FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY) * 100, 1
     ) AS pct_of_population,
     contributing_conditions_top3
-FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY
 GROUP BY 1, 5
 ORDER BY CASE cci_tier
     WHEN 'LOW' THEN 1 WHEN 'MODERATE' THEN 2
@@ -616,7 +616,7 @@ END;
 -- Most common comorbidity pairs
 SELECT condition_a_desc, condition_b_desc, shared_patient_count,
        ROUND(co_occurrence_rate * 100, 1) AS co_occurrence_pct
-FROM DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS
 ORDER BY shared_patient_count DESC
 LIMIT 10;
 ```
@@ -648,7 +648,7 @@ SELECT cci_tier, payer_name,
        ROUND(avg_adjudication_days, 0) AS days_to_decide,
        ROUND(prior_auth_rate * 100, 1) AS prior_auth_pct,
        total_claims
-FROM DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS
 WHERE total_claims > 100
 ORDER BY cci_tier, denial_rate DESC;
 ```
@@ -668,7 +668,7 @@ SELECT cci_tier, payer_name,
        ROUND(AVG(variance_days), 1) AS avg_gap,
        ROUND(SUM(CASE WHEN readmitted_30day THEN 1 ELSE 0 END)::FLOAT /
              NULLIF(COUNT(*), 0) * 100, 1) AS readmit_pct_early_discharge
-FROM DCA_DEMO.GOVERNANCE.HCLS_CARE_GAPS
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CARE_GAPS
 WHERE gap_type = 'EARLY_DISCHARGE'
 GROUP BY 1, 2
 ORDER BY avg_gap DESC;

@@ -38,7 +38,7 @@ BEGIN
     -- ── 1. WORKER nodes from WORKDAY DIM_WORKERS ──────────────────────────
     SELECT COUNT(*) INTO :v_table_exists
     FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
-    WHERE table_schema = 'WORKDAY' AND table_name = 'DIM_WORKERS';
+    WHERE table_schema = 'WORKDAY_HCM' AND table_name = 'DIM_WORKERS';
 
     IF (:v_table_exists > 0) THEN
         MERGE INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES AS tgt
@@ -63,7 +63,7 @@ BEGIN
                     'active_status', ACTIVE_STATUS,
                     'fte', FTE
                 ) AS properties
-            FROM CURATED_DEV.WORKDAY.DIM_WORKERS
+            FROM CURATED_DEV.WORKDAY_HCM.DIM_WORKERS
             WHERE WORKER_ID IS NOT NULL
         ) AS src
         ON tgt.node_id = src.node_id
@@ -82,7 +82,7 @@ BEGIN
     LET v_dept_exists INTEGER := 0;
     SELECT COUNT(*) INTO :v_dept_exists
     FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
-    WHERE table_schema = 'WORKDAY' AND table_name = 'DIM_DEPARTMENTS';
+    WHERE table_schema = 'WORKDAY_HCM' AND table_name = 'DIM_DEPARTMENTS';
 
     IF (:v_dept_exists > 0) THEN
         MERGE INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES AS tgt
@@ -102,7 +102,7 @@ BEGIN
                     'target_nurse_ratio', TARGET_NURSE_RATIO,
                     'cost_center', COST_CENTER
                 ) AS properties
-            FROM CURATED_DEV.WORKDAY.DIM_DEPARTMENTS
+            FROM CURATED_DEV.WORKDAY_HCM.DIM_DEPARTMENTS
             WHERE DEPARTMENT_ID IS NOT NULL
         ) AS src
         ON tgt.node_id = src.node_id
@@ -121,7 +121,7 @@ BEGIN
     LET v_assign_exists INTEGER := 0;
     SELECT COUNT(*) INTO :v_assign_exists
     FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
-    WHERE table_schema = 'WORKDAY' AND table_name = 'FACT_STAFFING_ASSIGNMENTS';
+    WHERE table_schema = 'WORKDAY_HCM' AND table_name = 'FACT_STAFFING_ASSIGNMENTS';
 
     IF (:v_assign_exists > 0) THEN
         MERGE INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES AS tgt
@@ -139,7 +139,7 @@ BEGIN
                     'end_date', END_DATE,
                     'is_float_pool', IS_FLOAT_POOL
                 ) AS properties
-            FROM CURATED_DEV.WORKDAY.FACT_STAFFING_ASSIGNMENTS
+            FROM CURATED_DEV.WORKDAY_HCM.FACT_STAFFING_ASSIGNMENTS
             WHERE WORKER_ID IS NOT NULL
               AND DEPARTMENT_ID IS NOT NULL
               AND ASSIGNMENT_STATUS = 'ACTIVE'
@@ -171,8 +171,8 @@ BEGIN
                     'hire_date', w.HIRE_DATE,
                     'department', d.DEPARTMENT_NAME
                 ) AS properties
-            FROM CURATED_DEV.WORKDAY.DIM_WORKERS w
-            JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d
+            FROM CURATED_DEV.WORKDAY_HCM.DIM_WORKERS w
+            JOIN CURATED_DEV.WORKDAY_HCM.DIM_DEPARTMENTS d
                 ON w.DEPARTMENT_ID = d.DEPARTMENT_ID
             WHERE w.WORKER_ID IS NOT NULL
               AND d.ORG_ID IS NOT NULL
@@ -211,7 +211,7 @@ BEGIN
                     'worker_npi', w.NPI,
                     'practitioner_npi', p.NPI
                 ) AS properties
-            FROM CURATED_DEV.WORKDAY.DIM_WORKERS w
+            FROM CURATED_DEV.WORKDAY_HCM.DIM_WORKERS w
             JOIN CURATED_DEV.FHIR.DIM_PRACTITIONER p
                 ON w.NPI = p.NPI
             WHERE w.NPI IS NOT NULL
@@ -237,11 +237,11 @@ BEGIN
         SELECT DISTINCT
             'WD_EDGE_' || MD5(
                 n.node_id ||
-                'META_' || MD5('CURATED_DEV.WORKDAY.DIM_WORKERS') ||
+                'META_' || MD5('CURATED_DEV.WORKDAY_HCM.DIM_WORKERS') ||
                 'STORED_IN'
             ) AS edge_id,
             n.node_id AS source_node_id,
-            'META_' || MD5('CURATED_DEV.WORKDAY.DIM_WORKERS') AS target_node_id,
+            'META_' || MD5('CURATED_DEV.WORKDAY_HCM.DIM_WORKERS') AS target_node_id,
             'STORED_IN' AS edge_type,
             'CROSS' AS layer,
             1.0 AS weight
@@ -259,11 +259,11 @@ BEGIN
         SELECT DISTINCT
             'WD_EDGE_' || MD5(
                 n.node_id ||
-                'META_' || MD5('CURATED_DEV.WORKDAY.DIM_DEPARTMENTS') ||
+                'META_' || MD5('CURATED_DEV.WORKDAY_HCM.DIM_DEPARTMENTS') ||
                 'STORED_IN'
             ) AS edge_id,
             n.node_id AS source_node_id,
-            'META_' || MD5('CURATED_DEV.WORKDAY.DIM_DEPARTMENTS') AS target_node_id,
+            'META_' || MD5('CURATED_DEV.WORKDAY_HCM.DIM_DEPARTMENTS') AS target_node_id,
             'STORED_IN' AS edge_type,
             'CROSS' AS layer,
             1.0 AS weight

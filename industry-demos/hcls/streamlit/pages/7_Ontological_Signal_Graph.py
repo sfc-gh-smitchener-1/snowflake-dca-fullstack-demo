@@ -365,7 +365,7 @@ def load_correlation_results() -> pd.DataFrame:
     try:
         return session.sql("""
             SELECT *
-            FROM DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS
+            FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS
             ORDER BY ABS(correlation_coefficient) DESC
         """).to_pandas()
     except Exception:
@@ -381,7 +381,7 @@ def load_staffing_metrics() -> pd.DataFrame:
     try:
         return session.sql("""
             SELECT *
-            FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_OUTCOME_METRICS
+            FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_OUTCOME_METRICS
             ORDER BY unit_type, metric_name
         """).to_pandas()
     except Exception:
@@ -397,7 +397,7 @@ def load_payer_metrics() -> pd.DataFrame:
     try:
         return session.sql("""
             SELECT *
-            FROM DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS
+            FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS
             ORDER BY cci_tier, payer_name
         """).to_pandas()
     except Exception:

@@ -228,7 +228,7 @@ SELECT
     END AS staffing_adequacy
 FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
 JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d ON e.org_id = d.org_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc 
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc 
     ON d.department_id = sc.department_id AND e.admit_date = sc.shift_date
 WHERE e.encounter_class IN ('INPATIENT', 'EMERGENCY');
 ```
@@ -255,7 +255,7 @@ SELECT
         / NULLIF(COUNT(*), 0) AS adverse_event_rate
 FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
 JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d ON e.org_id = d.org_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc 
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc 
     ON d.department_id = sc.department_id AND e.admit_date = sc.shift_date
 WHERE e.encounter_class = 'INPATIENT'
 GROUP BY 1, 2, 3
@@ -275,7 +275,7 @@ WITH monthly AS (
             / NULLIF(COUNT(*), 0) AS y  -- readmission rate
     FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
     JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d ON e.org_id = d.org_id
-    JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc 
+    JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc 
         ON d.department_id = sc.department_id AND e.admit_date = sc.shift_date
     WHERE e.encounter_class = 'INPATIENT'
     GROUP BY 1, 2
@@ -312,7 +312,7 @@ USING (
         ) AS properties
     FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
     JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d ON e.org_id = d.org_id
-    JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc 
+    JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc 
         ON d.department_id = sc.department_id AND e.admit_date = sc.shift_date
     WHERE sc.actual_ratio > d.target_nurse_ratio * 1.2
       AND (e.readmission_30day = TRUE 

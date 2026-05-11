@@ -13,6 +13,9 @@ USE DATABASE DCA_DEMO;
 USE SCHEMA GOVERNANCE;
 USE WAREHOUSE COMPUTE_WH;
 
+-- Ensure semantic schema exists for analytics outputs
+CREATE SCHEMA IF NOT EXISTS SEM_DEV.HCLS_ANALYTICS;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PROCEDURE 1: SP_HCLS_STAFFING_CONTEXT
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -34,18 +37,18 @@ BEGIN
     -- Check FACT_SHIFTS table exists
     SELECT COUNT(*) INTO :v_shift_exists
     FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
-    WHERE table_schema = 'WORKDAY' AND table_name = 'FACT_SHIFTS';
+    WHERE table_schema = 'WORKDAY_HCM' AND table_name = 'FACT_SHIFTS';
 
     -- Check DIM_DEPARTMENTS table exists
     SELECT COUNT(*) INTO :v_dept_exists
     FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
-    WHERE table_schema = 'WORKDAY' AND table_name = 'DIM_DEPARTMENTS';
+    WHERE table_schema = 'WORKDAY_HCM' AND table_name = 'DIM_DEPARTMENTS';
 
     IF (:v_shift_exists = 0 OR :v_dept_exists = 0) THEN
         RETURN 'Staffing context skipped — required Workday tables not found.';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT AS
     SELECT
         s.DEPARTMENT_ID,
         d.DEPARTMENT_NAME,
@@ -63,16 +66,16 @@ BEGIN
         ) AS overtime_pct,
         ROUND(AVG(s.ACUITY_SCORE), 2) AS avg_acuity,
         SUM(CASE WHEN t.SHIFT_IMPACT = 'UNDERSTAFFED' THEN 1 ELSE 0 END) AS understaffed_events
-    FROM CURATED_DEV.WORKDAY.FACT_SHIFTS s
-    JOIN CURATED_DEV.WORKDAY.DIM_DEPARTMENTS d
+    FROM CURATED_DEV.WORKDAY_HCM.FACT_SHIFTS s
+    JOIN CURATED_DEV.WORKDAY_HCM.DIM_DEPARTMENTS d
         ON s.DEPARTMENT_ID = d.DEPARTMENT_ID
-    LEFT JOIN CURATED_DEV.WORKDAY.FACT_TIME_OFF t
+    LEFT JOIN CURATED_DEV.WORKDAY_HCM.FACT_TIME_OFF t
         ON s.DEPARTMENT_ID = t.DEPARTMENT_ID
         AND s.SHIFT_DATE BETWEEN t.START_DATE AND t.END_DATE
     GROUP BY 1, 2, 3, 4, 5, 6, 7;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT;
 
     RETURN 'Staffing context built. Rows: ' || :v_row_count;
 END;
@@ -109,7 +112,7 @@ BEGIN
         RETURN 'Staffing outcome metrics skipped — required tables not found.';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_STAFFING_OUTCOME_METRICS AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_OUTCOME_METRICS AS
     WITH encounter_outcomes AS (
         SELECT
             e.ENCOUNTER_ID,
@@ -151,7 +154,7 @@ BEGIN
             eo.readmission_30day,
             eo.adverse_event,
             eo.DISCHARGE_DISPOSITION
-        FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc
         JOIN encounter_outcomes eo
             ON sc.ORG_ID = eo.ORG_ID
             AND eo.ADMIT_DATE = sc.SHIFT_DATE
@@ -179,7 +182,7 @@ BEGIN
     GROUP BY 1, 2, 3, 4, 5;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_OUTCOME_METRICS;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_OUTCOME_METRICS;
 
     RETURN 'Staffing outcome metrics computed. Rows: ' || :v_row_count;
 END;
@@ -209,7 +212,7 @@ BEGIN
         RETURN 'Correlation skipped — HCLS_STAFFING_OUTCOME_METRICS not found.';
     END IF;
 
-    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS AS
+    CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS AS
     WITH base AS (
         SELECT
             avg_nurse_ratio,
@@ -221,7 +224,7 @@ BEGIN
             adverse_event_rate_pct,
             avg_los,
             encounter_count
-        FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_OUTCOME_METRICS
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_OUTCOME_METRICS
         WHERE encounter_count >= 10
     )
     -- Ratio vs Readmission
@@ -283,7 +286,7 @@ BEGIN
     WHERE avg_overtime_pct IS NOT NULL AND readmission_rate_pct IS NOT NULL;
 
     SELECT COUNT(*) INTO :v_row_count
-    FROM DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS;
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS;
 
     RETURN 'Correlation analysis complete. Metric pairs: ' || :v_row_count;
 END;
@@ -346,7 +349,7 @@ BEGIN
                 'rn_on_shift', rn_on_shift,
                 'understaffed_events', understaffed_events
             ) AS properties
-        FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT
+        FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT
     ) AS src
     ON tgt.node_id = src.node_id
     WHEN MATCHED THEN UPDATE SET
@@ -390,7 +393,7 @@ BEGIN
                     'discharge_disposition', e.DISCHARGE_DISPOSITION
                 ) AS properties
             FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
-            JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc
+            JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc
                 ON sc.ORG_ID = e.ORG_ID
                 AND e.ADMIT_DATE = sc.SHIFT_DATE
             WHERE e.DISCHARGE_DISPOSITION IN ('EXPIRED', 'TRANSFER', 'HOSPICE')
@@ -431,7 +434,7 @@ BEGIN
                     'ratio_exceeded_by_pct', ROUND((sc.actual_ratio - sc.TARGET_NURSE_RATIO) / NULLIF(sc.TARGET_NURSE_RATIO, 0) * 100, 1)
                 ) AS properties
             FROM CURATED_DEV.FHIR.FACT_ENCOUNTERS e
-            JOIN DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT sc
+            JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT sc
                 ON sc.ORG_ID = e.ORG_ID
                 AND e.ADMIT_DATE = sc.SHIFT_DATE
             WHERE sc.actual_ratio > sc.TARGET_NURSE_RATIO * 1.2
@@ -454,11 +457,11 @@ BEGIN
         SELECT DISTINCT
             'STAFF_EDGE_' || MD5(
                 n.node_id ||
-                'META_' || MD5('DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT') ||
+                'META_' || MD5('SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT') ||
                 'STORED_IN'
             ) AS edge_id,
             n.node_id AS source_node_id,
-            'META_' || MD5('DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT') AS target_node_id,
+            'META_' || MD5('SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT') AS target_node_id,
             'STORED_IN' AS edge_type,
             'CROSS' AS layer,
             1.0 AS weight
@@ -530,7 +533,7 @@ BEGIN
             'graph_result', :v_result_graph,
             'staffing_node_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES WHERE node_id LIKE 'WD_STAFF_%'),
             'staffing_edge_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES WHERE edge_id LIKE 'STAFF_%'),
-            'correlation_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS)
+            'correlation_count', (SELECT COUNT(*) FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS)
         );
 
     RETURN 'HCLS Staffing pipeline complete. Snapshot: ' || :v_snapshot_id || CHR(10) ||
@@ -555,3 +558,9 @@ GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_STAFFING_OUTCOME_METRICS() 
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_STAFFING_CORRELATION() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_POPULATE_STAFFING_GRAPH() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_HCLS_STAFFING_RUN_ALL() TO ROLE ONTOLOGY_ADMIN;
+
+-- Grants for semantic analytics tables
+GRANT USAGE ON SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE DATA_ENGINEER;
+GRANT SELECT ON ALL TABLES IN SCHEMA SEM_DEV.HCLS_ANALYTICS TO ROLE ANALYST;

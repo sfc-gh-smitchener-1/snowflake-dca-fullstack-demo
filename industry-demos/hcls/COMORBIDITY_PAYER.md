@@ -205,7 +205,7 @@ The gap between payer-approved days and actual clinical need widens dramatically
 
 ```sql
 -- Charlson Comorbidity Index per patient using window function approach
-CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY AS
+CREATE OR REPLACE TABLE SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY AS
 WITH charlson_map AS (
     SELECT column1 AS category, column2 AS weight, column3 AS icd10_prefix
     FROM VALUES
@@ -299,7 +299,7 @@ SELECT
 FROM CURATED_DEV.PAYER.FACT_CLAIMS c
 JOIN CURATED_DEV.PAYER.DIM_MEMBERS m ON c.member_id = m.member_id
 JOIN CURATED_DEV.PAYER.DIM_PLANS p ON m.plan_id = p.plan_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
 GROUP BY 1, 2, 3
 ORDER BY cci.cci_tier, denial_rate_pct DESC;
 ```
@@ -318,7 +318,7 @@ SELECT
     SUM(CASE WHEN pa.days_to_decision > 14 THEN 1 ELSE 0 END) / COUNT(*) * 100 AS exceeded_14day_pct
 FROM CURATED_DEV.PAYER.FACT_PRIOR_AUTH pa
 JOIN CURATED_DEV.PAYER.DIM_MEMBERS m ON pa.member_id = m.member_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
 GROUP BY 1, 2
 ORDER BY cci.cci_tier, pa.urgency;
 ```
@@ -338,7 +338,7 @@ SELECT
     SUM(CASE WHEN ur.variance_days < -1 THEN 1 ELSE 0 END) / COUNT(*) * 100 AS early_discharge_pct
 FROM CURATED_DEV.PAYER.FACT_UTIL_REVIEWS ur
 JOIN CURATED_DEV.PAYER.DIM_MEMBERS m ON ur.member_id = m.member_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
 GROUP BY 1, 2
 ORDER BY cci.cci_tier, ur.level_of_care_requested;
 ```
@@ -359,7 +359,7 @@ SELECT
 FROM CURATED_DEV.PAYER.FACT_CLAIMS c
 JOIN CURATED_DEV.PAYER.DIM_MEMBERS m ON c.member_id = m.member_id
 JOIN CURATED_DEV.PAYER.DIM_PLANS p ON m.plan_id = p.plan_id
-JOIN DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
+JOIN SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY cci ON m.patient_id = cci.patient_id
 GROUP BY 1, 2
 ORDER BY cci.cci_tier, avg_paid DESC;
 ```
@@ -382,7 +382,7 @@ USING (
             'cci_tier', cci_tier,
             'calculation_date', calculation_date
         ) AS properties
-    FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY
 ) src
 ON tgt.edge_id = src.edge_id
 WHEN MATCHED THEN UPDATE SET
@@ -403,7 +403,7 @@ USING (
             'co_occurrence_rate', co_occurrence_rate,
             'shared_patient_count', shared_patient_count
         ) AS properties
-    FROM DCA_DEMO.GOVERNANCE.HCLS_COMORBIDITY_PAIRS
+    FROM SEM_DEV.HCLS_ANALYTICS.HCLS_COMORBIDITY_PAIRS
 ) src
 ON tgt.edge_id = src.edge_id
 WHEN MATCHED THEN UPDATE SET

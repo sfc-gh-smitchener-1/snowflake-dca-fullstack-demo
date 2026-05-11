@@ -285,7 +285,7 @@ SELECT
     SUM(CASE WHEN cd.claim_status = 'DENIED' THEN 1 ELSE 0 END) AS denied,
     ROUND(denied / NULLIF(total_claims, 0) * 100, 1) AS denial_rate_pct,
     ROUND(AVG(cd.billed_amount), 0) AS avg_billed
-FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY pc
+FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY pc
 JOIN CURATED_DEV.PAYER.DIM_MEMBERS m ON pc.patient_id = m.patient_id
 JOIN CURATED_DEV.PAYER.FACT_CLAIMS_DETAIL cd ON m.member_id = cd.member_id
 JOIN CURATED_DEV.PAYER.DIM_PLANS p ON m.plan_id = p.plan_id
