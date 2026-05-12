@@ -48,7 +48,7 @@
 
 ### Objective
 
-Surface pain points in the customer's own words. Map to the three-silo pattern.
+Surface pain points in the customer's own words. Map to the four-silo pattern (ServiceNow + Workday + Telemetry + Siemens acquired estate).
 
 ### Discovery Questions
 
@@ -57,6 +57,14 @@ Surface pain points in the customer's own words. Map to the three-silo pattern.
 2. "How do you currently know if a technician is certified for a specific equipment model?"
 3. "When was the last time a change caused an incident? How long did root-cause take?"
 4. "How do you track firmware drift from baseline across your fleet?"
+
+**Acquisition Integration (if applicable):**
+5. "How many of your acquired facilities have been onboarded to your governance framework?"
+6. "When a cooling alarm fires in a Siemens-managed DC, how does your NOC see it today?"
+7. "Can you tell me how many physical racks exist in BOTH your ServiceNow CMDB AND your Siemens inventory? Do you know which ones are the same rack?"
+8. "What's your timeline for unified compliance reporting across both estates?"
+9. "How do you currently reconcile Siemens maintenance orders with ServiceNow incidents for the same physical event?"
+10. "If a Siemens BMS sensor shows a cooling failure, can you identify which customer workloads are affected?"
 
 **Workforce Management:**
 5. "How do you ensure shift coverage for critical certifications at every campus?"

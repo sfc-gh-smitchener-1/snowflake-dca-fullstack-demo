@@ -99,17 +99,50 @@ These silos create a negative feedback loop:
 
 ## Acquisition Integration Challenges
 
-The recent acquisition of 2,000 Siemens-managed data centers introduces critical integration pain points:
+### The Acquisition Story
 
-| Challenge | Impact | Root Cause |
-|-----------|--------|------------|
-| **100x scale increase overnight** | Governance framework designed for 20 DCs must absorb 2,000 | No elastic governance architecture — manual processes don't scale |
-| **Dual naming conventions** | Same equipment has two names (ServiceNow English vs Siemens German-influenced) | Different CMDB systems with no shared taxonomy |
-| **No shared asset IDs** | Same physical rack appears as two unrelated entities | Independent system deployments with no integration contract |
-| **Governance gap on acquired DCs** | 2,000 facilities have no Snowflake tags, no masking policies, no RBAC | Acquired company used different security model (Siemens-native) |
-| **Maintenance order ↔ Incident reconciliation** | Same physical event tracked in two workflow systems | Siemens uses Instandhaltungsaufträge; ServiceNow uses INC tickets |
-| **BMS sensor flood** | 500K readings per 5-min cycle from acquired estate overwhelms existing pipelines | 100x data volume increase with no proportional infrastructure growth |
-| **Cooling system opacity** | Cannot correlate Siemens cooling alarms with ServiceNow switch health | Physical plant and IT infrastructure managed as separate domains |
+Six months ago, the company completed a $4.2B acquisition of a European competitor operating 2,000 data centers across 47 countries. The acquired company runs **Siemens Desigo CC** (Building Management System) and **Siemens MindSphere** (IoT analytics) as their primary DCIM platform. Their operational model is fundamentally different:
+
+- **Siemens manages physical plant**: HVAC zones, power distribution (PDUs, UPS, switchgear), cooling loops (chillers, CRAHs), and fire suppression — the building infrastructure that ServiceNow doesn't cover well
+- **Siemens ALSO tracks racks and assets**: Their own rack inventory system with German-influenced naming (`Standort` = site, `Gebaeude` = building, `Instandhaltung` = maintenance) creates a direct overlap with ServiceNow
+- **Different ID systems**: The same physical rack has one ID in Siemens (`siemens_rack_id`) and a different ID in ServiceNow (`rack_id`) — 100,000 racks need entity resolution
+- **Different workflow models**: Siemens uses `Instandhaltungsaufträge` (maintenance orders) where ServiceNow uses INC/CHG tickets — same physical events, tracked differently
+
+### Why This Matters to the C-Suite
+
+| Stakeholder | Their Question | What Keeps Them Up at Night |
+|-------------|---------------|----------------------------|
+| **CEO** | "Are we getting the synergies we promised investors?" | $4.2B acquisition with no unified operating model = Wall Street skepticism |
+| **CFO** | "What's the real cost of running dual systems?" | $18M/year in duplicated tooling + $6M in integration consulting |
+| **CTO** | "Can we govern 2,020 DCs with the same team?" | 100x scale increase with 0x headcount increase |
+| **VP Infrastructure** | "Which acquired facilities are actually at risk?" | No visibility into Siemens cooling/power health from NOC |
+| **CISO** | "Are the acquired DCs compliant with our policies?" | 2,000 facilities with zero Snowflake tags, zero masking, zero RBAC |
+
+### Integration Pain Points (Detailed)
+
+| Challenge | Impact | Root Cause | Business Risk |
+|-----------|--------|------------|---------------|
+| **100x scale increase overnight** | Governance framework designed for 20 DCs must absorb 2,000 | No elastic governance architecture — manual processes don't scale | Audit findings within 90 days if ungoverned |
+| **Dual naming conventions** | Same equipment has two names (ServiceNow English vs Siemens German-influenced) | Different CMDB systems with no shared taxonomy | Misidentification during P1 incidents |
+| **No shared asset IDs** | Same physical rack appears as two unrelated entities | Independent system deployments with no integration contract | Cannot dispatch ServiceNow-managed techs to Siemens-managed racks |
+| **Governance gap on acquired DCs** | 2,000 facilities have no Snowflake tags, no masking policies, no RBAC | Acquired company used different security model (Siemens-native) | SOC 2 non-compliance on Day 1 of close |
+| **Maintenance order ↔ Incident reconciliation** | Same physical event tracked in two workflow systems | Siemens uses Instandhaltungsaufträge; ServiceNow uses INC tickets | Duplicate work orders, double-counting incidents |
+| **BMS sensor flood** | 500K readings per 5-min cycle from acquired estate overwhelms existing pipelines | 100x data volume increase with no proportional infrastructure growth | Telemetry dropped = blind spots in cooling/power monitoring |
+| **Cooling system opacity** | Cannot correlate Siemens cooling alarms with ServiceNow switch health | Physical plant and IT infrastructure managed as separate domains | Switch failure from overheating appears "random" — no root-cause link to HVAC |
+| **Siemens-specific equipment models** | No existing ServiceNow CI types for Siemens SITOP PSUs, Climatix controllers, Desigo PXC units | Acquired estate uses vendor-specific equipment taxonomy | Cannot run unified capacity planning across both fleets |
+
+### The Integration Timeline Pressure
+
+```
+Day 0 (Close)     → Must report combined capacity to board
+Day 30            → Must prove SOC 2 compliance for acquired DCs
+Day 60            → Must have unified NOC visibility (both estates)
+Day 90            → First joint audit (auditor expects unified controls)
+Day 180           → Board expects 15% synergy realization
+Day 365           → Full integration or admit to Wall Street the deal is underperforming
+```
+
+**The Knowledge Graph approach** collapses this from a 3-year ERP integration into a 90-day "Load, Resolve, Govern" sprint because entity resolution happens at the graph layer — not at the source system layer.
 
 ---
 

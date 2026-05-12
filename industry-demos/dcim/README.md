@@ -132,16 +132,20 @@ flowchart LR
 
 ### Siemens Desigo CC (Acquired Portfolio) — 8 Tables
 
-| Table | Records | Key Fields |
-|-------|---------|------------|
-| `facilities` | 2,000 | facility_id, standort_name, gebaeude_typ, tier, power, cooling |
-| `zones` | 20,000 | zone_id, facility_id, zone_type, cooling_type, target_temp |
-| `power_distribution_units` | 40,000 | pdu_id, equipment_type, capacity_kva, load_pct, redundancy |
-| `cooling_loops` | 10,000 | loop_id, loop_type, capacity_kw, efficiency_cop, refrigerant |
-| `fire_suppression` | 4,000 | system_id, system_type, coverage_area, is_compliant |
-| `rack_inventory` | 100,000 | siemens_rack_id, u_capacity, customer_name, servicenow_correlation_id |
-| `bms_sensors` | 500,000 | sensor_id, sensor_type, value, quality, alarm_state |
-| `maintenance_orders` | 15,000 | order_id, order_type, priority, status, resolution_hours |
+> **Acquisition Context**: A competitor running Siemens Desigo CC / MindSphere was acquired, bringing 2,000 data centers into the portfolio overnight. Siemens manages the full physical plant (HVAC, power distribution, fire suppression, cooling) AND maintains its own rack/asset inventory — creating overlapping data with ServiceNow for the same physical hardware. German-influenced field naming conventions (Standort, Gebaeude, Instandhaltung) reflect the acquired company's European origins.
+
+| Table | Records | Key Fields | SCD6? | Description |
+|-------|---------|------------|-------|-------------|
+| `facilities` | 2,000 | facility_id, standort_name, gebaeude_typ, tier_level, total_power_mw, total_cooling_mw, rack_capacity, commissioning_date, acquisition_date | Yes | Physical data center sites — equivalent to ServiceNow `data_centers` but with different IDs and naming |
+| `zones` | 20,000 | zone_id, facility_id, zone_name, zone_type, floor_level, area_sqm, target_temp_celsius, target_humidity_pct, max_power_kw, cooling_type | No | HVAC/cooling zones within facilities (HOT_AISLE, COLD_AISLE, CONTAINMENT, MECHANICAL) |
+| `power_distribution_units` | 40,000 | pdu_id, facility_id, zone_id, equipment_type, model, capacity_kva, current_load_pct, redundancy, phase, voltage | No | PDUs, UPS, ATS, switchgear, busway — Siemens SITOP/SINAMICS models |
+| `cooling_loops` | 10,000 | loop_id, facility_id, zone_id, loop_type, capacity_kw, supply_temp_celsius, return_temp_celsius, flow_rate_lpm, efficiency_cop, refrigerant_type | No | Chiller plants, CRAH, CRAC, cooling towers, free-cooling loops (COP range 3.0-6.0) |
+| `fire_suppression` | 4,000 | system_id, facility_id, zone_id, system_type, coverage_area_sqm, last_inspection_date, next_inspection_date, cylinder_pressure_bar, agent_quantity_kg, is_compliant | No | FM200, NOVEC 1230, pre-action sprinkler, VESDA detection, INERGEN |
+| `rack_inventory` | 100,000 | siemens_rack_id, facility_id, zone_id, row_number, position_in_row, u_capacity, u_used, power_allocation_kw, weight_capacity_kg, customer_name, contract_id, servicenow_correlation_id | Yes | Overlapping rack tracking — same physical racks as ServiceNow but different IDs. ~5% have manual `servicenow_correlation_id` mapping |
+| `bms_sensors` | 500,000 | reading_id, sensor_id, facility_id, zone_id, timestamp, sensor_type, value, unit, quality, alarm_state | No | Building Management System readings: TEMPERATURE, HUMIDITY, POWER, WATER_FLOW, AIRFLOW, PRESSURE, VIBRATION (5-min intervals) |
+| `maintenance_orders` | 15,000 | order_id, facility_id, zone_id, equipment_type, equipment_id, order_type, priority, description, assigned_team, status, created_at, resolution_hours | No | Instandhaltungsaufträge — PREVENTIVE, CORRECTIVE, EMERGENCY, INSPECTION orders (equivalent to ServiceNow incidents) |
+
+**Scale Comparison**: The Siemens estate is 100x larger than the original ServiceNow-managed portfolio (2,000 vs 20 DCs). Total combined records: ~3.5M across all four source systems.
 
 ---
 
