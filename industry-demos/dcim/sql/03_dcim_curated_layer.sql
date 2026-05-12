@@ -379,4 +379,187 @@ WHERE TABLE_CATALOG = 'CURATED_DEV'
   AND TABLE_TYPE = 'DYNAMIC TABLE'
 ORDER BY TABLE_SCHEMA, TABLE_NAME;
 
+-- ═══════════════════════════════════════════════════════════════════════════
+-- SIEMENS DCIM DYNAMIC TABLES (Acquired Portfolio — 2,000 Data Centers)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE SCHEMA IF NOT EXISTS CURATED_DEV.SIEMENS_DCIM
+    COMMENT = 'Siemens Desigo CC acquired portfolio — curated dimensions and facts';
+
+-- DIM_FACILITY: Siemens data center facilities (acquired estate)
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY
+    TARGET_LAG = '1 hour'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens facilities (Standorte) — current state from SCD6'
+AS
+SELECT
+    "facility_id"                AS FACILITY_ID,
+    "current_standort_name"      AS FACILITY_NAME,
+    "gebaeude_typ"               AS BUILDING_TYPE,
+    "region"                     AS REGION,
+    "country"                    AS COUNTRY,
+    "city"                       AS CITY,
+    "tier_level"                 AS TIER_LEVEL,
+    "total_power_mw"             AS TOTAL_POWER_MW,
+    "total_cooling_mw"           AS TOTAL_COOLING_MW,
+    "rack_capacity"              AS RACK_CAPACITY,
+    "commissioning_date"         AS COMMISSIONING_DATE,
+    "acquisition_date"           AS ACQUISITION_DATE,
+    "original_standort_name"     AS ORIGINAL_FACILITY_NAME,
+    "_VALID_FROM"                AS VALID_FROM,
+    "_VERSION"                   AS VERSION,
+    "_SOURCE_SYSTEM"             AS SOURCE_SYSTEM,
+    "_LOADED_AT"                 AS LOADED_AT
+FROM RAW_DEV.SIEMENS_DCIM.FACILITIES
+WHERE "_IS_CURRENT" = TRUE;
+
+-- DIM_ZONE: HVAC/cooling zones within facilities
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_ZONE
+    TARGET_LAG = '1 hour'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens HVAC/cooling zones per facility'
+AS
+SELECT
+    "zone_id"               AS ZONE_ID,
+    "facility_id"           AS FACILITY_ID,
+    "zone_name"             AS ZONE_NAME,
+    "zone_type"             AS ZONE_TYPE,
+    "floor_level"           AS FLOOR_LEVEL,
+    "area_sqm"              AS AREA_SQM,
+    "target_temp_celsius"   AS TARGET_TEMP_CELSIUS,
+    "target_humidity_pct"   AS TARGET_HUMIDITY_PCT,
+    "max_power_kw"          AS MAX_POWER_KW,
+    "cooling_type"          AS COOLING_TYPE
+FROM RAW_DEV.SIEMENS_DCIM.ZONES;
+
+-- DIM_COOLING_LOOP: Chiller plants, CRAH/CRAC units
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_COOLING_LOOP
+    TARGET_LAG = '4 hours'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens cooling loops — chillers, CRAH, CRAC, towers'
+AS
+SELECT
+    "loop_id"               AS LOOP_ID,
+    "facility_id"           AS FACILITY_ID,
+    "zone_id"               AS ZONE_ID,
+    "loop_type"             AS LOOP_TYPE,
+    "capacity_kw"           AS CAPACITY_KW,
+    "supply_temp_celsius"   AS SUPPLY_TEMP_CELSIUS,
+    "return_temp_celsius"   AS RETURN_TEMP_CELSIUS,
+    "flow_rate_lpm"         AS FLOW_RATE_LPM,
+    "efficiency_cop"        AS EFFICIENCY_COP,
+    "refrigerant_type"      AS REFRIGERANT_TYPE,
+    "last_service_date"     AS LAST_SERVICE_DATE
+FROM RAW_DEV.SIEMENS_DCIM.COOLING_LOOPS;
+
+-- DIM_RACK_INVENTORY: Siemens rack tracking (overlaps ServiceNow — entity resolution)
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_RACK_INVENTORY
+    TARGET_LAG = '1 hour'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens rack inventory — overlaps ServiceNow racks for entity resolution'
+AS
+SELECT
+    "siemens_rack_id"              AS SIEMENS_RACK_ID,
+    "facility_id"                  AS FACILITY_ID,
+    "zone_id"                      AS ZONE_ID,
+    "row_number"                   AS ROW_NUMBER,
+    "position_in_row"              AS POSITION_IN_ROW,
+    "u_capacity"                   AS U_CAPACITY,
+    "u_used"                       AS U_USED,
+    "power_allocation_kw"          AS POWER_ALLOCATION_KW,
+    "weight_capacity_kg"           AS WEIGHT_CAPACITY_KG,
+    "current_weight_kg"            AS CURRENT_WEIGHT_KG,
+    "current_customer_name"        AS CUSTOMER_NAME,
+    "original_customer_name"       AS ORIGINAL_CUSTOMER_NAME,
+    "contract_id"                  AS CONTRACT_ID,
+    "servicenow_correlation_id"    AS SERVICENOW_CORRELATION_ID,
+    "_VALID_FROM"                  AS VALID_FROM,
+    "_VERSION"                     AS VERSION,
+    "_SOURCE_SYSTEM"               AS SOURCE_SYSTEM,
+    "_LOADED_AT"                   AS LOADED_AT
+FROM RAW_DEV.SIEMENS_DCIM.RACK_INVENTORY
+WHERE "_IS_CURRENT" = TRUE;
+
+-- DIM_FIRE_SUPPRESSION: Fire protection systems
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_FIRE_SUPPRESSION
+    TARGET_LAG = '24 hours'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens fire suppression systems (Brandschutz)'
+AS
+SELECT
+    "system_id"             AS SYSTEM_ID,
+    "facility_id"           AS FACILITY_ID,
+    "zone_id"               AS ZONE_ID,
+    "system_type"           AS SYSTEM_TYPE,
+    "coverage_area_sqm"     AS COVERAGE_AREA_SQM,
+    "last_inspection_date"  AS LAST_INSPECTION_DATE,
+    "next_inspection_date"  AS NEXT_INSPECTION_DATE,
+    "cylinder_pressure_bar" AS CYLINDER_PRESSURE_BAR,
+    "agent_quantity_kg"     AS AGENT_QUANTITY_KG,
+    "is_compliant"          AS IS_COMPLIANT
+FROM RAW_DEV.SIEMENS_DCIM.FIRE_SUPPRESSION;
+
+-- DIM_POWER_DISTRIBUTION_UNIT: PDUs, UPS, switchgear
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.DIM_POWER_DISTRIBUTION_UNIT
+    TARGET_LAG = '5 minutes'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens power distribution — PDUs, UPS, ATS, switchgear'
+AS
+SELECT
+    "pdu_id"                AS PDU_ID,
+    "facility_id"           AS FACILITY_ID,
+    "zone_id"               AS ZONE_ID,
+    "equipment_type"        AS EQUIPMENT_TYPE,
+    "model"                 AS MODEL,
+    "capacity_kva"          AS CAPACITY_KVA,
+    "current_load_pct"      AS CURRENT_LOAD_PCT,
+    "redundancy"            AS REDUNDANCY,
+    "phase"                 AS PHASE,
+    "voltage"               AS VOLTAGE,
+    "install_date"          AS INSTALL_DATE,
+    "last_maintenance_date" AS LAST_MAINTENANCE_DATE
+FROM RAW_DEV.SIEMENS_DCIM.POWER_DISTRIBUTION_UNITS;
+
+-- FACT_BMS_SENSORS: Building Management System sensor readings
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.FACT_BMS_SENSORS
+    TARGET_LAG = '1 minute'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens BMS sensor readings — near real-time'
+AS
+SELECT
+    "reading_id"    AS READING_ID,
+    "sensor_id"     AS SENSOR_ID,
+    "facility_id"   AS FACILITY_ID,
+    "zone_id"       AS ZONE_ID,
+    "timestamp"     AS READING_TIMESTAMP,
+    "sensor_type"   AS SENSOR_TYPE,
+    "value"         AS SENSOR_VALUE,
+    "unit"          AS UNIT,
+    "quality"       AS QUALITY,
+    "alarm_state"   AS ALARM_STATE
+FROM RAW_DEV.SIEMENS_DCIM.BMS_SENSORS;
+
+-- FACT_MAINTENANCE_ORDER: Siemens maintenance orders (Instandhaltungsaufträge)
+CREATE OR REPLACE DYNAMIC TABLE CURATED_DEV.SIEMENS_DCIM.FACT_MAINTENANCE_ORDER
+    TARGET_LAG = '5 minutes'
+    WAREHOUSE = COMPUTE_WH
+    COMMENT = 'Siemens maintenance orders — corrective, preventive, emergency'
+AS
+SELECT
+    "order_id"          AS ORDER_ID,
+    "facility_id"       AS FACILITY_ID,
+    "zone_id"           AS ZONE_ID,
+    "equipment_type"    AS EQUIPMENT_TYPE,
+    "equipment_id"      AS EQUIPMENT_ID,
+    "order_type"        AS ORDER_TYPE,
+    "priority"          AS PRIORITY,
+    "description"       AS DESCRIPTION,
+    "assigned_team"     AS ASSIGNED_TEAM,
+    "status"            AS STATUS,
+    "created_at"        AS CREATED_AT,
+    "scheduled_date"    AS SCHEDULED_DATE,
+    "completed_at"      AS COMPLETED_AT,
+    "resolution_hours"  AS RESOLUTION_HOURS
+FROM RAW_DEV.SIEMENS_DCIM.MAINTENANCE_ORDERS;
+
 SELECT '03_dcim_curated_layer.sql completed successfully' AS STATUS;

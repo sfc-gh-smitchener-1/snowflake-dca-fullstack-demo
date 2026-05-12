@@ -1,6 +1,6 @@
 # DCIM Demo Script — 30-Minute Walkthrough
 
-> A structured presentation demonstrating how Snowflake unifies ServiceNow, Workday, and Network Observability into a real-time data center operations platform.
+> A structured presentation demonstrating how Snowflake unifies ServiceNow, Workday, Network Observability, and Siemens Desigo CC into a real-time data center operations platform.
 
 ---
 
@@ -323,7 +323,74 @@ LIMIT 20;
 
 ---
 
-## Part 8: Command Center (5 minutes)
+## Part 8: Acquisition Integration (5 minutes)
+
+### Talk Track
+
+> "Six months ago, we acquired a competitor running 2,000 data centers on Siemens Desigo CC. Different naming conventions — German-influenced field names. Different rack IDs for the same physical hardware. Different maintenance workflows. Let me show you how Snowflake's Knowledge Graph resolves this without a multi-year data migration..."
+
+### Demo Steps
+
+**Show the scale of the acquisition:**
+
+```sql
+-- 2,000 net-new facilities from Siemens
+SELECT REGION, BUILDING_TYPE, COUNT(*) AS facilities, SUM(RACK_CAPACITY) AS total_rack_capacity
+FROM CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY
+GROUP BY REGION, BUILDING_TYPE
+ORDER BY facilities DESC;
+```
+
+> "2,000 data centers, 100,000 racks, half a million BMS sensors — all flowing into Snowflake within weeks of close. No ETL rewrite. No schema migration. Just load and govern."
+
+**Show entity resolution in action:**
+
+```sql
+-- Racks that exist in BOTH systems (same physical asset, different IDs)
+SELECT
+    e.edge_type,
+    e.weight AS confidence,
+    src.display_name AS siemens_rack,
+    tgt.display_name AS servicenow_rack,
+    e.properties:match_method::VARCHAR AS match_method
+FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES src ON e.source_node_id = src.node_id
+JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES tgt ON e.target_node_id = tgt.node_id
+WHERE e.edge_type IN ('SAME_AS', 'CANDIDATE_SAME_AS')
+AND src.source_system = 'SIEMENS_DCIM'
+LIMIT 20;
+```
+
+> "The Knowledge Graph automatically identified 5,000+ rack matches — some confirmed manually, some discovered algorithmically by matching capacity and location attributes."
+
+**Show governance gaps on acquired estate:**
+
+```sql
+-- Facilities not yet integrated into ServiceNow governance
+SELECT GOVERNANCE_STATUS, COUNT(*) AS facilities, 
+       ROUND(AVG(MAPPING_COMPLETENESS_PCT), 1) AS avg_mapping_pct
+FROM DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS
+GROUP BY GOVERNANCE_STATUS;
+```
+
+> "We can see exactly which of the 2,000 acquired facilities are fully governed, partially mapped, or still ungoverned. This drives the integration roadmap — highest risk facilities get migrated first."
+
+**Show cross-platform risk:**
+
+```sql
+-- Unified risk view: both estates in one query
+SELECT SOURCE_SYSTEM, RISK_LEVEL, COUNT(*) AS entities, 
+       ROUND(AVG(RISK_SCORE), 1) AS avg_score
+FROM DCA_DEMO.GOVERNANCE.DCIM_CROSS_PLATFORM_RISK
+GROUP BY SOURCE_SYSTEM, RISK_LEVEL
+ORDER BY SOURCE_SYSTEM, avg_score DESC;
+```
+
+> "One view. Both estates. The NOC sees everything — whether it's a ServiceNow switch with a cert gap or a Siemens facility with cooling degradation. No tab-switching between systems."
+
+---
+
+## Part 9: Command Center (5 minutes)
 
 ### Talk Track
 
@@ -340,7 +407,7 @@ LIMIT 20;
 
 ### Closing
 
-> "This platform turns three disconnected systems into a unified operations intelligence layer. The data center operator goes from reactive phone-tree dispatch to proactive, risk-aware, graph-optimized operations — all on Snowflake-native capabilities.
+> "This platform turns four disconnected systems into a unified operations intelligence layer. The data center operator goes from reactive phone-tree dispatch to proactive, risk-aware, graph-optimized operations — all on Snowflake-native capabilities.
 >
 > Questions?"
 
@@ -355,3 +422,4 @@ LIMIT 20;
 | "What about the RAI dependency?" | "RAI is optional. The risk scoring, MTTR analysis, and SCD6 time travel all work without it. RAI adds the graph-based dispatch optimization as an enhancement." |
 | "How long to implement?" | "Phase 1 (governed data lake) is deployable with existing Fivetran/Airbyte connectors. The analytical layer builds incrementally on top." |
 | "What about data freshness SLAs?" | "Dynamic Tables provide declarative freshness — you set target lag, Snowflake guarantees it. No cron jobs, no 'did the ETL run?' questions." |
+| "How do you handle the Siemens acquisition data?" | "We load Siemens data as-is into Snowflake — no schema migration, no ETL rewrite. The Knowledge Graph resolves overlapping rack IDs through entity resolution edges, and governance scoring flags ungoverned facilities for prioritized integration." |

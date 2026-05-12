@@ -1,6 +1,6 @@
 # DCIM — Architecture Strategy
 
-> How we unify ServiceNow, Workday, and Network Observability into a governed, real-time DCIM analytics platform on Snowflake.
+> How we unify ServiceNow, Workday, Network Observability, and Siemens Desigo CC into a governed, real-time DCIM analytics platform on Snowflake.
 
 ---
 
@@ -31,32 +31,35 @@ The architecture prioritizes:
 
 ---
 
-## Three-Stage Evolution
+## Four-Stage Evolution
 
 ### Stage 1: Governed Data Lake
 
-Unify all three sources into Snowflake with full lineage and governance.
+Unify all four sources into Snowflake with full lineage and governance.
 
 ```mermaid
 flowchart TD
     SN[ServiceNow API] -->|Fivetran/Airbyte| RAW_SN[RAW_DEV.SERVICENOW]
     WD[Workday Reports] -->|Fivetran/Airbyte| RAW_WD[RAW_DEV.WORKDAY_DCIM]
     TEL[Telemetry Collectors] -->|Snowpipe Streaming| RAW_TEL[RAW_DEV.TELEMETRY]
+    SM[Siemens Desigo CC] -->|MindSphere Export| RAW_SM[RAW_DEV.SIEMENS_DCIM]
 
     RAW_SN --> TAG1[Object Tags + Masking]
     RAW_WD --> TAG2[Object Tags + Masking]
     RAW_TEL --> TAG3[Object Tags + Masking]
+    RAW_SM --> TAG4[Object Tags + Masking]
 
-    TAG1 --> CURATED[CURATED_DEV<br/>14 Dynamic Tables]
+    TAG1 --> CURATED[CURATED_DEV<br/>Dynamic Tables]
     TAG2 --> CURATED
     TAG3 --> CURATED
+    TAG4 --> CURATED
 ```
 
 **Key deliverables:**
-- 18 raw tables with SCD6 state tracking
+- 26 raw tables with SCD6 state tracking (18 original + 8 Siemens)
 - Column-level tags (PII, SENSITIVE, OPERATIONAL)
 - Masking policies for technician PII
-- 14 Dynamic Tables with tiered target lags
+- Dynamic Tables with tiered target lags
 
 ### Stage 2: Cross-System Intelligence
 
@@ -104,6 +107,41 @@ flowchart TD
 - Capacity forecasting (power, thermal, staffing)
 - Automated dispatch to ServiceNow
 - Proactive certification pipeline recommendations
+
+### Acquisition Absorption — "Acquire and Govern"
+
+The Knowledge Graph enables rapid integration of acquired infrastructure estates:
+
+```mermaid
+flowchart LR
+    subgraph ACQUIRED["Acquired Estate (Siemens)"]
+        SM_DATA["2K Facilities<br/>Desigo CC / MindSphere"]
+    end
+
+    subgraph SNOWFLAKE["Snowflake — Knowledge Graph Governed"]
+        SM_RAW["RAW<br/>(Siemens as-is)"]
+        SM_CUR["CURATED<br/>(Dynamic Tables)"]
+        ER["Entity Resolution<br/>(SAME_AS edges)"]
+        GOV["Governance Scoring<br/>(Tag coverage, RBAC)"]
+        UNIFIED["Unified Risk View<br/>(Cross-Platform)"]
+    end
+
+    subgraph ORIGINAL["Original Estate (ServiceNow)"]
+        SN["20 Data Centers<br/>Fully Governed"]
+    end
+
+    SM_DATA --> SM_RAW --> SM_CUR --> ER
+    SN --> ER
+    ER --> GOV --> UNIFIED
+```
+
+**Principle: "Load First, Govern Incrementally"**
+1. Ingest Siemens data as-is (no transformation) into `RAW_DEV.SIEMENS_DCIM`
+2. Dynamic Tables auto-curate into `CURATED_DEV.SIEMENS_DCIM`
+3. Knowledge Graph creates `CANDIDATE_SAME_AS` edges (algorithmic matching)
+4. Human review promotes candidates to `SAME_AS` (confirmed matches)
+5. Governance scoring flags ungoverned facilities for prioritized migration
+6. Cross-platform risk view gives unified NOC visibility from day one
 
 ---
 
@@ -162,6 +200,7 @@ ACCOUNTADMIN
 | ServiceNow | CDC via API | Every 5 min | Fivetran connector → external stage |
 | Workday | Report-as-a-Service | Every 15 min | Airbyte connector → external stage |
 | Telemetry | Streaming | Continuous | Snowpipe Streaming SDK |
+| Siemens Desigo CC | MindSphere API export | Every 1–60 min | Bulk CSV → external stage |
 | RAI Graph | Pull from Snowflake | On-demand | SPCS service reads CURATED views |
 
 ---
@@ -173,5 +212,6 @@ ACCOUNTADMIN
 | Source lag > 2x target | Dynamic Table REFRESH_STATUS | Alert → investigate source connector |
 | Graph service down | SPCS health check | Dispatch falls back to rule-based (no graph) |
 | Risk score stale | Orchestrator heartbeat | SP_DCIM_QUICK_REFRESH re-runs scoring |
+| Siemens entity resolution stale | CANDIDATE_SAME_AS edge count drift | Re-run 04b Siemens graph populate |
 | Certification data gap | Validation script (Phase 6) | Re-trigger Workday sync |
 | Telemetry gap > 15 min | FACT_ALERTS freshness check | Restart Snowpipe Streaming channel |

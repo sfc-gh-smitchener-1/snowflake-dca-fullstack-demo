@@ -195,6 +195,9 @@ phase_1_generate_data() {
     echo "  Generating Telemetry data..."
     python3 "${TOOLS_DIR}/generate_telemetry_data.py" --output "${DATA_DIR}" --scale "${SCALE}" ${QUICK_FLAG}
 
+    echo "  Generating Siemens DCIM data (acquired portfolio — 2K DCs)..."
+    python3 "${TOOLS_DIR}/generate_siemens_data.py" --output "${DATA_DIR}" ${QUICK_FLAG}
+
     echo ""
     echo -e "  ${GREEN}[OK]${NC} Data generation complete. Files in ${DATA_DIR}/"
     ls -lh "${DATA_DIR}"/servicenow/ "${DATA_DIR}"/workday_dcim/ "${DATA_DIR}"/telemetry/ 2>/dev/null | tail -30 || true
@@ -226,6 +229,11 @@ phase_2_upload_and_load() {
         -q "PUT file://${DATA_DIR}/telemetry/*.csv @RAW_DEV.STAGING.DATA_STAGE/telemetry/ AUTO_COMPRESS=TRUE OVERWRITE=TRUE;"
     echo -e "  ${GREEN}[OK]${NC} Telemetry data uploaded"
 
+    echo "  Uploading Siemens DCIM data..."
+    snow sql --connection "${CONNECTION}" \
+        -q "PUT file://${DATA_DIR}/siemens_dcim/*.csv @RAW_DEV.STAGING.DATA_STAGE/siemens_dcim/ AUTO_COMPRESS=TRUE OVERWRITE=TRUE;"
+    echo -e "  ${GREEN}[OK]${NC} Siemens data uploaded"
+
     echo ""
     echo "  Loading data into RAW tables..."
     snow sql --connection "${CONNECTION}" \
@@ -247,7 +255,8 @@ phase_3_sql_scripts() {
     run_sql_file "${SQL_DIR}/01_dcim_schemas.sql"          "DCIM schemas (ServiceNow, Workday, Telemetry)"
     run_sql_file "${SQL_DIR}/02_dcim_load_data.sql"        "Data loader stored procedure"
     run_sql_file "${SQL_DIR}/03_dcim_curated_layer.sql"    "Curated Dynamic Tables"
-    run_sql_file "${SQL_DIR}/04_dcim_graph_populate.sql"   "Infrastructure graph nodes"
+    run_sql_file "${SQL_DIR}/04_dcim_graph_populate.sql"    "Infrastructure graph nodes"
+    run_sql_file "${SQL_DIR}/04b_dcim_siemens_graph_populate.sql" "Siemens graph extensions"
     run_sql_file "${SQL_DIR}/05_dcim_workday_populate.sql" "Workday graph nodes"
     run_sql_file "${SQL_DIR}/06_dcim_risk_scoring.sql"     "Risk scoring procedures"
     run_sql_file "${SQL_DIR}/07_dcim_rai_inference.sql"    "RAI inference procedures"

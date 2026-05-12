@@ -9,6 +9,8 @@
 --   1. DCIM_SYSTEM_UPTIME_VS_STAFF_AVAILABILITY — Switch uptime vs shift coverage
 --   2. DCIM_RISK_WEIGHTED_MTTR — MTTR adjusted by SLA tier and cert freshness
 --   3. DCIM_PORT_HEALTH_BY_BUSINESS_PRIORITY — Port health heatmap by SLA
+--   4. DCIM_ACQUISITION_INTEGRATION_STATUS — Siemens acquisition migration progress
+--   5. DCIM_CROSS_PLATFORM_RISK — Unified risk across ServiceNow + Siemens
 --
 -- PREREQUISITES:
 --   - Scripts 01-08 deployed
@@ -272,19 +274,127 @@ FROM switch_location sl
 LEFT JOIN port_health ph ON sl.SWITCH_ID = ph.SWITCH_ID;
 
 -- ═══════════════════════════════════════════════════════════════════════════
+-- VIEW 4: Acquisition Integration Status
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Tracks migration progress of acquired Siemens portfolio into unified
+-- governance platform. Shows per-facility entity resolution completeness.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS
+    COMMENT = 'Tracks migration progress of acquired Siemens portfolio into unified governance platform'
+AS
+WITH rack_mapping AS (
+    SELECT
+        r.FACILITY_ID,
+        COUNT(*) AS total_racks,
+        COUNT(CASE WHEN r.SERVICENOW_CORRELATION_ID IS NOT NULL THEN 1 END) AS manually_mapped_racks,
+        COUNT(CASE WHEN e.edge_type = 'SAME_AS' THEN 1 END) AS confirmed_matches,
+        COUNT(CASE WHEN e.edge_type = 'CANDIDATE_SAME_AS' THEN 1 END) AS candidate_matches
+    FROM CURATED_DEV.SIEMENS_DCIM.DIM_RACK_INVENTORY r
+    LEFT JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        ON e.source_node_id = 'SM_RACK_' || MD5(r.SIEMENS_RACK_ID)
+        AND e.edge_type IN ('SAME_AS', 'CANDIDATE_SAME_AS')
+    GROUP BY r.FACILITY_ID
+)
+SELECT
+    f.FACILITY_ID,
+    f.FACILITY_NAME,
+    f.REGION,
+    f.COUNTRY,
+    f.BUILDING_TYPE,
+    f.TIER_LEVEL,
+    f.TOTAL_POWER_MW,
+    f.RACK_CAPACITY,
+    f.ACQUISITION_DATE,
+    COALESCE(rm.total_racks, 0) AS TOTAL_RACKS,
+    COALESCE(rm.confirmed_matches, 0) AS MAPPED_RACKS,
+    COALESCE(rm.candidate_matches, 0) AS CANDIDATE_RACKS,
+    CASE
+        WHEN COALESCE(rm.total_racks, 0) = 0 THEN 0
+        ELSE ROUND(COALESCE(rm.confirmed_matches, 0) * 100.0 / rm.total_racks, 1)
+    END AS MAPPING_COMPLETENESS_PCT,
+    CASE
+        WHEN COALESCE(rm.total_racks, 0) = 0 THEN 'NO_RACKS'
+        WHEN rm.confirmed_matches * 100.0 / rm.total_racks > 80 THEN 'GOVERNED'
+        WHEN rm.confirmed_matches * 100.0 / rm.total_racks > 20 THEN 'PARTIAL'
+        ELSE 'UNGOVERNED'
+    END AS GOVERNANCE_STATUS,
+    DATEDIFF('day', f.ACQUISITION_DATE, CURRENT_DATE()) AS DAYS_SINCE_ACQUISITION,
+    rs.RISK_SCORE,
+    rs.RISK_LEVEL,
+    CURRENT_TIMESTAMP() AS LAST_UPDATED
+FROM CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY f
+LEFT JOIN rack_mapping rm ON f.FACILITY_ID = rm.FACILITY_ID
+LEFT JOIN DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES rs
+    ON f.FACILITY_ID = rs.FACILITY_ID
+    AND rs.RISK_CATEGORY = 'UNGOVERNED';
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- VIEW 5: Cross-Platform Unified Risk
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Single pane of glass showing risk across BOTH the original 20 DCs
+-- (ServiceNow) and acquired 2,000 DCs (Siemens). Normalized risk scores.
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE VIEW DCA_DEMO.GOVERNANCE.DCIM_CROSS_PLATFORM_RISK
+    COMMENT = 'Unified risk view combining ServiceNow switch risks with Siemens facility risks'
+AS
+-- ServiceNow: switch-level risks from original estate
+SELECT
+    'SERVICENOW' AS SOURCE_SYSTEM,
+    'SWITCH' AS ENTITY_TYPE,
+    SWITCH_ID AS ENTITY_ID,
+    SWITCH_NAME AS ENTITY_NAME,
+    DATA_CENTER AS LOCATION,
+    RISK_LEVEL,
+    RISK_SCORE,
+    'MAINTENANCE_GAP' AS RISK_CATEGORY,
+    'Error rate ' || ERROR_RATE_PCT || '% | Tech cert: ' || CERT_STATUS AS DETAILS,
+    CASE WHEN EXISTS (
+        SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        WHERE e.edge_type IN ('SAME_AS', 'CANDIDATE_SAME_AS')
+        AND e.target_node_id = 'DC_RACK_' || MD5(RACK_ID)
+    ) THEN TRUE ELSE FALSE END AS HAS_CROSS_PLATFORM_EXPOSURE,
+    CALCULATED_AT
+FROM DCA_DEMO.GOVERNANCE.DCIM_RISK_SCORES
+
+UNION ALL
+
+-- Siemens: facility-level risks from acquired estate
+SELECT
+    'SIEMENS_DCIM' AS SOURCE_SYSTEM,
+    'FACILITY' AS ENTITY_TYPE,
+    FACILITY_ID AS ENTITY_ID,
+    FACILITY_NAME AS ENTITY_NAME,
+    REGION || ' / ' || COUNTRY AS LOCATION,
+    RISK_LEVEL,
+    RISK_SCORE,
+    RISK_CATEGORY,
+    DETAILS,
+    CASE WHEN ENTITY_RESOLUTION_STATUS = 'MAPPED' THEN TRUE ELSE FALSE END AS HAS_CROSS_PLATFORM_EXPOSURE,
+    CALCULATED_AT
+FROM DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES
+
+ORDER BY RISK_SCORE DESC;
+
+-- ═══════════════════════════════════════════════════════════════════════════
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_SYSTEM_UPTIME_VS_STAFF_AVAILABILITY TO ROLE DATA_STEWARD;
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_RISK_WEIGHTED_MTTR TO ROLE DATA_STEWARD;
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_PORT_HEALTH_BY_BUSINESS_PRIORITY TO ROLE DATA_STEWARD;
+GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS TO ROLE DATA_STEWARD;
+GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_CROSS_PLATFORM_RISK TO ROLE DATA_STEWARD;
 
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_SYSTEM_UPTIME_VS_STAFF_AVAILABILITY TO ROLE ONTOLOGY_ADMIN;
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_RISK_WEIGHTED_MTTR TO ROLE ONTOLOGY_ADMIN;
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_PORT_HEALTH_BY_BUSINESS_PRIORITY TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS TO ROLE ONTOLOGY_ADMIN;
+GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.DCIM_CROSS_PLATFORM_RISK TO ROLE ONTOLOGY_ADMIN;
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- VERIFICATION
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SELECT 'DCIM semantic views created successfully' AS STATUS;
+SELECT 'DCIM semantic views created successfully (5 views)' AS STATUS;

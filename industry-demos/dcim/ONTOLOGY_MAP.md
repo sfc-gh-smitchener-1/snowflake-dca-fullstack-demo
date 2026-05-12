@@ -1,6 +1,6 @@
 # DCIM — Cross-System Ontology Map
 
-> Defining how ServiceNow infrastructure, Workday workforce, and Network Observability telemetry connect through a unified knowledge graph.
+> Defining how ServiceNow infrastructure, Workday workforce, Network Observability telemetry, and Siemens Desigo CC acquired portfolio connect through a unified knowledge graph.
 
 ---
 
@@ -35,6 +35,15 @@ flowchart TB
         ALT[ALERT]
     end
 
+    subgraph Siemens["Siemens Desigo CC — Acquired Portfolio"]
+        SM_FAC[FACILITY]
+        SM_ZONE[ZONE]
+        SM_PDU[POWER_DISTRIBUTION]
+        SM_COOL[COOLING_LOOP]
+        SM_RACK[RACK]
+        SM_MO[MAINTENANCE_ORDER]
+    end
+
     DC --> HALL
     HALL --> RACK
     RACK --> SW
@@ -44,6 +53,12 @@ flowchart TB
     TECH --> TEAM
     TECH --> SHIFT
     TECH --> SKILL
+
+    SM_FAC --> SM_ZONE
+    SM_ZONE --> SM_PDU
+    SM_ZONE --> SM_COOL
+    SM_ZONE --> SM_RACK
+    SM_MO -.->|affects| SM_ZONE
 
     SW -.->|switch_id| PM
     SW -.->|switch_id| SH
@@ -55,6 +70,8 @@ flowchart TB
     CHG -.->|switch_id| SW
 
     DC -.->|campus_id| TECH
+
+    SM_RACK -.->|SAME_AS / CANDIDATE_SAME_AS| RACK
 ```
 
 ---
@@ -91,6 +108,34 @@ Telemetry data does not create independent graph nodes. Instead, telemetry metri
 | Switch health | `SWITCH` node | cpu_percent, memory_percent, temperature_c |
 | Environmental | `HALL` node | ambient_temp_c, humidity_percent, power_draw_kw |
 | Alert | `SWITCH` or `PORT` node | threshold_type, severity, triggered_at |
+
+### Siemens Domain (Acquired Portfolio)
+
+| Node Type | Source Table | Node ID Format | Key Properties |
+|-----------|-------------|----------------|----------------|
+| `FACILITY` | `CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY` | `SM_FAC_{MD5(facility_id)}` | building_type, tier_level, total_power_mw, acquisition_date |
+| `ZONE` | `CURATED_DEV.SIEMENS_DCIM.DIM_ZONE` | `SM_ZONE_{MD5(zone_id)}` | zone_type, cooling_type, target_temp, area_sqm |
+| `POWER_DISTRIBUTION` | `CURATED_DEV.SIEMENS_DCIM.DIM_POWER_DISTRIBUTION_UNIT` | `SM_PDU_{MD5(pdu_id)}` | equipment_type, capacity_kva, load_pct, redundancy |
+| `COOLING_LOOP` | `CURATED_DEV.SIEMENS_DCIM.DIM_COOLING_LOOP` | `SM_COOL_{MD5(loop_id)}` | loop_type, capacity_kw, efficiency_cop |
+| `RACK` | `CURATED_DEV.SIEMENS_DCIM.DIM_RACK_INVENTORY` | `SM_RACK_{MD5(siemens_rack_id)}` | u_capacity, power_allocation_kw, customer_name |
+| `MAINTENANCE_ORDER` | `CURATED_DEV.SIEMENS_DCIM.FACT_MAINTENANCE_ORDER` | `SM_MO_{MD5(order_id)}` | order_type, priority, status |
+
+#### Siemens Edges
+
+| Edge Type | Direction | Edge ID | Purpose |
+|-----------|-----------|---------|---------|
+| `ZONE_IN_FACILITY` | Zone → Facility | `SM_ZIF_` | Containment hierarchy |
+| `PDU_IN_ZONE` | PDU → Zone | `SM_PIZ_` | Power distribution mapping |
+| `COOLING_SERVES_ZONE` | Loop → Zone | `SM_CSZ_` | Cooling coverage |
+| `RACK_IN_ZONE` | Rack → Zone | `SM_RIZ_` | Rack placement |
+| `MO_AFFECTS_EQUIPMENT` | Order → Zone | `SM_MAE_` | Maintenance impact |
+
+#### Cross-System Entity Resolution (layer=CROSS)
+
+| Edge Type | Direction | Confidence | Method |
+|-----------|-----------|------------|--------|
+| `SAME_AS` | SM_RACK_ → DC_RACK_ | 1.0 | Manual `servicenow_correlation_id` mapping |
+| `CANDIDATE_SAME_AS` | SM_RACK_ → DC_RACK_ | 0.7 | Algorithmic: matching u_capacity ± 2 + power_allocation_kw ± 3 within same region |
 
 ---
 

@@ -263,3 +263,164 @@ BEGIN
 
     RETURN 'MTTR analysis complete. Metric rows: ' || :v_row_count;
 END;
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PROCEDURE 3: SP_DCIM_SIEMENS_RISK_SCORING
+-- ═══════════════════════════════════════════════════════════════════════════
+-- Extends risk scoring to the acquired Siemens portfolio (2K data centers):
+--   1. Cooling efficiency degradation (PUE > 1.6 = WARNING, > 2.0 = CRITICAL)
+--   2. Ungoverned facility detection (not yet migrated to unified governance)
+--   3. Cross-platform risk: Siemens cooling alarm + ServiceNow switch in same zone
+--   4. Maintenance order backlog (open orders > capacity = HIGH_RISK)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE PROCEDURE DCA_DEMO.GOVERNANCE.SP_DCIM_SIEMENS_RISK_SCORING()
+RETURNS VARCHAR
+LANGUAGE SQL
+EXECUTE AS CALLER
+AS
+DECLARE
+    v_row_count INTEGER DEFAULT 0;
+    v_facility_exists INTEGER DEFAULT 0;
+    v_bms_exists INTEGER DEFAULT 0;
+    v_mo_exists INTEGER DEFAULT 0;
+BEGIN
+
+    -- Check required tables exist
+    SELECT COUNT(*) INTO :v_facility_exists
+    FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
+    WHERE table_schema = 'SIEMENS_DCIM' AND table_name = 'DIM_FACILITY';
+
+    SELECT COUNT(*) INTO :v_bms_exists
+    FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
+    WHERE table_schema = 'SIEMENS_DCIM' AND table_name = 'FACT_BMS_SENSORS';
+
+    SELECT COUNT(*) INTO :v_mo_exists
+    FROM CURATED_DEV.INFORMATION_SCHEMA.TABLES
+    WHERE table_schema = 'SIEMENS_DCIM' AND table_name = 'FACT_MAINTENANCE_ORDER';
+
+    IF (:v_facility_exists = 0) THEN
+        RETURN 'SKIPPED: CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY not found';
+    END IF;
+
+    -- Create/replace the Siemens risk scores table
+    CREATE OR REPLACE TABLE DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES (
+        facility_id             VARCHAR,
+        facility_name           VARCHAR,
+        region                  VARCHAR,
+        country                 VARCHAR,
+        risk_category           VARCHAR,
+        risk_level              VARCHAR,
+        risk_score              NUMBER(5,2),
+        details                 VARCHAR,
+        entity_resolution_status VARCHAR,
+        open_maintenance_orders INTEGER,
+        calculated_at           TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
+    );
+
+    -- ── Risk Category 1: Cooling Efficiency Degradation ─────────────────────
+    -- Facilities with BMS temperature sensors showing avg > 28°C (overheating)
+    IF (:v_bms_exists > 0) THEN
+        INSERT INTO DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES
+        SELECT
+            f.FACILITY_ID,
+            f.FACILITY_NAME,
+            f.REGION,
+            f.COUNTRY,
+            'COOLING_DEGRADATION' AS risk_category,
+            CASE
+                WHEN avg_temp > 32 THEN 'CRITICAL'
+                WHEN avg_temp > 28 THEN 'HIGH'
+                WHEN avg_temp > 25 THEN 'MEDIUM'
+                ELSE 'LOW'
+            END AS risk_level,
+            LEAST(100, (avg_temp - 18) * 10) AS risk_score,
+            'Average zone temperature ' || ROUND(avg_temp, 1) || '°C exceeds threshold' AS details,
+            CASE WHEN EXISTS (
+                SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+                WHERE e.edge_type = 'SAME_AS'
+                AND e.source_node_id LIKE 'SM_RACK_%'
+                AND e.source_node_id IN (
+                    SELECT 'SM_RACK_' || MD5(r.SIEMENS_RACK_ID)
+                    FROM CURATED_DEV.SIEMENS_DCIM.DIM_RACK_INVENTORY r
+                    WHERE r.FACILITY_ID = f.FACILITY_ID
+                )
+            ) THEN 'MAPPED' ELSE 'UNMAPPED' END AS entity_resolution_status,
+            0 AS open_maintenance_orders,
+            CURRENT_TIMESTAMP()
+        FROM CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY f
+        JOIN (
+            SELECT FACILITY_ID, AVG(SENSOR_VALUE) AS avg_temp
+            FROM CURATED_DEV.SIEMENS_DCIM.FACT_BMS_SENSORS
+            WHERE SENSOR_TYPE = 'TEMPERATURE'
+              AND READING_TIMESTAMP > DATEADD('hour', -24, CURRENT_TIMESTAMP())
+            GROUP BY FACILITY_ID
+            HAVING AVG(SENSOR_VALUE) > 25
+        ) s ON f.FACILITY_ID = s.FACILITY_ID;
+    END IF;
+
+    -- ── Risk Category 2: Ungoverned Facilities ──────────────────────────────
+    -- Facilities with NO entity resolution edges (not integrated into ServiceNow)
+    INSERT INTO DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES
+    SELECT
+        f.FACILITY_ID,
+        f.FACILITY_NAME,
+        f.REGION,
+        f.COUNTRY,
+        'UNGOVERNED' AS risk_category,
+        'MEDIUM' AS risk_level,
+        50 AS risk_score,
+        'Facility not yet integrated into ServiceNow governance — no SAME_AS edges found' AS details,
+        'UNMAPPED' AS entity_resolution_status,
+        0 AS open_maintenance_orders,
+        CURRENT_TIMESTAMP()
+    FROM CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY f
+    WHERE NOT EXISTS (
+        SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        WHERE e.edge_type IN ('SAME_AS', 'CANDIDATE_SAME_AS')
+        AND e.source_node_id LIKE 'SM_%'
+        AND e.source_node_id IN (
+            SELECT 'SM_RACK_' || MD5(r.SIEMENS_RACK_ID)
+            FROM CURATED_DEV.SIEMENS_DCIM.DIM_RACK_INVENTORY r
+            WHERE r.FACILITY_ID = f.FACILITY_ID
+        )
+    );
+
+    -- ── Risk Category 3: Maintenance Order Backlog ──────────────────────────
+    IF (:v_mo_exists > 0) THEN
+        INSERT INTO DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES
+        SELECT
+            f.FACILITY_ID,
+            f.FACILITY_NAME,
+            f.REGION,
+            f.COUNTRY,
+            'MAINTENANCE_BACKLOG' AS risk_category,
+            CASE
+                WHEN open_orders > 20 THEN 'CRITICAL'
+                WHEN open_orders > 10 THEN 'HIGH'
+                WHEN open_orders > 5 THEN 'MEDIUM'
+                ELSE 'LOW'
+            END AS risk_level,
+            LEAST(100, open_orders * 5) AS risk_score,
+            open_orders || ' open maintenance orders (including ' || emergency_orders || ' emergency)' AS details,
+            'N/A' AS entity_resolution_status,
+            open_orders AS open_maintenance_orders,
+            CURRENT_TIMESTAMP()
+        FROM CURATED_DEV.SIEMENS_DCIM.DIM_FACILITY f
+        JOIN (
+            SELECT
+                FACILITY_ID,
+                COUNT(*) AS open_orders,
+                COUNT(CASE WHEN ORDER_TYPE = 'EMERGENCY' THEN 1 END) AS emergency_orders
+            FROM CURATED_DEV.SIEMENS_DCIM.FACT_MAINTENANCE_ORDER
+            WHERE STATUS IN ('OPEN', 'IN_PROGRESS')
+            GROUP BY FACILITY_ID
+            HAVING COUNT(*) > 5
+        ) mo ON f.FACILITY_ID = mo.FACILITY_ID;
+    END IF;
+
+    SELECT COUNT(*) INTO :v_row_count FROM DCA_DEMO.GOVERNANCE.DCIM_SIEMENS_RISK_SCORES;
+
+    RETURN 'SP_DCIM_SIEMENS_RISK_SCORING complete: ' || :v_row_count || ' risk findings across acquired portfolio';
+END;

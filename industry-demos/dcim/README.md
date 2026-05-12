@@ -1,10 +1,10 @@
 # Data Center Infrastructure Management — Unified Operations Platform
 
-> **Three-System DCIM Analytics on Snowflake** — ServiceNow asset/CMDB data, Workday technician workforce data, and Network Observability telemetry unified through an Ontology Knowledge Graph for predictive dispatch and risk-aware operations.
+> **Four-System DCIM Analytics on Snowflake** — ServiceNow asset/CMDB data, Workday technician workforce data, and Network Observability telemetry unified through an Ontology Knowledge Graph for predictive dispatch and risk-aware operations.
 
 ## Executive Summary
 
-This demo extends the core DCA platform into a full three-system DCIM analytics platform. It proves three core analytical theses:
+This demo extends the core DCA platform into a full four-system DCIM analytics platform. It proves three core analytical theses:
 
 1. **Equipment risk correlates with certification gaps** — Switches lacking certified technician coverage within SLA distance show 3.2x higher MTTR and 2.7x more repeat incidents.
 2. **SCD Type 6 enables full state reconstruction** — Tracking current, historical, and original states in the raw layer allows precise "what changed and when" analysis for root-cause investigations and compliance audits.
@@ -31,6 +31,7 @@ This demo extends the core DCA platform into a full three-system DCIM analytics 
 | **ServiceNow** | CMDB & Asset Management | 7 | ~850K | 5–60 min |
 | **Workday DCIM** | Technician HCM & Scheduling | 7 | ~120K | 15–60 min |
 | **Network Observability** | Telemetry & Alerting | 4 | ~660K | 1–5 min |
+| **Siemens Desigo CC** | Acquired Portfolio (BMS/Power/Cooling) | 8 | ~692K | 1–60 min |
 
 ---
 
@@ -42,12 +43,14 @@ flowchart LR
         SN[ServiceNow<br/>CMDB/Asset]
         WD[Workday DCIM<br/>Technician HCM]
         TEL[Network Observability<br/>Telemetry]
+        SM[Siemens Desigo CC<br/>Acquired Portfolio]
     end
 
     subgraph RAW["RAW_DEV (SCD6)"]
         SN_RAW[SERVICENOW<br/>7 tables]
         WD_RAW[WORKDAY_DCIM<br/>7 tables]
         TEL_RAW[TELEMETRY<br/>4 tables]
+        SM_RAW[SIEMENS_DCIM<br/>8 tables]
     end
 
     subgraph CURATED["CURATED_DEV (Dynamic Tables)"]
@@ -72,11 +75,14 @@ flowchart LR
     SN --> SN_RAW
     WD --> WD_RAW
     TEL --> TEL_RAW
+    SM --> SM_RAW
     SN_RAW --> DIMS
     WD_RAW --> DIMS
     TEL_RAW --> FACTS
     SN_RAW --> FACTS
     WD_RAW --> FACTS
+    SM_RAW --> DIMS
+    SM_RAW --> FACTS
     DIMS --> RAI
     FACTS --> RAI
     RAI --> RISK
@@ -124,6 +130,19 @@ flowchart LR
 | `ENVIRONMENTAL` | Ambient sensors (temp/humidity) | 50K rows | 7 days |
 | `ALERTS` | Threshold violations | 10K rows | 7 days |
 
+### Siemens Desigo CC (Acquired Portfolio) — 8 Tables
+
+| Table | Records | Key Fields |
+|-------|---------|------------|
+| `facilities` | 2,000 | facility_id, standort_name, gebaeude_typ, tier, power, cooling |
+| `zones` | 20,000 | zone_id, facility_id, zone_type, cooling_type, target_temp |
+| `power_distribution_units` | 40,000 | pdu_id, equipment_type, capacity_kva, load_pct, redundancy |
+| `cooling_loops` | 10,000 | loop_id, loop_type, capacity_kw, efficiency_cop, refrigerant |
+| `fire_suppression` | 4,000 | system_id, system_type, coverage_area, is_compliant |
+| `rack_inventory` | 100,000 | siemens_rack_id, u_capacity, customer_name, servicenow_correlation_id |
+| `bms_sensors` | 500,000 | sensor_id, sensor_type, value, quality, alarm_state |
+| `maintenance_orders` | 15,000 | order_id, order_type, priority, status, resolution_hours |
+
 ---
 
 ## Cross-System Ontology
@@ -137,6 +156,13 @@ flowchart LR
 | Technician ↔ Incident | `TECHNICIANS.technician_id` | `INCIDENTS.assigned_to` | Direct FK |
 | Switch ↔ Telemetry | `SWITCHES.switch_id` | `PORT_METRICS.switch_id` | Direct FK |
 | Cert ↔ Switch Model | `CERTIFICATIONS.vendor` | `SWITCHES.model` | Semantic match |
+
+#### Siemens ↔ ServiceNow Entity Resolution
+
+The acquisition creates an entity resolution challenge: Siemens `rack_inventory` uses different IDs than ServiceNow `racks` for the **same physical hardware**. The Knowledge Graph resolves this through:
+
+- **SAME_AS edges** (confidence=1.0): ~5% of racks have manual `servicenow_correlation_id` mapping
+- **CANDIDATE_SAME_AS edges** (confidence=0.7): Algorithmic matching on u_capacity + power_allocation within the same region
 
 ### Cross-System ID Generation
 

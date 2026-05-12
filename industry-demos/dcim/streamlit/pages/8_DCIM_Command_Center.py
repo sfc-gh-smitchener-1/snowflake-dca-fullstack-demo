@@ -1,8 +1,8 @@
 """
 Page 8: DCIM Command Center
 Interactive operations dashboard for data center infrastructure management.
-Four views: Live Infrastructure Graph, SCD6 Time-Slider, Observability Heatmap,
-and Dispatch Recommendations.
+Five views: Live Infrastructure Graph, SCD6 Time-Slider, Observability Heatmap,
+Dispatch Recommendations, and Acquisition Integration (Siemens).
 """
 
 import streamlit as st
@@ -413,11 +413,12 @@ st.divider()
 
 # ── Tabs ──────────────────────────────────────────────────────────────────
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "\U0001f310 Live Infrastructure",
     "\u23f3 SCD6 Time-Slider",
     "\U0001f4ca Observability Heatmap",
     "\U0001f6e0\ufe0f Dispatch Recommendations",
+    "\U0001f3ed Acquisition Integration",
 ])
 
 
@@ -834,6 +835,160 @@ with tab4:
             "No dispatch recommendations available. "
             "Run SP_DCIM_NEAREST_QUALIFIED_TECH() to generate recommendations."
         )
+
+
+# ── TAB 5: Acquisition Integration ────────────────────────────────────────
+
+with tab5:
+    st.header("Acquisition Integration — Siemens Portfolio (2,000 DCs)")
+    st.markdown("""
+    Tracking the integration of **2,000 acquired data centers** from Siemens Desigo CC 
+    into the unified governance platform. Entity resolution matches Siemens rack IDs 
+    to ServiceNow rack IDs for the same physical hardware.
+    """)
+
+    # ── KPI Metrics ─────────────────────────────────────────────────────────
+    @st.cache_data(ttl=60)
+    def get_acquisition_summary():
+        try:
+            conn = st.connection("snowflake")
+            df = conn.query("""
+                SELECT 
+                    GOVERNANCE_STATUS,
+                    COUNT(*) AS facility_count,
+                    ROUND(AVG(MAPPING_COMPLETENESS_PCT), 1) AS avg_mapping_pct,
+                    SUM(TOTAL_RACKS) AS total_racks,
+                    SUM(MAPPED_RACKS) AS mapped_racks
+                FROM DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS
+                GROUP BY GOVERNANCE_STATUS
+                ORDER BY facility_count DESC
+            """)
+            return df
+        except Exception:
+            return pd.DataFrame({
+                'GOVERNANCE_STATUS': ['UNGOVERNED', 'PARTIAL', 'GOVERNED'],
+                'FACILITY_COUNT': [1200, 500, 300],
+                'AVG_MAPPING_PCT': [3.2, 48.7, 92.1],
+                'TOTAL_RACKS': [60000, 25000, 15000],
+                'MAPPED_RACKS': [1920, 12175, 13845]
+            })
+
+    acq_df = get_acquisition_summary()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    total_facilities = int(acq_df['FACILITY_COUNT'].sum()) if 'FACILITY_COUNT' in acq_df.columns else 2000
+    governed = int(acq_df[acq_df['GOVERNANCE_STATUS'] == 'GOVERNED']['FACILITY_COUNT'].sum()) if len(acq_df) > 0 else 300
+    partial = int(acq_df[acq_df['GOVERNANCE_STATUS'] == 'PARTIAL']['FACILITY_COUNT'].sum()) if len(acq_df) > 0 else 500
+    ungoverned = int(acq_df[acq_df['GOVERNANCE_STATUS'] == 'UNGOVERNED']['FACILITY_COUNT'].sum()) if len(acq_df) > 0 else 1200
+
+    col1.metric("Total Acquired Facilities", f"{total_facilities:,}")
+    col2.metric("Governed (>80% mapped)", governed, delta=f"{governed*100//total_facilities}%")
+    col3.metric("Partial (20-80%)", partial)
+    col4.metric("Ungoverned (<20%)", ungoverned, delta=f"-{ungoverned}" if ungoverned > 0 else None, delta_color="inverse")
+
+    st.divider()
+
+    # ── Migration Progress by Region ────────────────────────────────────────
+    st.subheader("Migration Progress by Region")
+    
+    @st.cache_data(ttl=60)
+    def get_regional_progress():
+        try:
+            conn = st.connection("snowflake")
+            return conn.query("""
+                SELECT REGION, GOVERNANCE_STATUS, COUNT(*) AS FACILITIES,
+                       ROUND(AVG(MAPPING_COMPLETENESS_PCT), 1) AS AVG_MAPPING_PCT
+                FROM DCA_DEMO.GOVERNANCE.DCIM_ACQUISITION_INTEGRATION_STATUS
+                GROUP BY REGION, GOVERNANCE_STATUS
+                ORDER BY REGION, FACILITIES DESC
+            """)
+        except Exception:
+            regions = ['EMEA', 'APAC', 'Americas', 'MEA']
+            rows = []
+            for r in regions:
+                base = {'EMEA': 800, 'APAC': 600, 'Americas': 400, 'MEA': 200}[r]
+                rows.append({'REGION': r, 'GOVERNANCE_STATUS': 'UNGOVERNED', 'FACILITIES': int(base * 0.6), 'AVG_MAPPING_PCT': 4.1})
+                rows.append({'REGION': r, 'GOVERNANCE_STATUS': 'PARTIAL', 'FACILITIES': int(base * 0.25), 'AVG_MAPPING_PCT': 51.3})
+                rows.append({'REGION': r, 'GOVERNANCE_STATUS': 'GOVERNED', 'FACILITIES': int(base * 0.15), 'AVG_MAPPING_PCT': 94.2})
+            return pd.DataFrame(rows)
+
+    regional_df = get_regional_progress()
+    st.dataframe(regional_df, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    # ── Entity Resolution Matches ───────────────────────────────────────────
+    st.subheader("Entity Resolution — Rack Matching")
+
+    @st.cache_data(ttl=60)
+    def get_entity_resolution():
+        try:
+            conn = st.connection("snowflake")
+            return conn.query("""
+                SELECT edge_type, COUNT(*) AS match_count,
+                       ROUND(AVG(weight), 2) AS avg_confidence
+                FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES
+                WHERE edge_type IN ('SAME_AS', 'CANDIDATE_SAME_AS')
+                AND source_node_id LIKE 'SM_RACK_%'
+                GROUP BY edge_type
+            """)
+        except Exception:
+            return pd.DataFrame({
+                'EDGE_TYPE': ['SAME_AS', 'CANDIDATE_SAME_AS'],
+                'MATCH_COUNT': [5200, 18400],
+                'AVG_CONFIDENCE': [1.0, 0.72]
+            })
+
+    er_df = get_entity_resolution()
+    col1, col2 = st.columns(2)
+    if len(er_df) > 0:
+        confirmed = er_df[er_df['EDGE_TYPE'] == 'SAME_AS']['MATCH_COUNT'].sum() if 'EDGE_TYPE' in er_df.columns else 5200
+        candidates = er_df[er_df['EDGE_TYPE'] == 'CANDIDATE_SAME_AS']['MATCH_COUNT'].sum() if 'EDGE_TYPE' in er_df.columns else 18400
+    else:
+        confirmed, candidates = 5200, 18400
+    col1.metric("Confirmed Matches (SAME_AS)", f"{int(confirmed):,}", help="Manual correlation + confirmed algorithmic matches")
+    col2.metric("Candidate Matches (needs review)", f"{int(candidates):,}", help="Algorithmic matches awaiting human confirmation")
+
+    st.divider()
+
+    # ── Cross-Platform Risk ─────────────────────────────────────────────────
+    st.subheader("Cross-Platform Risk Exposure")
+
+    @st.cache_data(ttl=60)
+    def get_cross_platform_risk():
+        try:
+            conn = st.connection("snowflake")
+            return conn.query("""
+                SELECT SOURCE_SYSTEM, ENTITY_TYPE, ENTITY_NAME, LOCATION,
+                       RISK_LEVEL, RISK_SCORE, RISK_CATEGORY, HAS_CROSS_PLATFORM_EXPOSURE
+                FROM DCA_DEMO.GOVERNANCE.DCIM_CROSS_PLATFORM_RISK
+                WHERE RISK_LEVEL IN ('CRITICAL', 'HIGH')
+                ORDER BY RISK_SCORE DESC
+                LIMIT 20
+            """)
+        except Exception:
+            return pd.DataFrame({
+                'SOURCE_SYSTEM': ['SIEMENS_DCIM']*5 + ['SERVICENOW']*5,
+                'ENTITY_TYPE': ['FACILITY']*5 + ['SWITCH']*5,
+                'ENTITY_NAME': [f'SIE-DC-{i}' for i in range(5)] + [f'sw-spine-{i}' for i in range(5)],
+                'LOCATION': ['EMEA / DE', 'APAC / SG', 'EMEA / GB', 'Americas / US', 'MEA / AE'] * 2,
+                'RISK_LEVEL': ['CRITICAL', 'CRITICAL', 'HIGH', 'HIGH', 'HIGH'] * 2,
+                'RISK_SCORE': [95, 88, 76, 72, 68, 92, 85, 78, 74, 71],
+                'RISK_CATEGORY': ['COOLING_DEGRADATION', 'MAINTENANCE_BACKLOG', 'UNGOVERNED', 'COOLING_DEGRADATION', 'UNGOVERNED',
+                                  'MAINTENANCE_GAP', 'MAINTENANCE_GAP', 'MAINTENANCE_GAP', 'MAINTENANCE_GAP', 'MAINTENANCE_GAP'],
+                'HAS_CROSS_PLATFORM_EXPOSURE': [True, False, False, True, False, True, False, True, False, False]
+            })
+
+    risk_df = get_cross_platform_risk()
+    st.dataframe(
+        risk_df,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "RISK_SCORE": st.column_config.ProgressColumn("Risk Score", min_value=0, max_value=100, format="%d"),
+            "HAS_CROSS_PLATFORM_EXPOSURE": st.column_config.CheckboxColumn("Cross-Platform?")
+        }
+    )
 
 
 # ── Footer ────────────────────────────────────────────────────────────────

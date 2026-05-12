@@ -2,8 +2,8 @@
 -- DCIM KNOWLEDGE GRAPH — MASTER ORCHESTRATOR
 -- ============================================================================
 -- Runs all DCIM procedures in correct dependency order: infrastructure graph,
--- Workday graph, risk scoring, MTTR analysis, dispatch, risk nodes, and
--- time travel snapshot.
+-- Workday graph, Siemens graph, risk scoring, Siemens risk scoring, MTTR
+-- analysis, dispatch, risk nodes, and time travel snapshot.
 --
 -- Prerequisites: All prior scripts (04-08) deployed, all data loaded
 -- RUN AS: DATA_ADMIN
@@ -17,7 +17,7 @@ USE WAREHOUSE COMPUTE_WH;
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PROCEDURE: SP_DCIM_MASTER_ORCHESTRATOR
 -- ═══════════════════════════════════════════════════════════════════════════
--- Executes all 7 DCIM procedures in dependency order with per-step
+-- Executes all 9 DCIM procedures in dependency order with per-step
 -- timing, error handling, and a comprehensive snapshot at completion.
 -- ═══════════════════════════════════════════════════════════════════════════
 
@@ -68,7 +68,22 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
 
-    -- ── Step 3: Risk Scoring (Script 06) ────────────────────────────────────
+    -- ── Step 3: Siemens Graph Population (Script 04b) ──────────────────────
+    LET v_step := 'SP_DCIM_POPULATE_SIEMENS_GRAPH';
+    LET v_step_start := CURRENT_TIMESTAMP();
+    BEGIN
+        CALL DCA_DEMO.GOVERNANCE.SP_DCIM_POPULATE_SIEMENS_GRAPH();
+        SELECT * INTO :v_step_result FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+        LET v_step_status := 'SUCCESS';
+    EXCEPTION
+        WHEN OTHER THEN
+            LET v_step_result := SQLERRM;
+            LET v_step_status := 'FAILED';
+    END;
+    LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
+    v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
+
+    -- ── Step 4: Risk Scoring (Script 06) ────────────────────────────────────
     LET v_step := 'SP_DCIM_RISK_SCORING';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -83,7 +98,22 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
 
-    -- ── Step 4: MTTR Analysis (Script 06) ───────────────────────────────────
+    -- ── Step 5: Siemens Risk Scoring (Script 06) ───────────────────────────
+    LET v_step := 'SP_DCIM_SIEMENS_RISK_SCORING';
+    LET v_step_start := CURRENT_TIMESTAMP();
+    BEGIN
+        CALL DCA_DEMO.GOVERNANCE.SP_DCIM_SIEMENS_RISK_SCORING();
+        SELECT * INTO :v_step_result FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+        LET v_step_status := 'SUCCESS';
+    EXCEPTION
+        WHEN OTHER THEN
+            LET v_step_result := SQLERRM;
+            LET v_step_status := 'FAILED';
+    END;
+    LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
+    v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
+
+    -- ── Step 6: MTTR Analysis (Script 06) ───────────────────────────────────
     LET v_step := 'SP_DCIM_MTTR_ANALYSIS';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -98,7 +128,7 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
 
-    -- ── Step 5: Nearest Qualified Technician (Script 07) ────────────────────
+    -- ── Step 7: Nearest Qualified Technician (Script 07) ────────────────────
     LET v_step := 'SP_DCIM_NEAREST_QUALIFIED_TECH';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -113,7 +143,7 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
 
-    -- ── Step 6: Update Risk Nodes in Graph (Script 07) ──────────────────────
+    -- ── Step 8: Update Risk Nodes in Graph (Script 07) ──────────────────────
     LET v_step := 'SP_DCIM_UPDATE_RISK_NODES';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -128,7 +158,7 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration, 'result', :v_step_result));
 
-    -- ── Step 7: Time Travel Snapshot (Script 08) ────────────────────────────
+    -- ── Step 9: Time Travel Snapshot (Script 08) ────────────────────────────
     LET v_step := 'SP_DCIM_TIME_TRAVEL';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -157,9 +187,9 @@ BEGIN
             'total_duration_seconds', :v_total_duration,
             'timestamp', CURRENT_TIMESTAMP(),
             'node_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES
-                           WHERE source_system IN ('SERVICENOW', 'WORKDAY_DCIM')),
+                           WHERE source_system IN ('SERVICENOW', 'WORKDAY_DCIM', 'SIEMENS_DCIM')),
             'edge_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES
-                           WHERE edge_id LIKE 'DC_%'),
+                           WHERE edge_id LIKE 'DC_%' OR edge_id LIKE 'SM_%'),
             'steps_succeeded', (SELECT COUNT(*) FROM TABLE(FLATTEN(INPUT => :v_results))
                                 WHERE value:status::VARCHAR = 'SUCCESS'),
             'steps_failed', (SELECT COUNT(*) FROM TABLE(FLATTEN(INPUT => :v_results))
@@ -212,7 +242,22 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration));
 
-    -- ── Step 2: Nearest Qualified Technician ────────────────────────────────
+    -- ── Step 2: Siemens Risk Scoring ────────────────────────────────────────
+    LET v_step := 'SP_DCIM_SIEMENS_RISK_SCORING';
+    LET v_step_start := CURRENT_TIMESTAMP();
+    BEGIN
+        CALL DCA_DEMO.GOVERNANCE.SP_DCIM_SIEMENS_RISK_SCORING();
+        SELECT * INTO :v_step_result FROM TABLE(RESULT_SCAN(LAST_QUERY_ID()));
+        LET v_step_status := 'SUCCESS';
+    EXCEPTION
+        WHEN OTHER THEN
+            LET v_step_result := SQLERRM;
+            LET v_step_status := 'FAILED';
+    END;
+    LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
+    v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration));
+
+    -- ── Step 3: Nearest Qualified Technician ────────────────────────────────
     LET v_step := 'SP_DCIM_NEAREST_QUALIFIED_TECH';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -227,7 +272,7 @@ BEGIN
     LET v_step_duration := DATEDIFF('second', :v_step_start, CURRENT_TIMESTAMP());
     v_results := ARRAY_APPEND(:v_results, OBJECT_CONSTRUCT('step', :v_step, 'status', :v_step_status, 'duration_seconds', :v_step_duration));
 
-    -- ── Step 3: Update Risk Nodes ───────────────────────────────────────────
+    -- ── Step 4: Update Risk Nodes ───────────────────────────────────────────
     LET v_step := 'SP_DCIM_UPDATE_RISK_NODES';
     LET v_step_start := CURRENT_TIMESTAMP();
     BEGIN
@@ -256,9 +301,9 @@ BEGIN
             'total_duration_seconds', :v_total_duration,
             'timestamp', CURRENT_TIMESTAMP(),
             'node_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES
-                           WHERE source_system IN ('SERVICENOW', 'WORKDAY_DCIM')),
+                           WHERE source_system IN ('SERVICENOW', 'WORKDAY_DCIM', 'SIEMENS_DCIM')),
             'edge_count', (SELECT COUNT(*) FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES
-                           WHERE edge_id LIKE 'DC_%')
+                           WHERE edge_id LIKE 'DC_%' OR edge_id LIKE 'SM_%')
         );
 
     RETURN 'DCIM Quick Refresh complete. Snapshot: ' || :v_snapshot_id || CHR(10) ||

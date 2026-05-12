@@ -41,7 +41,8 @@ $$
     var dcimSystems = [
         {schema: 'SERVICENOW',  folder: 'servicenow',   format: 'CSV'},
         {schema: 'WORKDAY_DCIM', folder: 'workday_dcim', format: 'CSV'},
-        {schema: 'TELEMETRY',   folder: 'telemetry',     format: 'CSV'}
+        {schema: 'TELEMETRY',   folder: 'telemetry',     format: 'CSV'},
+        {schema: 'SIEMENS_DCIM', folder: 'siemens_dcim', format: 'CSV'}
     ];
 
     for (var s = 0; s < dcimSystems.length; s++) {

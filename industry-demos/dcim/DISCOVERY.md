@@ -1,12 +1,12 @@
 # DCIM — Current-State Gap Analysis & Pain Points
 
-> Understanding what breaks when ServiceNow, Workday, and Network Observability operate as disconnected silos.
+> Understanding what breaks when ServiceNow, Workday, Network Observability, and Siemens Desigo CC operate as disconnected silos — and the compounding challenge of acquisition integration.
 
 ---
 
-## The Three Silos
+## The Four Silos
 
-Most data center operators run three critical systems that never talk to each other:
+Most data center operators run multiple critical systems that never talk to each other — and acquisitions compound the problem:
 
 ```mermaid
 flowchart LR
@@ -28,12 +28,20 @@ flowchart LR
         ENV[Environmental Sensors]
     end
 
+    subgraph Silo4["Siemens Desigo CC (Acquired)"]
+        BMS[BMS Sensors]
+        COOL[Cooling/Power/Fire]
+        SM_RACK[Rack Inventory]
+    end
+
     Silo1 -.-x Silo2
     Silo2 -.-x Silo3
     Silo1 -.-x Silo3
+    Silo1 -.-x Silo4
+    Silo3 -.-x Silo4
 ```
 
-**The gap**: No unified view connects *which equipment is degrading* with *who is qualified and available to fix it* and *what the telemetry actually shows*.
+**The gap**: No unified view connects *which equipment is degrading* with *who is qualified and available to fix it*, *what the telemetry actually shows*, and *how the acquired estate overlaps with existing infrastructure*.
 
 ---
 
@@ -86,6 +94,22 @@ These silos create a negative feedback loop:
 4. More incidents → technician burnout → higher turnover → worse cert coverage
 
 **The unified platform breaks this cycle** by connecting equipment risk signals directly to qualified, available workforce capacity in real time.
+
+---
+
+## Acquisition Integration Challenges
+
+The recent acquisition of 2,000 Siemens-managed data centers introduces critical integration pain points:
+
+| Challenge | Impact | Root Cause |
+|-----------|--------|------------|
+| **100x scale increase overnight** | Governance framework designed for 20 DCs must absorb 2,000 | No elastic governance architecture — manual processes don't scale |
+| **Dual naming conventions** | Same equipment has two names (ServiceNow English vs Siemens German-influenced) | Different CMDB systems with no shared taxonomy |
+| **No shared asset IDs** | Same physical rack appears as two unrelated entities | Independent system deployments with no integration contract |
+| **Governance gap on acquired DCs** | 2,000 facilities have no Snowflake tags, no masking policies, no RBAC | Acquired company used different security model (Siemens-native) |
+| **Maintenance order ↔ Incident reconciliation** | Same physical event tracked in two workflow systems | Siemens uses Instandhaltungsaufträge; ServiceNow uses INC tickets |
+| **BMS sensor flood** | 500K readings per 5-min cycle from acquired estate overwhelms existing pipelines | 100x data volume increase with no proportional infrastructure growth |
+| **Cooling system opacity** | Cannot correlate Siemens cooling alarms with ServiceNow switch health | Physical plant and IT infrastructure managed as separate domains |
 
 ---
 
