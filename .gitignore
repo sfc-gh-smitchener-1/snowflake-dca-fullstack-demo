@@ -55,3 +55,7 @@ logs/
 *.tmp
 *.temp
 .cache/
+
+# Personal/internal docs (not for repo)
+docs/ENTERPRISE_AI_ARCHITECTURE_PLAYBOOK.md
+docs/chat_notes_*.md
