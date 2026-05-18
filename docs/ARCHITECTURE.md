@@ -524,7 +524,7 @@ flowchart TB
     end
     subgraph GOVERNANCE["GOVERNANCE LAYER"]
         G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary, including contracts"]
-        KG["KNOWLEDGE GRAPH (RAI on SPCS)\nNode/Edge Model | Inference | Scoring | Recommendations"]
+        KG["KNOWLEDGE GRAPH (Neo4j on SPCS)\nNode/Edge Model | Inference | Scoring | Recommendations"]
     end
     subgraph CONSUMPTION["CONSUMPTION LAYER"]
         CORTEX["CORTEX ANALYST\nNatural Language"]
@@ -585,13 +585,13 @@ For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md]
 
 ---
 
-## Ontology Knowledge Graph (RAI on SPCS)
+## Ontology Knowledge Graph (Neo4j on SPCS)
 
-The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis using RelationalAI (RAI) on Snowpark Container Services (SPCS).
+The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis using Neo4j Community on Snowpark Container Services (SPCS).
 
 ### Purpose
 
-The Knowledge Graph operationalizes the ontological framework described in `ontology/04-dca-ontological-synthesis.md`. It materializes the relationships between metadata objects (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable graph with RAI-powered inference.
+The Knowledge Graph operationalizes the ontological framework described in `ontology/04-dca-ontological-synthesis.md`. It materializes the relationships between metadata objects (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable graph with graph-powered inference via Cypher and SQL.
 
 ### Architecture
 
@@ -606,11 +606,11 @@ flowchart TB
         EDGES["ONTOLOGY_GRAPH_EDGES\n(Relationship table)"]
         SNAP["ONTOLOGY_GRAPH_SNAPSHOTS"]
     end
-    subgraph RAI["RAI ENGINE (SPCS)"]
-        MODEL["ontology_graph.rel\n(Rel inference model)"]
+    subgraph NEO4J["NEO4J ENGINE (SPCS SIDECAR)"]
+        MODEL["Cypher Queries\n(Graph inference model)"]
         INFER["Inference Rules:\n• PII propagation\n• Ownership gaps\n• Entity resolution\n• Governance scoring"]
     end
-    subgraph OUTPUT["RAI OUTPUTS"]
+    subgraph OUTPUT["GRAPH OUTPUTS"]
         RECS["RAI_RECOMMENDATIONS\n(Governance gaps)"]
         CLUSTERS["RAI_ENTITY_CLUSTERS\n(Cross-system matches)"]
         SCORES["RAI_GOVERNANCE_SCORES\n(Per-node scores)"]
@@ -621,8 +621,8 @@ flowchart TB
         SHARE["ONTOLOGY_GRAPH_DATA_SHARE\n(Snowflake Share)"]
     end
     SOURCES --> GRAPH
-    GRAPH --> RAI
-    RAI --> OUTPUT
+    GRAPH --> NEO4J
+    NEO4J --> OUTPUT
     OUTPUT --> CONSUME
 ```
 
@@ -634,9 +634,13 @@ flowchart TB
 | **BUSINESS** | CUSTOMER, PATIENT, EMPLOYEE, PRODUCT, INCIDENT, ORDER | PURCHASES, TREATED_BY, WORKS_FOR, ASSIGNED_TO | Curated dimension/fact tables |
 | **CROSS** | (links between layers) | REPRESENTS, STORED_IN | Mapping business entities to their metadata tables |
 
-### RAI Inference
+### Graph Inference
 
-The Rel model (`python/rai_models/ontology_graph.rel`) defines:
+The graph engine provides inference via two paths:
+- **Batch (SQL)**: `SP_RUN_INFERENCE()` stored procedure executes pure-SQL detection rules
+- **Real-time (Cypher)**: Neo4j sidecar serves graph traversal queries via the SPCS API
+
+Inference capabilities:
 
 1. **PII Propagation Detection** — If a column receives data from a PII-tagged upstream column via lineage, infer it should also be tagged
 2. **Ownership Gap Detection** — Tables in SEMANTIC schemas with no `data_contract_owner` tag
@@ -645,16 +649,20 @@ The Rel model (`python/rai_models/ontology_graph.rel`) defines:
 
 ### SPCS Service Endpoint
 
-A FastAPI container running on `RAI_COMPUTE_POOL` exposes the graph as a REST API:
+A FastAPI container + Neo4j Community sidecar running on `RAI_COMPUTE_POOL` exposes the graph as a REST API:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Service health check |
+| `/health` | GET | Service health check (Neo4j connection status) |
 | `/nodes` | GET | List/filter nodes |
 | `/nodes/{id}/neighbors` | GET | Get connected nodes |
-| `/edges/path/{from}/{to}` | GET | Shortest path between nodes |
+| `/edges/path/{from}/{to}` | GET | Shortest path between nodes (Cypher) |
 | `/governance-scores` | GET | Governance scores with threshold filter |
-| `/query` | POST | Execute arbitrary Rel queries (ONTOLOGY_ADMIN only) |
+| `/inference/pii-propagation` | GET | Detect untagged PHI columns |
+| `/inference/ownership-gaps` | GET | Detect tables without owners |
+| `/inference/entity-resolution` | GET | Cross-system entity matching |
+| `/inference/centrality` | GET | Hub node detection |
+| `/inference/reload` | POST | Reload graph from Snowflake tables |
 
 ### Sharing
 
@@ -676,5 +684,4 @@ For full documentation, see [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md).
 - [dbt Best Practices](https://docs.getdbt.com/best-practices)
 - [Snowflake Horizon](https://www.snowflake.com/en/data-cloud/horizon/)
 - [dbt vs Dynamic Tables — Decision Framework](DBT_VS_DYNAMIC_TABLES.md)
-- [RelationalAI](https://relational.ai/docs/snowflake)
 - [Snowpark Container Services](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview)

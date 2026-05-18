@@ -10,7 +10,7 @@ Most HCLS compliance friction comes from **manual governance processes that cann
 
 | Principle | HCLS Application |
 |-----------|-----------------|
-| **Automated PHI Detection** | RAI inference traces PHI lineage — no manual column-by-column review |
+| **Automated PHI Detection** | Graph inference traces PHI lineage — no manual column-by-column review |
 | **Continuous Compliance** | Governance scores update with every graph refresh — not annual audits |
 | **Patient-Centric Integration** | Entity resolution creates a unified patient graph across all systems |
 | **Research Enablement** | De-identification provenance tracked as graph edges — provable HIPAA research compliance |
@@ -48,7 +48,7 @@ flowchart TB
         subgraph GRAPH["ONTOLOGY KNOWLEDGE GRAPH"]
             NODES["Clinical + Metadata Nodes"]
             EDGES["Lineage + Governance Edges"]
-            RAI["RAI Inference Engine"]
+            NEO4J["Neo4j Inference Engine"]
         end
         subgraph OUTPUTS["AUTOMATED OUTPUTS"]
             RECS["PHI Recommendations"]
@@ -102,7 +102,7 @@ flowchart TB
 | HIPAA Requirement | Knowledge Graph Implementation |
 |-------------------|-------------------------------|
 | §164.312(a) — Access Controls | ROLE→TABLE→COLUMN edges show who can access what PHI |
-| §164.312(b) — Audit Controls | ACCESS_HISTORY linked to graph nodes; anomaly detection via RAI |
+| §164.312(b) — Audit Controls | ACCESS_HISTORY linked to graph nodes; anomaly detection via graph inference |
 | §164.312(c) — Integrity | Data contract edges prove schema/quality validation |
 | §164.312(d) — Authentication | ROLE nodes with GRANTED_TO edges map authentication paths |
 | §164.502(b) — Minimum Necessary | Graph analysis proves each role accesses only required data |
@@ -113,7 +113,7 @@ flowchart TB
 
 | Capability | Current State (Manual) | Stage 2 (Knowledge Graph) | Stage 3 (Federated) | Impact |
 |-----------|----------------------|--------------------------|---------------------|--------|
-| **PHI Detection** | Manual column review; months to audit | Automated RAI inference; detects in minutes | Continuous + cross-org detection via shares | Eliminates PHI blind spots |
+| **PHI Detection** | Manual column review; months to audit | Automated graph inference; detects in minutes | Continuous + cross-org detection via shares | Eliminates PHI blind spots |
 | **Patient Matching** | Manual MPI maintenance; 60-70% match rate | Graph entity resolution; 95%+ confidence | Federated matching across partner systems | Complete patient 360 |
 | **HIPAA Scoring** | Annual manual assessment | Continuous per-object scoring (0-1) | Score propagation across shared data | Real-time compliance posture |
 | **Research Compliance** | Manual IRB tracking in spreadsheets | Graph edges link datasets to IRB + de-id method | Provenance travels with shared data | Provable research compliance |
@@ -161,7 +161,7 @@ flowchart TB
 | STORED_IN | Clinical Node → TABLE | Business entity stored in technical object |
 | TAGGED_WITH | COLUMN → TAG | Column classified with governance tag |
 
-## RAI Inference Rules — HCLS Specific
+## Graph Inference Rules — HCLS Specific
 
 | Rule | Detection Logic | Output |
 |------|----------------|--------|

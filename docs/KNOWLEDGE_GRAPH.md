@@ -1,10 +1,10 @@
-# Ontology Knowledge Graph — RAI on SPCS
+# Ontology Knowledge Graph — Neo4j on SPCS
 
-> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, powered by RelationalAI inference on Snowpark Container Services.
+> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, powered by Neo4j Community on Snowpark Container Services.
 
 ## Overview
 
-The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/04-dca-ontological-synthesis.md](../ontology/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph with RAI-powered inference for governance gap detection, entity resolution, and scoring.
+The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/04-dca-ontological-synthesis.md](../ontology/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph with Neo4j Cypher-based inference for governance gap detection, entity resolution, and scoring.
 
 ## Architecture
 
@@ -28,10 +28,10 @@ flowchart LR
         E[ONTOLOGY_GRAPH_EDGES]
     end
 
-    subgraph "RAI Engine"
-        SYNC[SP_SYNC_TO_RAI]
-        INF[SP_RUN_INFERENCE]
-        REL[ontology_graph.rel]
+    subgraph "Neo4j (SPCS Sidecar)"
+        LOAD[FastAPI loads]
+        NEO[Neo4j Cypher queries]
+        WB[Results writeback]
     end
 
     subgraph "Output Tables"
@@ -50,10 +50,10 @@ flowchart LR
     CT --> SP3 & SP4
     SP1 & SP3 --> N
     SP2 & SP4 & SP5 --> E
-    N & E --> SYNC
-    SYNC --> REL
-    REL --> INF
-    INF --> SC & RC
+    N & E --> LOAD
+    LOAD --> NEO
+    NEO --> WB
+    WB --> SC & RC
     N & E --> SN
     SC & RC --> ST & API & SH
     N & E --> API & SH
@@ -63,16 +63,16 @@ flowchart LR
 
 ### Prerequisites
 - Scripts 01-10 deployed successfully
-- RAI Native App installed from Snowflake Marketplace
+- Docker (for building/pushing images to Snowflake registry)
 - Curated layer populated with source system data
 
 ### Deployment Order
 
 ```sql
-@sql/11_rai_setup.sql              -- Compute pool, RAI engine, roles
+@sql/11_rai_setup.sql              -- SPCS infrastructure, compute pool, image repo, roles
 @sql/12_ontology_graph_tables.sql  -- Node/edge/snapshot/output table DDL
 @sql/13_ontology_graph_populate.sql -- Graph population stored procedures
-@sql/14_rai_graph_sync.sql         -- RAI sync + inference + writeback
+@sql/14_rai_graph_sync.sql         -- Graph inference procedures (pure SQL)
 @sql/15_ontology_sharing.sql       -- Sharing configuration
 ```
 
@@ -87,7 +87,7 @@ docker push <repo_url>/ontology-graph-api:latest
 
 # Deploy service (from Snowsight or SQL)
 # CREATE SERVICE DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_SERVICE
-#   IN COMPUTE POOL RAI_COMPUTE_POOL
+#   IN COMPUTE POOL ONTOLOGY_COMPUTE_POOL
 #   FROM @DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_STAGE
 #   SPEC = 'service-spec.yaml';
 ```
@@ -131,9 +131,9 @@ docker push <repo_url>/ontology-graph-api:latest
 | WORKS_FOR | BUSINESS | EMPLOYEE → ORG | Employment relationship |
 | REPRESENTS | CROSS | BUSINESS_NODE → TABLE_NODE | Business entity stored in table |
 
-## RAI Inference Model
+## Graph Inference (Neo4j + SQL)
 
-The Rel model at `python/rai_models/ontology_graph.rel` defines:
+Inference is done via (a) Cypher queries in the SPCS FastAPI service for real-time graph traversal, and (b) pure SQL stored procedures for batch inference (PII propagation, ownership gaps, entity resolution, governance scoring).
 
 ### Inference Rules
 
@@ -170,8 +170,7 @@ Composite score (0.0 - 1.0) per node:
 | `SP_POPULATE_BUSINESS_EDGES()` | Builds cross-entity relationships |
 | `SP_POPULATE_CROSS_EDGES()` | Links business entities to their metadata tables |
 | `SP_REFRESH_GRAPH()` | Orchestrator — truncates, repopulates, snapshots |
-| `SP_SYNC_TO_RAI()` | Streams graph data into RAI engine |
-| `SP_RUN_INFERENCE()` | Executes Rel rules, writes results back |
+| `SP_RUN_INFERENCE()` | Executes inference rules, writes results back |
 | `SP_APPLY_RECOMMENDATIONS()` | Applies approved recommendations (tags/policies) |
 
 ## SPCS REST API
@@ -190,7 +189,7 @@ Base URL: `https://<account>.snowflakecomputing.app/ontology-api/`
 | GET | `/edges/path/{from}/{to}` | Shortest path | ONTOLOGY_CONSUMER |
 | GET | `/governance-scores` | All scores (query param: min_score) | ONTOLOGY_CONSUMER |
 | GET | `/governance-scores/{id}` | Single node score | ONTOLOGY_CONSUMER |
-| POST | `/query` | Execute Rel query | ONTOLOGY_ADMIN |
+| POST | `/query` | Execute Cypher query | ONTOLOGY_ADMIN |
 
 ### Example Requests
 
@@ -223,7 +222,7 @@ curl "$BASE_URL/edges/path/META_source_table/META_target_table"
 
 ## Roles and Access
 
-| Role | Graph Tables | RAI Procedures | SPCS API | Share |
+| Role | Graph Tables | Inference Procedures | SPCS API | Share |
 |------|-------------|----------------|----------|-------|
 | ONTOLOGY_ADMIN | Full | Execute | All endpoints | Manage |
 | ONTOLOGY_CONSUMER | SELECT | - | Read endpoints | Query via share |
@@ -237,14 +236,14 @@ curl "$BASE_URL/edges/path/META_source_table/META_target_table"
 Three tabs:
 1. **Graph Explorer** — Interactive node/edge visualization with filters (layer, source system, node type)
 2. **Governance Scores** — Color-coded score table with heatmap (red/yellow/green)
-3. **RAI Recommendations** — Open recommendations grouped by type with severity badges
+3. **Recommendations** — Open recommendations grouped by type with severity badges
 
 ## Troubleshooting
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | Empty graph after SP_REFRESH_GRAPH | Curated tables not populated | Run scripts 04 (load data) first |
-| RAI engine not ready | Compute pool suspended | `ALTER COMPUTE POOL RAI_COMPUTE_POOL RESUME` |
+| Neo4j container not ready | Compute pool suspended or container restarting | Check SPCS service logs: `CALL SYSTEM$GET_SERVICE_LOGS('DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_SERVICE', 0, 'neo4j')` |
 | SPCS service unhealthy | Container not started | Check `SHOW SERVICES` and service logs |
 | Zero recommendations | No governance gaps exist | Run `ontology/setup/04_governance_gaps.sql` to create test gaps |
 | Low node count | Missing source system data | Check which source systems have data in CURATED_DEV |
@@ -253,12 +252,12 @@ Three tabs:
 
 | File | Purpose |
 |------|---------|
-| `sql/11_rai_setup.sql` | Infrastructure: compute pool, RAI engine, roles |
+| `sql/11_rai_setup.sql` | Infrastructure: SPCS compute pool, image repo, roles |
 | `sql/12_ontology_graph_tables.sql` | Table DDL (6 tables) |
 | `sql/13_ontology_graph_populate.sql` | Population procedures (6 SPs) |
-| `sql/14_rai_graph_sync.sql` | RAI sync + inference (3 SPs) |
+| `sql/14_rai_graph_sync.sql` | Graph inference procedures (pure SQL) |
 | `sql/15_ontology_sharing.sql` | Share + views + catalog registration |
-| `python/rai_models/ontology_graph.rel` | Rel inference model |
+| `ontology/spcs/app/cypher_queries/` | Cypher inference queries |
 | `ontology/spcs/Dockerfile` | Container image build |
 | `ontology/spcs/service-spec.yaml` | SPCS service spec |
 | `ontology/spcs/app/` | FastAPI application (main + routes) |
@@ -266,7 +265,6 @@ Three tabs:
 
 ## References
 
-- [RelationalAI on Snowflake](https://relational.ai/docs/snowflake)
 - [Snowpark Container Services](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview)
 - [DCA Ontological Synthesis](../ontology/04-dca-ontological-synthesis.md)
 - [Governance Documentation](GOVERNANCE.md)

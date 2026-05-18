@@ -31,6 +31,8 @@ REBUILD=false
 RESTART_ONLY=false
 
 IMAGE_NAME="ontology-graph-api"
+NEO4J_IMAGE="neo4j:5-community"
+NEO4J_TARGET_NAME="neo4j-community"
 
 # ── Functions ───────────────────────────────────────────────────────────
 
@@ -90,6 +92,8 @@ fi
 REGISTRY="${ORG,,}-${ACCOUNT,,}.registry.snowflakecomputing.com"
 IMAGE_PATH="dca_demo/governance/ontology_graph_repo/${IMAGE_NAME}"
 FULL_IMAGE="${REGISTRY}/${IMAGE_PATH}:${TAG}"
+NEO4J_IMAGE_PATH="dca_demo/governance/ontology_graph_repo/${NEO4J_TARGET_NAME}"
+FULL_NEO4J_IMAGE="${REGISTRY}/${NEO4J_IMAGE_PATH}:${TAG}"
 
 # ── Prerequisites ──────────────────────────────────────────────────────
 
@@ -125,14 +129,21 @@ check_prerequisites() {
 # ── Docker Build ───────────────────────────────────────────────────────
 
 docker_build() {
-    log "=== BUILDING CONTAINER IMAGE ==="
+    log "=== BUILDING CONTAINER IMAGES ==="
+
+    # Build the FastAPI app image
     local build_args=(-t "${IMAGE_NAME}:${TAG}" "${SPCS_DIR}")
     if [ "${REBUILD}" = "true" ]; then
         log "  (forced rebuild, no cache)"
         build_args=(--no-cache "${build_args[@]}")
     fi
     docker build "${build_args[@]}"
-    ok "Image built: ${IMAGE_NAME}:${TAG}"
+    ok "API image built: ${IMAGE_NAME}:${TAG}"
+
+    # Pull Neo4j Community image
+    log "  Pulling Neo4j Community..."
+    docker pull "${NEO4J_IMAGE}"
+    ok "Neo4j pulled: ${NEO4J_IMAGE}"
 }
 
 # ── Docker Tag ─────────────────────────────────────────────────────────
@@ -141,6 +152,8 @@ docker_tag() {
     log "=== TAGGING FOR SNOWFLAKE REGISTRY ==="
     docker tag "${IMAGE_NAME}:${TAG}" "${FULL_IMAGE}"
     ok "Tagged: ${FULL_IMAGE}"
+    docker tag "${NEO4J_IMAGE}" "${FULL_NEO4J_IMAGE}"
+    ok "Tagged: ${FULL_NEO4J_IMAGE}"
 }
 
 # ── Docker Login ───────────────────────────────────────────────────────
@@ -171,9 +184,11 @@ docker_login() {
 # ── Docker Push ────────────────────────────────────────────────────────
 
 docker_push() {
-    log "=== PUSHING IMAGE TO SNOWFLAKE ==="
+    log "=== PUSHING IMAGES TO SNOWFLAKE ==="
     docker push "${FULL_IMAGE}"
     ok "Pushed: ${FULL_IMAGE}"
+    docker push "${FULL_NEO4J_IMAGE}"
+    ok "Pushed: ${FULL_NEO4J_IMAGE}"
 }
 
 # ── Create / Restart SPCS Service ──────────────────────────────────────

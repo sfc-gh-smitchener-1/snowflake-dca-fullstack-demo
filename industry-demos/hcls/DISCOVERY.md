@@ -65,7 +65,7 @@ flowchart LR
 
 **Impact**: HIPAA violation risk. If audited, organization cannot prove PHI is classified everywhere it exists.
 
-**DCA Solution**: Knowledge Graph PHI lineage tracing — RAI detects unclassified copies of PHI-tagged source columns.
+**DCA Solution**: Knowledge Graph PHI lineage tracing — graph inference detects unclassified copies of PHI-tagged source columns.
 
 ### 2. Patient Entity Resolution
 
@@ -73,7 +73,7 @@ flowchart LR
 
 **Impact**: Population health analytics are incomplete. Care gap analysis misses patients. Duplicate records inflate costs.
 
-**DCA Solution**: RAI entity resolution using graph-based similarity matching (name + DOB + gender Jaccard).
+**DCA Solution**: Graph-based entity resolution using similarity matching (name + DOB + gender Jaccard).
 
 ### 3. HIPAA Audit Trail Gaps
 
@@ -113,8 +113,8 @@ flowchart LR
 
 | # | Gap | Severity | Regulatory Risk | DCA Solution |
 |---|-----|----------|----------------|--------------|
-| 1 | PHI Propagation Without Classification | Critical | HIPAA §164.312(a) — Access Controls | Knowledge Graph PHI lineage tracing + RAI inference |
-| 2 | Patient Entity Resolution | High | Population health analytics incomplete | RAI entity resolution (Jaccard similarity) |
+| 1 | PHI Propagation Without Classification | Critical | HIPAA §164.312(a) — Access Controls | Knowledge Graph PHI lineage tracing + graph inference |
+| 2 | Patient Entity Resolution | High | Population health analytics incomplete | Graph-based entity resolution (Jaccard similarity) |
 | 3 | HIPAA Audit Trail Gaps | Critical | HIPAA §164.312(b) — Audit Controls | Graph-based access analysis + governance scoring |
 | 4 | Orphaned Clinical Datasets | High | 45 CFR 164.512(i) — Research Use | Ownership gap detection + data contract enforcement |
 | 5 | Care Pathway Fragmentation | Medium | Clinical decision support quality | Clinical knowledge graph edges (temporal traversal) |

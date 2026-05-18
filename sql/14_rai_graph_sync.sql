@@ -1,18 +1,17 @@
 -- ============================================================================
--- ONTOLOGY KNOWLEDGE GRAPH - RAI GRAPH SYNC & INFERENCE
+-- ONTOLOGY KNOWLEDGE GRAPH - GRAPH INFERENCE (Pure SQL)
 -- ============================================================================
 --
--- Creates stored procedures that sync graph data to the RAI engine, run
--- inference rules (PII propagation, ownership gaps, entity resolution,
--- governance scoring), and write results back to Snowflake tables.
+-- Replaces RAI-dependent inference with pure Snowflake SQL. Provides the same
+-- outputs: PII propagation detection, ownership gap analysis, entity
+-- resolution, and governance scoring — all computed via SQL against the
+-- ONTOLOGY_GRAPH_NODES and ONTOLOGY_GRAPH_EDGES tables.
 --
 -- Procedures:
---   1. SP_SYNC_TO_RAI        - Stream node/edge tables into RAI engine
---   2. SP_RUN_INFERENCE      - Execute Rel rules and write results back
---   3. SP_APPLY_RECOMMENDATIONS - Apply approved recommendations
+--   1. SP_RUN_INFERENCE      - Execute all inference rules via SQL
+--   2. SP_APPLY_RECOMMENDATIONS - Apply approved recommendations
 --
 -- PREREQUISITES:
---   - 11_rai_setup.sql (RAI engine created)
 --   - 12_ontology_graph_tables.sql (tables exist)
 --   - 13_ontology_graph_populate.sql (graph populated)
 --
@@ -25,52 +24,10 @@ USE SCHEMA GOVERNANCE;
 USE WAREHOUSE COMPUTE_WH;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PROCEDURE 1: SYNC GRAPH TO RAI
+-- PROCEDURE 1: RUN INFERENCE (Pure SQL)
 -- ═══════════════════════════════════════════════════════════════════════════
--- Streams the ONTOLOGY_GRAPH_NODES and ONTOLOGY_GRAPH_EDGES tables into
--- the RAI engine and loads the Rel model source for inference.
--- ═══════════════════════════════════════════════════════════════════════════
-
-CREATE OR REPLACE PROCEDURE DCA_DEMO.GOVERNANCE.SP_SYNC_TO_RAI()
-RETURNS VARCHAR
-LANGUAGE SQL
-EXECUTE AS CALLER
-AS
-BEGIN
-    -- Step 1: Create data streams from Snowflake tables into RAI engine.
-    -- This maps each table to a RAI relation accessible from Rel.
-    CALL RAI.API.CREATE_DATA_STREAM(
-        'ONTOLOGY_ENGINE',          -- RAI engine name
-        'DCA_DEMO',                 -- Source database
-        'GOVERNANCE',               -- Source schema
-        'ONTOLOGY_GRAPH_NODES'      -- Source table → maps to :ontology_graph_nodes in Rel
-    );
-
-    CALL RAI.API.CREATE_DATA_STREAM(
-        'ONTOLOGY_ENGINE',
-        'DCA_DEMO',
-        'GOVERNANCE',
-        'ONTOLOGY_GRAPH_EDGES'
-    );
-
-    -- Step 2: Load the Rel model source into the engine.
-    -- The model defines graph traversal rules for governance analysis.
-    -- Model source is stored at python/rai_models/ontology_graph.rel
-    CALL RAI.API.LOAD_MODEL(
-        'ONTOLOGY_ENGINE',
-        'ontology_graph',           -- Model name within the engine
-        '@DCA_DEMO.GOVERNANCE.RAI_STAGE/ontology_graph.rel'  -- Stage path to Rel source
-    );
-
-    RETURN 'SUCCESS: Graph data streams created and Rel model loaded into ONTOLOGY_ENGINE';
-END;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- PROCEDURE 2: RUN INFERENCE
--- ═══════════════════════════════════════════════════════════════════════════
--- Executes RAI Rel rules for PII propagation detection, ownership gap
--- analysis, entity resolution, and governance scoring. Writes results
--- back to the RAI result tables in Snowflake.
+-- Executes PII propagation, ownership gap, entity resolution, and
+-- governance scoring using SQL set operations on graph tables.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE DCA_DEMO.GOVERNANCE.SP_RUN_INFERENCE()
@@ -85,121 +42,201 @@ DECLARE
     v_score_count INTEGER DEFAULT 0;
 BEGIN
     -- ─── PII Propagation Detection ──────────────────────────────────────
-    -- Finds columns receiving data from PII-tagged sources via lineage edges.
-    -- Any column downstream of a PII-tagged column should also be tagged.
-    CALL RAI.API.EXEC_REL(
-        'ONTOLOGY_ENGINE',
-        '
-        def output:pii_propagation =
-            source, target, path :
-            pii_propagation(source, target, path)
-        '
-    );
-
-    -- Write PII propagation results to recommendations table
+    -- Find columns downstream of PII-tagged columns via LINEAGE_FROM edges
+    -- that are NOT themselves tagged with PII/PHI/SENSITIVE.
     INSERT INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
         (recommendation_type, severity, source_node_id, target_node_id, description, suggested_action, status)
     SELECT
         'PII_PROPAGATION',
         'HIGH',
-        r.SOURCE_NODE_ID,
-        r.TARGET_NODE_ID,
-        'Column ' || r.TARGET_NODE_ID || ' receives data from PII-tagged source ' || r.SOURCE_NODE_ID || ' but is not tagged',
+        pii_source.node_id,
+        downstream.source_node_id,
+        'Column ' || downstream.source_node_id || ' receives data from PII-tagged source ' || pii_source.node_id || ' but is not tagged',
         'Apply PII classification tag to target column',
         'OPEN'
-    FROM TABLE(RAI.API.GET_RESULTS('ONTOLOGY_ENGINE', 'pii_propagation')) r
-    WHERE NOT EXISTS (
-        SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS existing
-        WHERE existing.recommendation_type = 'PII_PROPAGATION'
-          AND existing.source_node_id = r.SOURCE_NODE_ID
-          AND existing.target_node_id = r.TARGET_NODE_ID
-          AND existing.status IN ('OPEN', 'APPROVED')
-    );
+    FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES downstream
+    -- downstream.source_node_id is the column receiving data
+    -- downstream.target_node_id is the PII source
+    JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES pii_source
+        ON pii_source.node_id = downstream.target_node_id
+    -- The source must be PII-tagged (has a TAGGED_WITH edge to a PII/PHI tag)
+    WHERE downstream.edge_type = 'LINEAGE_FROM'
+      AND EXISTS (
+          SELECT 1
+          FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES tag_edge
+          JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES tag_node
+              ON tag_node.node_id = tag_edge.target_node_id
+          WHERE tag_edge.source_node_id = pii_source.node_id
+            AND tag_edge.edge_type = 'TAGGED_WITH'
+            AND (UPPER(tag_node.display_name) LIKE '%PII%'
+              OR UPPER(tag_node.display_name) LIKE '%PHI%'
+              OR UPPER(tag_node.display_name) LIKE '%SENSITIVE%'
+              OR UPPER(tag_node.display_name) LIKE '%HIPAA%')
+      )
+      -- The downstream column must NOT already be PII-tagged
+      AND NOT EXISTS (
+          SELECT 1
+          FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES tag_edge2
+          JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES tag_node2
+              ON tag_node2.node_id = tag_edge2.target_node_id
+          WHERE tag_edge2.source_node_id = downstream.source_node_id
+            AND tag_edge2.edge_type = 'TAGGED_WITH'
+            AND (UPPER(tag_node2.display_name) LIKE '%PII%'
+              OR UPPER(tag_node2.display_name) LIKE '%PHI%'
+              OR UPPER(tag_node2.display_name) LIKE '%SENSITIVE%')
+      )
+      -- Don't duplicate existing open recommendations
+      AND NOT EXISTS (
+          SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS existing
+          WHERE existing.recommendation_type = 'PII_PROPAGATION'
+            AND existing.source_node_id = pii_source.node_id
+            AND existing.target_node_id = downstream.source_node_id
+            AND existing.status IN ('OPEN', 'APPROVED')
+      );
 
     v_pii_count := SQLROWCOUNT;
 
     -- ─── Ownership Gap Detection ────────────────────────────────────────
-    -- Finds tables that have no contract owner assigned.
-    CALL RAI.API.EXEC_REL(
-        'ONTOLOGY_ENGINE',
-        '
-        def output:ownership_gaps =
-            node :
-            ownership_gap(node)
-        '
-    );
-
+    -- Find TABLE nodes that have no ownership-related edges or tags.
     INSERT INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
         (recommendation_type, severity, source_node_id, target_node_id, description, suggested_action, status)
     SELECT
         'OWNERSHIP_GAP',
         'MEDIUM',
-        r.NODE_ID,
+        n.node_id,
         NULL,
-        'Table ' || r.NODE_ID || ' has no assigned contract owner',
+        'Table ' || COALESCE(n.display_name, n.node_id) || ' has no assigned contract owner',
         'Assign a data steward or contract owner to this table',
         'OPEN'
-    FROM TABLE(RAI.API.GET_RESULTS('ONTOLOGY_ENGINE', 'ownership_gaps')) r
-    WHERE NOT EXISTS (
-        SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS existing
-        WHERE existing.recommendation_type = 'OWNERSHIP_GAP'
-          AND existing.source_node_id = r.NODE_ID
-          AND existing.status IN ('OPEN', 'APPROVED')
-    );
+    FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES n
+    WHERE n.node_type = 'TABLE'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+          WHERE e.source_node_id = n.node_id
+            AND e.edge_type IN ('OWNED_BY', 'HAS_CONTRACT')
+      )
+      AND NOT EXISTS (
+          SELECT 1
+          FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e2
+          JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES tag
+              ON tag.node_id = e2.target_node_id
+          WHERE e2.source_node_id = n.node_id
+            AND e2.edge_type = 'TAGGED_WITH'
+            AND (UPPER(tag.display_name) LIKE '%OWNER%'
+              OR UPPER(tag.display_name) LIKE '%STEWARD%'
+              OR UPPER(tag.display_name) LIKE '%CONTRACT%')
+      )
+      AND NOT EXISTS (
+          SELECT 1 FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS existing
+          WHERE existing.recommendation_type = 'OWNERSHIP_GAP'
+            AND existing.source_node_id = n.node_id
+            AND existing.status IN ('OPEN', 'APPROVED')
+      );
 
     v_ownership_count := SQLROWCOUNT;
 
-    -- ─── Entity Resolution ──────────────────────────────────────────────
-    -- Cross-system matching: finds nodes across different source systems
-    -- that likely represent the same real-world entity.
-    CALL RAI.API.EXEC_REL(
-        'ONTOLOGY_ENGINE',
-        '
-        def output:entity_clusters =
-            cluster_id, node_id, label, confidence :
-            entity_cluster(cluster_id, node_id, label, confidence)
-        '
-    );
-
-    -- Clear previous clusters and write fresh results
+    -- ─── Entity Resolution (Cross-System Matching) ──────────────────────
+    -- Match BUSINESS-layer nodes across different source systems using
+    -- Snowflake JAROWINKLER_SIMILARITY on display_name.
     DELETE FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_ENTITY_CLUSTERS;
 
     INSERT INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_ENTITY_CLUSTERS
         (cluster_id, node_id, cluster_label, confidence)
+    WITH cross_matches AS (
+        SELECT
+            n1.node_id AS node_id_1,
+            n2.node_id AS node_id_2,
+            n1.display_name AS name_1,
+            n2.display_name AS name_2,
+            n1.source_system AS sys_1,
+            n2.source_system AS sys_2,
+            JAROWINKLER_SIMILARITY(UPPER(n1.display_name), UPPER(n2.display_name)) / 100.0 AS similarity
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES n1
+        JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES n2
+            ON n1.layer = 'BUSINESS'
+           AND n2.layer = 'BUSINESS'
+           AND n1.source_system != n2.source_system
+           AND n1.node_id < n2.node_id  -- avoid duplicates
+        WHERE JAROWINKLER_SIMILARITY(UPPER(n1.display_name), UPPER(n2.display_name)) >= 70
+    ),
+    numbered AS (
+        SELECT
+            ROW_NUMBER() OVER (ORDER BY similarity DESC) AS cluster_num,
+            node_id_1, node_id_2, name_1, name_2, similarity
+        FROM cross_matches
+    )
     SELECT
-        r.CLUSTER_ID,
-        r.NODE_ID,
-        r.LABEL,
-        r.CONFIDENCE
-    FROM TABLE(RAI.API.GET_RESULTS('ONTOLOGY_ENGINE', 'entity_clusters')) r;
+        'CLUSTER_' || cluster_num,
+        node_id_1,
+        name_1 || ' ≈ ' || name_2,
+        similarity
+    FROM numbered
+    UNION ALL
+    SELECT
+        'CLUSTER_' || cluster_num,
+        node_id_2,
+        name_1 || ' ≈ ' || name_2,
+        similarity
+    FROM numbered;
 
     v_cluster_count := SQLROWCOUNT;
 
     -- ─── Governance Scoring ─────────────────────────────────────────────
-    -- Computes a composite governance health score per node based on
-    -- tag coverage, contract presence, ownership, and quality monitoring.
-    CALL RAI.API.EXEC_REL(
-        'ONTOLOGY_ENGINE',
-        '
-        def output:governance_scores =
-            node_id, overall, tag_cov, contract_cov, ownership, quality :
-            governance_score(node_id, overall, tag_cov, contract_cov, ownership, quality)
-        '
-    );
-
-    -- Replace previous scores with fresh computation
+    -- Compute composite governance score per TABLE node.
+    -- Weights: tag_coverage=0.3, contract=0.3, ownership=0.25, quality=0.15
     DELETE FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES;
 
     INSERT INTO DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES
         (node_id, overall_score, tag_coverage, contract_coverage, ownership_score, quality_score)
+    WITH tag_counts AS (
+        SELECT
+            e.source_node_id AS node_id,
+            COUNT(*) AS tag_cnt
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        WHERE e.edge_type = 'TAGGED_WITH'
+        GROUP BY e.source_node_id
+    ),
+    contracts AS (
+        SELECT DISTINCT source_node_id AS node_id
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES
+        WHERE edge_type = 'HAS_CONTRACT'
+    ),
+    owners AS (
+        SELECT DISTINCT e.source_node_id AS node_id
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        WHERE e.edge_type = 'OWNED_BY'
+        UNION
+        SELECT DISTINCT e.source_node_id AS node_id
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES e
+        JOIN DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES tag
+            ON tag.node_id = e.target_node_id
+        WHERE e.edge_type = 'TAGGED_WITH'
+          AND UPPER(tag.display_name) LIKE '%OWNER%'
+    ),
+    quality AS (
+        SELECT DISTINCT source_node_id AS node_id
+        FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES
+        WHERE edge_type IN ('MONITORED_BY', 'QUALITY_CHECK')
+    )
     SELECT
-        r.NODE_ID,
-        r.OVERALL,
-        r.TAG_COV,
-        r.CONTRACT_COV,
-        r.OWNERSHIP,
-        r.QUALITY
-    FROM TABLE(RAI.API.GET_RESULTS('ONTOLOGY_ENGINE', 'governance_scores')) r;
+        n.node_id,
+        ROUND(
+            (LEAST(1.0, COALESCE(tc.tag_cnt, 0) / 4.0) * 0.3) +
+            (IFF(c.node_id IS NOT NULL, 1.0, 0.0) * 0.3) +
+            (IFF(o.node_id IS NOT NULL, 1.0, 0.0) * 0.25) +
+            (IFF(q.node_id IS NOT NULL, 1.0, 0.0) * 0.15)
+        , 3) AS overall_score,
+        ROUND(LEAST(1.0, COALESCE(tc.tag_cnt, 0) / 4.0), 3) AS tag_coverage,
+        ROUND(IFF(c.node_id IS NOT NULL, 1.0, 0.0), 3) AS contract_coverage,
+        ROUND(IFF(o.node_id IS NOT NULL, 1.0, 0.0), 3) AS ownership_score,
+        ROUND(IFF(q.node_id IS NOT NULL, 1.0, 0.0), 3) AS quality_score
+    FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES n
+    LEFT JOIN tag_counts tc ON tc.node_id = n.node_id
+    LEFT JOIN contracts c ON c.node_id = n.node_id
+    LEFT JOIN owners o ON o.node_id = n.node_id
+    LEFT JOIN quality q ON q.node_id = n.node_id
+    WHERE n.node_type = 'TABLE';
 
     v_score_count := SQLROWCOUNT;
 
@@ -211,7 +248,7 @@ BEGIN
 END;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PROCEDURE 3: APPLY APPROVED RECOMMENDATIONS
+-- PROCEDURE 2: APPLY APPROVED RECOMMENDATIONS
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Processes recommendations with status='APPROVED' and applies them:
 --   - PII_PROPAGATION: applies the PII tag to the target column
@@ -235,12 +272,8 @@ BEGIN
     FOR rec IN c_rec DO
         CASE rec.recommendation_type
             WHEN 'PII_PROPAGATION' THEN
-                -- Apply PII classification tag to the target column.
-                -- target_node_id format: DB.SCHEMA.TABLE.COLUMN
                 BEGIN
                     LET fqn VARCHAR := rec.target_node_id;
-                    -- Extract components from the FQN for ALTER TABLE ... ALTER COLUMN
-                    -- Use the node's properties or directly tag via system tag
                     EXECUTE IMMEDIATE
                         'ALTER TABLE ' || SPLIT_PART(:fqn, '.', 1) || '.' ||
                         SPLIT_PART(:fqn, '.', 2) || '.' ||
@@ -250,20 +283,16 @@ BEGIN
                     v_applied := v_applied + 1;
                 EXCEPTION
                     WHEN OTHER THEN
-                        -- Log failure but continue processing other recommendations
                         v_alerts := v_alerts + 1;
                 END;
 
             WHEN 'OWNERSHIP_GAP' THEN
-                -- Cannot auto-assign ownership; log as alert for manual review
                 v_alerts := v_alerts + 1;
 
             ELSE
-                -- Other recommendation types: mark as resolved without action
                 v_applied := v_applied + 1;
         END CASE;
 
-        -- Mark recommendation as resolved
         UPDATE DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_RECOMMENDATIONS
         SET status = 'RESOLVED',
             resolved_at = CURRENT_TIMESTAMP()
@@ -278,7 +307,9 @@ END;
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
-GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_SYNC_TO_RAI() TO ROLE ONTOLOGY_ADMIN;
+-- Note: SP_SYNC_TO_RAI is removed — no longer needed without RAI engine.
+-- The SPCS service loads graph data directly from Snowflake tables.
+
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_RUN_INFERENCE() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_APPLY_RECOMMENDATIONS() TO ROLE ONTOLOGY_ADMIN;
 
@@ -286,5 +317,5 @@ GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_APPLY_RECOMMENDATIONS() TO ROLE 
 -- VERIFICATION
 -- ═══════════════════════════════════════════════════════════════════════════
 
-SHOW PROCEDURES LIKE 'SP_%RAI%' IN SCHEMA DCA_DEMO.GOVERNANCE;
+SHOW PROCEDURES LIKE 'SP_RUN_INFERENCE' IN SCHEMA DCA_DEMO.GOVERNANCE;
 SHOW PROCEDURES LIKE 'SP_APPLY_%' IN SCHEMA DCA_DEMO.GOVERNANCE;

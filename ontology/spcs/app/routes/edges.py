@@ -27,7 +27,7 @@ async def list_edges(
         limit: Maximum results (default 100).
         offset: Pagination offset.
     """
-    client = request.app.state.rai_client
+    engine = request.app.state.graph_engine
     query = "SELECT * FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_EDGES WHERE 1=1"
     if layer:
         query += f" AND layer = '{layer}'"
@@ -39,7 +39,7 @@ async def list_edges(
         query += f" AND target_node_id = '{target_node_id}'"
     query += f" ORDER BY created_at DESC LIMIT {limit} OFFSET {offset}"
 
-    rows = client.session.sql(query).collect()
+    rows = engine.session.sql(query).collect()
     return [row.as_dict() for row in rows]
 
 
@@ -47,6 +47,6 @@ async def list_edges(
 async def get_shortest_path(
     request: Request, from_id: str, to_id: str
 ) -> list[dict[str, Any]]:
-    """Find the shortest path between two nodes using RAI graph traversal."""
-    client = request.app.state.rai_client
-    return client.get_path(from_id, to_id)
+    """Find the shortest path between two nodes using Neo4j graph traversal."""
+    engine = request.app.state.graph_engine
+    return await engine.get_shortest_path(from_id, to_id)

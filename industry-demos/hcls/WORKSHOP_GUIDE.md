@@ -22,10 +22,10 @@ Every pain point raised in discovery must land in a specific workshop moment. Th
 
 | # | HCLS Pain Point | Workshop Segment | Live Demo Moment |
 |---|----------------|-----------------|-----------------|
-| 1 | **PHI Propagating Without Classification** — Clinical columns flow through ETL pipelines into analytics extracts without HIPAA tags; manual audits miss them | Seg 1 (Gap Map), Seg 2 (Knowledge Graph architecture) | Show RAI detecting unclassified PHI columns via name pattern matching + lineage tracing |
-| 2 | **No Cross-System Patient Matching** — Same patient exists in FHIR, Claims, Workday with no automated resolution; duplicates cause over-counting and care gaps | Seg 1 (Gap Map), Seg 3 (Entity Resolution demo) | Show RAI resolving same patient across FHIR + Workday using name similarity |
+| 1 | **PHI Propagating Without Classification** — Clinical columns flow through ETL pipelines into analytics extracts without HIPAA tags; manual audits miss them | Seg 1 (Gap Map), Seg 2 (Knowledge Graph architecture) | Show graph inference detecting unclassified PHI columns via name pattern matching + lineage tracing |
+| 2 | **No Cross-System Patient Matching** — Same patient exists in FHIR, Claims, Workday with no automated resolution; duplicates cause over-counting and care gaps | Seg 1 (Gap Map), Seg 3 (Entity Resolution demo) | Show the graph resolving same patient across FHIR + Workday using name similarity |
 | 3 | **Manual HIPAA Audit Process** — Annual compliance assessments done in spreadsheets; no continuous monitoring; findings are stale by the time they're reported | Seg 1 (Compliance lane), Seg 3 (Scoring demo) | Show governance scores with HIPAA-specific breakdown (classification, access, BAA, audit trail, de-id) |
-| 4 | **Orphaned Research Datasets** — ML and research tables derived from PHI with no IRB reference, no de-identification lineage, no accountable data steward | Seg 2 (Contracts), Seg 3 (Recommendations demo) | Show RAI flagging datasets without contract edges or IRB provenance |
+| 4 | **Orphaned Research Datasets** — ML and research tables derived from PHI with no IRB reference, no de-identification lineage, no accountable data steward | Seg 2 (Contracts), Seg 3 (Recommendations demo) | Show graph inference flagging datasets without contract edges or IRB provenance |
 | 5 | **Care Pathway Fragmentation** — Clinical data siloed by encounter; no temporal view of patient journey across encounters, conditions, and treatments | Seg 2 (Clinical Graph), Seg 3 (Pathway demo) | Show traversal from Patient → Encounters → Conditions → Medications with temporal sequencing |
 
 ## Pre-Work (Distribute 5 Business Days Before)
@@ -79,7 +79,7 @@ Every pain point raised in discovery must land in a specific workshop moment. Th
 >
 > "Today we'll map where those proofs break down in your current architecture, show you how a Knowledge Graph can automate that proof continuously, and leave with a named pilot. Everything you see today uses real clinical data structures — FHIR patients, encounters, conditions, medications — so it maps directly to your world."
 
-**Align on workshop outcomes**: Leave with (1) a consensus on which HIPAA gaps are highest-priority, (2) an understanding of how the Knowledge Graph + RAI approach addresses each gap, and (3) a named pilot workload with owners and 30-day milestone.
+**Align on workshop outcomes**: Leave with (1) a consensus on which HIPAA gaps are highest-priority, (2) an understanding of how the Knowledge Graph approach addresses each gap, and (3) a named pilot workload with owners and 30-day milestone.
 
 ### 0:05-0:25 | Compliance Gap Mapping (20 min)
 
@@ -125,7 +125,7 @@ For each lane, capture on the whiteboard:
 
 **Time**: 0:30 - 1:15 (45 minutes)
 
-**Objective**: Demonstrate how the Ontology Knowledge Graph represents clinical entities, metadata, and governance relationships — and how RAI inference can automate HIPAA compliance detection.
+**Objective**: Demonstrate how the Ontology Knowledge Graph represents clinical entities, metadata, and governance relationships — and how graph inference automates HIPAA compliance detection.
 
 ### 0:30-0:45 | The Knowledge Graph Concept (15 min)
 
@@ -166,15 +166,15 @@ For each lane, capture on the whiteboard:
 ```
 
 **Talk Track**:
-> "The Knowledge Graph connects two worlds: the clinical world — patients, encounters, diagnoses, medications, practitioners — and the technical world — tables, columns, tags, policies, roles. RAI reasons across BOTH layers simultaneously."
+> "The Knowledge Graph connects two worlds: the clinical world — patients, encounters, diagnoses, medications, practitioners — and the technical world — tables, columns, tags, policies, roles. The graph engine reasons across BOTH layers simultaneously."
 >
 > "This is the key insight: it can detect that a COLUMN in an analytics extract received data from a PHI-tagged source column, even through 3 layers of transformation. Or that an ENCOUNTER node links to a TABLE node that has a GRANT to an external role without a BAA edge."
 
-### 0:45-1:00 | RAI Inference Rules (15 min)
+### 0:45-1:00 | Graph Inference Rules (15 min)
 
-**Action**: Walk through each RAI procedure with a clinical example. Use the whiteboard to draw the inference path.
+**Action**: Walk through each inference procedure with a clinical example. Use the whiteboard to draw the inference path.
 
-| Rule | What RAI Does | Example |
+| Rule | What It Does | Example |
 |------|--------------|---------|
 | **PHI Detection** | Scans COLUMN nodes for PHI name patterns (SSN, DOB, MRN, etc.) that lack HIPAA tags | `PATIENT_ANALYTICS_EXTRACT.birth_date` has no HIPAA_CATEGORY tag → HIGH severity finding |
 | **Lineage Propagation** | Follows LINEAGE_FROM edges to find untagged columns receiving from tagged PHI sources | `DIM_PATIENT.BIRTH_DATE` (tagged) → ETL → `analytics.patient_dob` (untagged) → flag |
@@ -183,9 +183,9 @@ For each lane, capture on the whiteboard:
 | **Care Pathways** | Temporal ordering of encounters per patient; links conditions to treatments via encounter | Patient A: Emergency → Inpatient → Follow-up; each with diagnosis → medication chain |
 
 **Talk Track for PHI Detection**:
-> "Here's how it works. RAI scans every COLUMN node in the graph. It applies name-pattern matching: does this column name contain 'SSN', 'DOB', 'MRN', 'BIRTH', 'ADDRESS'? If yes, does a TAGGED_WITH edge connect it to a PII or HIPAA tag node? If not — that's a finding."
+> "Here's how it works. The graph engine scans every COLUMN node. It applies name-pattern matching: does this column name contain 'SSN', 'DOB', 'MRN', 'BIRTH', 'ADDRESS'? If yes, does a TAGGED_WITH edge connect it to a PII or HIPAA tag node? If not — that's a finding."
 >
-> "But it goes further. Even if a column is named 'analytics_field_42' with no obvious PHI pattern, RAI follows LINEAGE_FROM edges upstream. If the source column IS tagged as PHI, the downstream column inherits the risk — and RAI flags it."
+> "But it goes further. Even if a column is named 'analytics_field_42' with no obvious PHI pattern, the engine follows LINEAGE_FROM edges upstream. If the source column IS tagged as PHI, the downstream column inherits the risk — and it flags it."
 
 ### 1:00-1:15 | Target Architecture (15 min)
 
@@ -198,7 +198,7 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 │ EHR │──────────→ │ RAW │──────────→ │CURATED  │────────→│ GRAPH NODES   │──────→│Streamlit │
 │(FHIR)│           │FHIR │            │  FHIR   │         │ GRAPH EDGES   │       │Dashboard │
 └─────┘            └─────┘            └─────────┘         ├───────────────┤       ├──────────┤
-┌─────┐            ┌─────┐            ┌─────────┐         │ RAI ENGINE    │       │Compliance│
+┌─────┐            ┌─────┐            ┌─────────┐         │ NEO4J ENGINE  │       │Compliance│
 │Claims│──────────→│ RAW │──────────→ │CURATED  │────────→│  - PHI Detect │──────→│  Reports │
 │     │            │CLAIMS│           │ CLAIMS  │         │  - Resolution │       ├──────────┤
 └─────┘            └─────┘            └─────────┘         │  - Pathways   │       │ SPCS API │
@@ -218,7 +218,7 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 
 **Key architectural decisions to discuss**:
 1. Graph sits in the GOVERNANCE schema — separate from source data
-2. RAI runs as stored procedures — scheduled or on-demand
+2. Inference runs as stored procedures — scheduled or on-demand
 3. Scores and recommendations are queryable tables — consumable by any BI tool
 4. Entity clusters enable cross-system patient matching without an MPI appliance
 
@@ -261,7 +261,7 @@ ORDER BY e.edge_type, n2.node_type;
 ### Demo 2: PHI Detection Results (10 min)
 
 ```sql
--- Show RAI recommendations for unclassified PHI
+-- Show graph inference recommendations for unclassified PHI
 SELECT
     recommendation_type,
     severity,
@@ -276,7 +276,7 @@ ORDER BY
 ```
 
 **Talk Track**:
-> "RAI found these columns receiving clinical data from PHI-tagged sources that aren't classified themselves. These are your HIPAA blind spots — the columns that pass through manual audits because nobody realized they carry PHI."
+> "The graph engine found these columns receiving clinical data from PHI-tagged sources that aren't classified themselves. These are your HIPAA blind spots — the columns that pass through manual audits because nobody realized they carry PHI."
 >
 > "Notice the two detection methods: 'name_pattern' caught obvious ones like 'SSN' and 'BIRTH_DATE'. But 'lineage_propagation' caught columns that were RENAMED during ETL — the graph followed the data flow upstream and found the PHI origin."
 
@@ -326,7 +326,7 @@ LIMIT 10;
 ```
 
 **Talk Track**:
-> "RAI matched patients across FHIR and Workday using name similarity. No MPI appliance needed — the graph does entity resolution natively. 0.95 confidence means exact full name match. 0.85 means last name + first initial."
+> "The graph matched patients across FHIR and Workday using name similarity. No MPI appliance needed — the graph does entity resolution natively. 0.95 confidence means exact full name match. 0.85 means last name + first initial."
 >
 > "Why does this matter for HIPAA? Because if the same person exists in two systems with different access controls, you have inconsistent PHI protection. The graph makes that visible."
 
@@ -369,7 +369,7 @@ LIMIT 20;
 |-----------|-----------------|
 | Deploy Knowledge Graph schema + procedures | Graph infrastructure ready |
 | Classify PHI columns across FHIR tables | Immediate HIPAA visibility |
-| Run initial RAI inference (PHI Detection) | First findings report |
+| Run initial graph inference (PHI Detection) | First findings report |
 | Deploy Streamlit compliance dashboard | Self-service governance view |
 
 **Talk Track**:

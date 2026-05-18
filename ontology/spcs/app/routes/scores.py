@@ -16,8 +16,8 @@ async def list_governance_scores(
     Args:
         min_score: Minimum overall_score to include in results.
     """
-    client = request.app.state.rai_client
-    return client.get_governance_scores(min_score=min_score)
+    engine = request.app.state.graph_engine
+    return engine.get_governance_scores(min_score=min_score)
 
 
 @router.get("/{node_id}")
@@ -25,8 +25,8 @@ async def get_node_governance_score(
     request: Request, node_id: str
 ) -> dict[str, Any]:
     """Get the governance score for a single node."""
-    client = request.app.state.rai_client
-    results = client.session.sql(
+    engine = request.app.state.graph_engine
+    results = engine.session.sql(
         f"SELECT * FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_RAI_GOVERNANCE_SCORES WHERE node_id = '{node_id}'"
     ).collect()
     if not results:

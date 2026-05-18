@@ -25,8 +25,8 @@ async def list_nodes(
         limit: Maximum results (default 100).
         offset: Pagination offset.
     """
-    client = request.app.state.rai_client
-    return client.get_nodes(
+    engine = request.app.state.graph_engine
+    return engine.get_nodes(
         layer=layer,
         node_type=node_type,
         source_system=source_system,
@@ -38,8 +38,8 @@ async def list_nodes(
 @router.get("/{node_id}")
 async def get_node(request: Request, node_id: str) -> dict[str, Any]:
     """Get a single node by ID."""
-    client = request.app.state.rai_client
-    results = client.session.sql(
+    engine = request.app.state.graph_engine
+    results = engine.session.sql(
         f"SELECT * FROM DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_NODES WHERE node_id = '{node_id}'"
     ).collect()
     if not results:
@@ -50,5 +50,5 @@ async def get_node(request: Request, node_id: str) -> dict[str, Any]:
 @router.get("/{node_id}/neighbors")
 async def get_node_neighbors(request: Request, node_id: str) -> list[dict[str, Any]]:
     """Get all nodes connected to the given node via edges in either direction."""
-    client = request.app.state.rai_client
-    return client.get_neighbors(node_id)
+    engine = request.app.state.graph_engine
+    return engine.get_neighbors(node_id)

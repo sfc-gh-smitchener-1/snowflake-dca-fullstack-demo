@@ -31,7 +31,7 @@ graph LR
     subgraph "Snowflake Data Cloud"
         RAW["RAW Layer"]
         CUR["CURATED Layer"]
-        KG["Ontology Knowledge Graph<br/>(RelationalAI on SPCS)"]
+        KG["Ontology Knowledge Graph<br/>(Neo4j on SPCS)"]
         ANA["Analytics Tables"]
         SIS["Streamlit"]
     end
@@ -109,7 +109,7 @@ The base Knowledge Graph (core scripts 11-15) provides foundational nodes and ed
 - **Node types**: ENCOUNTER, CONDITION, MEDICATION, PROCEDURE, PRACTITIONER, CLAIM, ORGANIZATION
 - **Edge types**: DIAGNOSED_WITH, PRESCRIBED, PERFORMED_BY, RESULTED_IN, BILLED_FOR, REFERRED_TO, TREATED_AT
 - **PHI governance**: PHI_CONTAINS, HIPAA_CLASSIFIED, BAA_COVERS, DE_IDENTIFIED_FROM
-- **RAI inference**: Care pathways, entity resolution, HIPAA compliance scoring
+- **Graph inference**: Care pathways, entity resolution, HIPAA compliance scoring
 
 ### Workforce (Scripts 04-05)
 - **Node types**: WORKER (`WD_WKR_`), DEPARTMENT (`WD_DEPT_`), STAFFING_CONTEXT (`WD_STAFF_`)
@@ -208,7 +208,7 @@ CALL RAW_DEV.STAGING.LOAD_SOURCE_SYSTEM('PAYER', 'CSV');
 -- Intentional HIPAA governance gaps (for demo)
 @demos/hcls/sql/02_hcls_hipaa_gaps.sql
 
--- RAI inference rules (care pathways, entity resolution, compliance scoring)
+-- Graph inference rules (care pathways, entity resolution, compliance scoring)
 @demos/hcls/sql/03_hcls_rai_inference.sql
 
 -- Workday HCM graph population (workers, departments, cross-system linkage)

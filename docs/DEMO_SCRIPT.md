@@ -228,13 +228,13 @@ FROM GOVERNANCE.OBSERVABILITY.DATA_PRODUCT_CATALOG;
 
 > "Data products are pre-packaged, governed datasets ready for consumption. Internal teams can discover and use them through our marketplace - no data engineering tickets required."
 
-### Part 7: Knowledge Graph — RAI on SPCS (3 minutes)
+### Part 7: Knowledge Graph — Neo4j on SPCS (3 minutes)
 
 #### Show the Graph in Streamlit
 
 Navigate to **Streamlit Page 6: Knowledge Graph**
 
-> "Now let's look at how the platform can reason about its own governance health. This Knowledge Graph connects everything we've seen — tables, columns, tags, roles, business entities — into a single graph that RAI can analyze."
+> "Now let's look at how the platform can reason about its own governance health. This Knowledge Graph connects everything we've seen — tables, columns, tags, roles, business entities — into a single graph that the inference engine can analyze."
 
 #### Show Graph Explorer Tab
 
@@ -242,7 +242,7 @@ Navigate to **Streamlit Page 6: Knowledge Graph**
 
 #### Show Governance Scores Tab
 
-> "RAI scores every object on four dimensions: tag coverage, data contracts, ownership, and quality monitoring. Red means under-governed. The graph detected that our intentional governance gaps score below 0.4."
+> "The graph scores every object on four dimensions: tag coverage, data contracts, ownership, and quality monitoring. Red means under-governed. The graph detected that our intentional governance gaps score below 0.4."
 
 ```sql
 -- Show governance scores
@@ -254,9 +254,9 @@ ORDER BY s.overall_score ASC
 LIMIT 10;
 ```
 
-#### Show RAI Recommendations Tab
+#### Show Graph Recommendations Tab
 
-> "RAI found the four governance gaps we intentionally introduced: the conflicting revenue definition, unmasked PII, the orphaned churn model, and the raw layer bypass. These aren't just alerts — they're actionable recommendations with suggested fixes."
+> "The graph found the four governance gaps we intentionally introduced: the conflicting revenue definition, unmasked PII, the orphaned churn model, and the raw layer bypass. These aren't just alerts — they're actionable recommendations with suggested fixes."
 
 ```sql
 -- Show recommendations
@@ -284,7 +284,7 @@ ORDER BY severity;
 > 3. **Semantic Views** enable natural language analytics through Cortex
 > 4. **Horizon Governance** enforces security at the data layer
 > 5. **Data Marketplace** enables self-service data consumption
-> 6. **Knowledge Graph** detects governance gaps automatically using RAI inference on SPCS
+> 6. **Knowledge Graph** detects governance gaps automatically using graph inference on SPCS
 >
 > Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. All of this runs entirely in Snowflake — including the graph inference engine."
 

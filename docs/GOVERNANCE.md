@@ -115,7 +115,7 @@ ACCOUNTADMIN
             │   ├── MANAGER     ← Department access
             │   ├── AUDITOR     ← Compliance monitoring
             │   └── ONTOLOGY_CONSUMER ← Graph queries, scores
-            ├── ONTOLOGY_ADMIN  ← Graph management, RAI inference
+            ├── ONTOLOGY_ADMIN  ← Graph management, inference
             └── PII_VIEWER      ← Privileged PII access
 ```
 
@@ -229,17 +229,17 @@ All generated records include:
 - `_LOADED_AT`: Ingestion timestamp
 - `_IS_CURRENT`, `_VALID_FROM`, `_VALID_TO`: SCD Type 2 tracking
 
-## Graph-Based Governance Analysis (RAI)
+## Graph-Based Governance Analysis
 
-The DCA includes an **Ontology Knowledge Graph** powered by RelationalAI (RAI) on SPCS that provides automated governance gap detection and remediation recommendations.
+The DCA includes an **Ontology Knowledge Graph** powered by Neo4j on SPCS that provides automated governance gap detection and remediation recommendations.
 
 ### How It Works
 
-The knowledge graph ingests metadata from `INFORMATION_SCHEMA`, `TAG_REFERENCES`, and curated business entity tables, then applies RAI inference rules to detect governance issues that are invisible to point-in-time checks.
+The knowledge graph ingests metadata from `INFORMATION_SCHEMA`, `TAG_REFERENCES`, and curated business entity tables, then applies graph inference rules via Cypher and SQL to detect governance issues that are invisible to point-in-time checks.
 
 ### Detected Governance Gaps
 
-The RAI model detects the four intentional governance gaps introduced by `ontology/setup/04_governance_gaps.sql`:
+The inference engine detects the four intentional governance gaps introduced by `ontology/setup/04_governance_gaps.sql`:
 
 | Gap | Type | Detection Method |
 |-----|------|-----------------|
@@ -252,7 +252,7 @@ The RAI model detects the four intentional governance gaps introduced by `ontolo
 
 ```mermaid
 flowchart LR
-    DETECT["RAI Inference\ndetects gap"] --> REC["Recommendation\ncreated (OPEN)"]
+    DETECT["Graph Inference\ndetects gap"] --> REC["Recommendation\ncreated (OPEN)"]
     REC --> REVIEW["Data Steward\nreviews in Streamlit"]
     REVIEW -->|Approve| APPLY["SP_APPLY_RECOMMENDATIONS\napplies fix (tag/policy)"]
     REVIEW -->|Dismiss| CLOSE["Recommendation\nmarked DISMISSED"]
@@ -379,4 +379,4 @@ After `dbt build`, Snowflake Horizon tags and masking policies are applied to th
 - [Row Access Policies](https://docs.snowflake.com/en/user-guide/security-row-intro)
 - [GDPR Guide](https://gdpr.eu/)
 - [HIPAA Guide](https://www.hhs.gov/hipaa/)
-- [RelationalAI](https://relational.ai/docs/snowflake)
+

@@ -104,13 +104,14 @@ Options:
   --skip-hardening        Skip Phase 6 network hardening / BCDR
   --data-only             Run only Phases 1 + 3 (generate + load)
   --sql-only              Run only Phases 2 + 4 (foundation + extensions SQL)
-  --org ORG               Snowflake org name  (required for SPCS registry)
-  --account ACCOUNT       Snowflake account name (required for SPCS registry)
+  --org ORG               Snowflake org name  (auto-detected if not set)
+  --account ACCOUNT       Snowflake account name (auto-detected if not set)
   -h, --help              Show this help message
 
 Examples:
   ./deploy.sh --connection default
   ./deploy.sh --connection default --quick
+  ./deploy.sh --connection default --quick --skip-spcs
   ./deploy.sh --connection default --org MYORG --account MYACCT
   ./deploy.sh --connection default --data-only --quick
 EOF
@@ -212,7 +213,9 @@ run_sql_file() {
     fi
 
     echo -e "  ${CYAN}[SQL]${NC} Running: ${description}..."
-    if snow sql --connection "${CONNECTION}" --filename "${file_path}"; then
+    # Use _run_sql.py which handles SQL Scripting (BEGIN/END) correctly.
+    # The snow sql CLI naively splits on semicolons, breaking stored procedures.
+    if python3 "${TOOLS_DIR}/_run_sql.py" --connection "${CONNECTION}" --file "${file_path}"; then
         echo -e "  ${GREEN}[OK]${NC}  ${description} complete"
     else
         echo -e "  ${RED}[FAIL]${NC} ${description} — see error above"
@@ -263,11 +266,16 @@ phase_2_foundation_sql() {
 
     run_sql_file "${CORE_SQL_DIR}/01_setup.sql"                 "Account setup (roles, warehouses, databases)"
     run_sql_file "${CORE_SQL_DIR}/03_raw_layer.sql"             "RAW layer (stages, formats, procedures)"
+    run_sql_file "${SQL_DIR}/10_hcls_load_data.sql"             "HCLS schemas + load procedure"
     run_sql_file "${CORE_SQL_DIR}/05_curated_layer.sql"         "Curated layer (Dynamic Tables)"
     run_sql_file "${CORE_SQL_DIR}/07_governance.sql"            "Governance (masking, RLS, tags)"
-    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"             "Infrastructure (compute pool, image repo, roles)"
+
+    # Ontology graph infrastructure (no RAI dependency — uses Neo4j on SPCS)
+    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"             "SPCS infrastructure (compute pool, image repo, roles)"
     run_sql_file "${CORE_SQL_DIR}/12_ontology_graph_tables.sql" "Graph tables (nodes, edges, scores)"
     run_sql_file "${CORE_SQL_DIR}/13_ontology_graph_populate.sql" "Graph population procedures"
+    run_sql_file "${CORE_SQL_DIR}/14_rai_graph_sync.sql"        "Graph inference procedures (pure SQL)"
+    # Note: 15_ontology_sharing.sql runs in Phase 4 after graph data is populated
 
     echo ""
     echo -e "  ${GREEN}[OK]${NC} Foundation SQL complete"
@@ -317,6 +325,9 @@ phase_4_hcls_extensions() {
     snow sql --connection "${CONNECTION}" \
         -q "USE ROLE DATA_ADMIN; CALL DCA_DEMO.GOVERNANCE.SP_HCLS_MASTER_ORCHESTRATOR();"
     echo -e "  ${GREEN}[OK]${NC} Master orchestrator complete"
+
+    # Sharing configuration (runs after graph is populated)
+    run_sql_file "${CORE_SQL_DIR}/15_ontology_sharing.sql" "Ontology sharing configuration" || true
     echo ""
 }
 
@@ -384,7 +395,7 @@ phase_7_validation() {
 
     echo -e "  ${CYAN}[CHECK]${NC} Running validation queries..."
     snow sql --connection "${CONNECTION}" -q "
-USE ROLE ONTOLOGY_ADMIN;
+USE ROLE DATA_ADMIN;
 
 SELECT '=== NODE COUNTS ===' AS section;
 SELECT source_system, COUNT(*) AS nodes
@@ -397,10 +408,10 @@ SELECT edge_type, COUNT(*) AS edges
  GROUP BY 1 ORDER BY 2 DESC LIMIT 10;
 
 SELECT '=== ANALYTICS TABLES ===' AS section;
-SELECT 'HCLS_CORRELATION_RESULTS' AS tbl, COUNT(*) AS rows FROM DCA_DEMO.GOVERNANCE.HCLS_CORRELATION_RESULTS
-UNION ALL SELECT 'HCLS_PAYER_METRICS',        COUNT(*) FROM DCA_DEMO.GOVERNANCE.HCLS_PAYER_METRICS
-UNION ALL SELECT 'HCLS_PATIENT_COMORBIDITY',   COUNT(*) FROM DCA_DEMO.GOVERNANCE.HCLS_PATIENT_COMORBIDITY
-UNION ALL SELECT 'HCLS_STAFFING_CONTEXT',      COUNT(*) FROM DCA_DEMO.GOVERNANCE.HCLS_STAFFING_CONTEXT;
+SELECT 'HCLS_CORRELATION_RESULTS' AS tbl, COUNT(*) AS rows FROM SEM_DEV.HCLS_ANALYTICS.HCLS_CORRELATION_RESULTS
+UNION ALL SELECT 'HCLS_PAYER_METRICS',        COUNT(*) FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PAYER_METRICS
+UNION ALL SELECT 'HCLS_PATIENT_COMORBIDITY',   COUNT(*) FROM SEM_DEV.HCLS_ANALYTICS.HCLS_PATIENT_COMORBIDITY
+UNION ALL SELECT 'HCLS_STAFFING_CONTEXT',      COUNT(*) FROM SEM_DEV.HCLS_ANALYTICS.HCLS_STAFFING_CONTEXT;
 "
 
     echo ""
@@ -450,6 +461,25 @@ main() {
     parse_args "$@"
     print_banner
     check_prerequisites
+
+    # Auto-detect ORG and ACCOUNT from Snowflake if not provided (needed for SPCS)
+    if [ "${SKIP_SPCS}" = "false" ] && [ "${SQL_ONLY}" = "false" ] && [ "${DATA_ONLY}" = "false" ]; then
+        if [ -z "${ORG}" ] || [ -z "${ACCOUNT}" ]; then
+            echo -e "  ${CYAN}[AUTO]${NC} Detecting ORG/ACCOUNT from Snowflake..."
+            if [ -z "${ORG}" ]; then
+                ORG=$(snow sql --connection "${CONNECTION}" -q "SELECT CURRENT_ORGANIZATION_NAME()" --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['CURRENT_ORGANIZATION_NAME()'])" 2>/dev/null || true)
+            fi
+            if [ -z "${ACCOUNT}" ]; then
+                ACCOUNT=$(snow sql --connection "${CONNECTION}" -q "SELECT CURRENT_ACCOUNT()" --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['CURRENT_ACCOUNT()'])" 2>/dev/null || true)
+            fi
+            if [ -n "${ORG}" ] && [ -n "${ACCOUNT}" ]; then
+                echo -e "  ${GREEN}[OK]${NC}  ORG=${ORG}  ACCOUNT=${ACCOUNT}"
+            else
+                echo -e "  ${YELLOW}[WARN]${NC} Could not auto-detect ORG/ACCOUNT — SPCS phase will require --org/--account"
+            fi
+            echo ""
+        fi
+    fi
 
     START_TIME=$(date +%s)
 
