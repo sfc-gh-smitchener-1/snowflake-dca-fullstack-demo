@@ -90,7 +90,9 @@ Present the three scoring models:
 
 ### Architecture Diagram (15 min)
 
-Whiteboard: Sources → Knowledge Graph → RAI Engine → Outputs (Scores, Rings, Traversals, Reports)
+Whiteboard: Sources → Knowledge Graph (Nodes + Edges in Snowflake) → **Two query engines** (Snowflake-native recursive CTEs, default; Neo4j sidecar on SPCS, optional) → Outputs (Scores, Rings, Traversals, Reports).
+
+> "The graph of record lives in two Snowflake tables. Two engines read from it. Snowflake-native handles fraud-ring detection, AML scoring, corridor and agent scoring — all in pure SQL with no sidecar to operate. The Neo4j sidecar steps in for the deep traversal cases — beneficial-ownership chains four or more hops to a sanctioned ultimate beneficial owner, and sub-100 ms shortest-path queries on the payment authorization path. You pick per request with a query parameter. Most customers run Snowflake-native in production and add Neo4j once they hit the deep-traversal use case."
 
 ---
 
@@ -121,7 +123,16 @@ WHERE r.recommendation_type = 'SANCTIONS_MATCH'
 ORDER BY r.severity;
 ```
 
-> "Real-time. No batch. The graph finds indirect connections that name-matching never would."
+```bash
+# Real-time path query at payment authorization time — pick the engine per request
+curl "https://<spcs-endpoint>/edges/path/{customer_id}/{watchlist_id}?backend=snowflake"
+curl "https://<spcs-endpoint>/edges/path/{customer_id}/{watchlist_id}?backend=neo4j"
+
+# Compare both engines side-by-side (same answer, different timing)
+curl "https://<spcs-endpoint>/inference/compare?endpoint=path&from={customer_id}&to={watchlist_id}"
+```
+
+> "Real-time. No batch. The graph finds indirect connections that name-matching never would. Two engines answer the same question — Snowflake-native handles 1-3 hops in tens of milliseconds without leaving the warehouse; the Neo4j sidecar handles deeper beneficial-ownership chains in sub-100 ms. The `compare` endpoint lets you prove they agree, then pick the right one for each integration point."
 
 ### Demo 3: AML Risk Scores (10 min)
 
@@ -198,6 +209,8 @@ Leave with: Named pilot, named owner, success criteria, 30-day milestone.
 | "Regulators haven't approved graph-based AML" | "FinCEN's 2024 AML/CFT Priorities explicitly encourage innovative approaches. Multiple tier-1 banks have deployed graph analytics with examiner approval. The key is proving the graph catches MORE." |
 | "We have 500K agents — this can't scale" | "The graph scores all agents continuously. That's the point — replacing the 2-year audit cycle with real-time scoring. The graph scales linearly with node count." |
 | "Our data isn't ready" | "The demo maps to standard transaction data you already have. Customer, beneficiary, amount, corridor, agent — that's your core banking output." |
+| "Why not just use a dedicated graph database?" | "We do — optionally. The platform ships a Neo4j sidecar for deep traversal and GDS algorithms when you need them. But for fraud-ring detection, AML scoring, and corridor/agent scoring, Snowflake-native recursive CTEs are plenty fast and have zero extra operational cost. Most workloads stay on Snowflake-native; Neo4j is reserved for the deep multi-hop sanctions and beneficial-ownership cases. Pick per request with `?backend=`." |
+| "Won't running both add operational burden?" | "One container, one secret, one health check. The application code is identical because both engines implement the same `GraphBackend` interface — switching backends is a query parameter, not a code change. See `docs/GRAPH_BACKENDS.md`." |
 
 ### Key Transitions
 

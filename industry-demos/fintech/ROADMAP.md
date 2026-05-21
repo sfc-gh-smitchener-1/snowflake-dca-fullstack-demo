@@ -31,8 +31,10 @@ flowchart LR
 | Task | Detail | Owner | Status |
 |------|--------|-------|--------|
 | Deploy scripts 11-15 | Base ontology infrastructure | Data Engineering | ☐ |
+| Deploy script 16 | On-demand graph algorithms (`sql/16_graph_algorithms.sql`) — Snowflake-native shortest path, centrality, neighborhood, PII propagation | Data Engineering | ☐ |
 | Run SP_REFRESH_GRAPH() | Populate metadata + business nodes | Data Engineering | ☐ |
-| Deploy fintech extensions | Run 01_fintech_graph_populate.sql | Data Engineering | ☐ |
+| Deploy fintech extensions | Run `01_fintech_graph_populate.sql` (nodes/edges) and `03_fintech_rai_inference.sql` (Snowflake-native fraud rings + AML scoring) | Data Engineering | ☐ |
+| Decide graph-backend posture | Default = Snowflake-native only; add Neo4j sidecar later if deep-traversal use cases emerge. See `docs/GRAPH_BACKENDS.md` | Architecture + Compliance | ☐ |
 | Validate graph structure | Verify node/edge counts match expected | Data Engineering + Compliance | ☐ |
 
 #### 1.2 Transaction Data Ingestion
@@ -73,8 +75,10 @@ flowchart LR
 | Task | Detail | Owner | Status |
 |------|--------|-------|--------|
 | Implement OFAC feed integration | Daily WATCHLIST_ENTITY node refresh | Compliance Ops | ☐ |
-| Deploy graph traversal API | SPCS endpoint: /edges/path/{customer}/{watchlist} | Data Engineering | ☐ |
-| Integrate with payment router | Pre-transaction sanctions check via API | Payment Ops | ☐ |
+| Deploy SPCS graph service | `tools/deploy_spcs.sh --backend snowflake` for the lighter footprint, or default (`both`) if the Neo4j sidecar is needed | Data Engineering | ☐ |
+| Deploy graph traversal API | SPCS endpoint: `/edges/path/{customer}/{watchlist}?backend=snowflake|neo4j|both` | Data Engineering | ☐ |
+| Benchmark backend latency | Run `/inference/compare?endpoint=path` on representative sanctions queries; record p50/p95 for both engines | Data Engineering + Compliance | ☐ |
+| Integrate with payment router | Pre-transaction sanctions check via API; pin to Snowflake-native for typical 1-3 hop calls, Neo4j for deep beneficial-ownership chains | Payment Ops | ☐ |
 | Validate against current screening results | Ensure no false negatives vs. batch system | Compliance | ☐ |
 
 #### 2.2 Corridor and Agent Scoring
@@ -126,7 +130,8 @@ flowchart LR
 | Retire batch sanctions screening | Graph traversal replaces overnight batch | Compliance Ops | ☐ |
 | Redirect AML alerts to graph scores | Prioritized list replaces rule-based alerts | FIU | ☐ |
 | Agent compliance continuous monitoring | Replace 2-year audit cycle with continuous scoring | Agent Compliance | ☐ |
-| Production SLA monitoring | Graph refresh frequency, API latency, score freshness | Platform | ☐ |
+| Finalize backend posture per workload | Document which routes pin to `?backend=snowflake` (governance scoring, AML scoring, corridor/agent scoring) vs `?backend=neo4j` (deep beneficial-ownership traversal) | Architecture | ☐ |
+| Production SLA monitoring | Graph refresh frequency, per-backend API latency (p50/p95/p99), score freshness, `/inference/compare` parity check | Platform | ☐ |
 
 #### 3.3 Cross-Border Intelligence
 
@@ -180,4 +185,5 @@ flowchart LR
 - [Architecture Strategy](ARCHITECTURE_STRATEGY.md)
 - [Workshop Facilitation Guide](WORKSHOP_GUIDE.md)
 - [Knowledge Graph Documentation](../../docs/KNOWLEDGE_GRAPH.md)
+- [Graph Backends — Snowflake-native vs Neo4j](../../docs/GRAPH_BACKENDS.md)
 - [Governance Framework](../../docs/GOVERNANCE.md)

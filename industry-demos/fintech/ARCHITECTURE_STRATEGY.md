@@ -41,11 +41,15 @@ flowchart TB
         DIGITAL["Digital Channels"]
         WATCHLISTS["OFAC/SDN/PEP Lists"]
     end
-    subgraph GRAPH["KNOWLEDGE GRAPH (Real-Time)"]
+    subgraph GRAPH["KNOWLEDGE GRAPH (Real-Time, Graph of Record in Snowflake)"]
         NODES["CUSTOMER | BENEFICIARY | AGENT\nTRANSACTION | CORRIDOR | WATCHLIST"]
         EDGES["SENDS_TO | SHARES_ADDRESS |\nSHARES_BENEFICIARY | MATCHED_WATCHLIST |\nOPERATES_IN | ROUTED_THROUGH"]
     end
-    subgraph RAI["RAI INFERENCE ENGINE"]
+    subgraph ENGINES["GRAPH ENGINES (Dispatch via ?backend=)"]
+        SF_ENG["Snowflake-native\n(recursive CTEs, default)"]
+        NEO_ENG["Neo4j Sidecar on SPCS\n(Cypher + GDS, optional)"]
+    end
+    subgraph INF["GRAPH INFERENCE WORKLOADS"]
         FRAUD_RING["Fraud Ring Detection\n(Connected Components)"]
         AML_SCORE["AML Risk Scoring\n(Network Position)"]
         SANC_TRAV["Sanctions Traversal\n(1-3 hop graph query)"]
@@ -58,16 +62,18 @@ flowchart TB
         SCORES["Continuous Compliance Scores"]
         REPORT["Regulatory Reports"]
     end
-    SOURCES --> GRAPH --> RAI --> OUTPUT
+    SOURCES --> GRAPH --> ENGINES --> INF --> OUTPUT
 ```
+
+Both engines read from the same `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` tables. The default Snowflake-native engine handles fraud-ring detection, AML scoring, corridor scoring, and agent scoring; the optional Neo4j sidecar accelerates the deep-traversal cases — beneficial-ownership chains (4+ hops to a sanctioned UBO) and sub-100 ms `/edges/path/{customer}/{watchlist}` calls in the payment authorization path. See [docs/GRAPH_BACKENDS.md](../../docs/GRAPH_BACKENDS.md) for the trade-off and decision matrix.
 
 ### Stage 3: Federated Financial Intelligence Network
 
 ```mermaid
 flowchart TB
     subgraph INTERNAL["INTERNAL INTELLIGENCE"]
-        GRAPH["Knowledge Graph"]
-        RAI["RAI Engine"]
+        GRAPH["Knowledge Graph (Nodes + Edges in Snowflake)"]
+        ENG["Graph Engines\nSnowflake-native (default) + Neo4j (optional)"]
     end
     subgraph EXTERNAL["EXTERNAL INTELLIGENCE"]
         OFAC["OFAC/SDN Updates\n(Real-time ingestion)"]
@@ -145,3 +151,4 @@ flowchart TB
 - [OFAC Sanctions Programs](https://ofac.treasury.gov/sanctions-programs-and-country-information)
 - [FATF Recommendations](https://www.fatf-gafi.org/recommendations.html)
 - [DCA Knowledge Graph Documentation](../../docs/KNOWLEDGE_GRAPH.md)
+- [Graph Backends — Snowflake-native vs Neo4j](../../docs/GRAPH_BACKENDS.md)
