@@ -28,10 +28,14 @@ graph LR
         PAYER["Payer/Claims"]
     end
 
-    subgraph "Snowflake Data Cloud"
+    subgraph SF["Snowflake Data Cloud"]
         RAW["RAW Layer"]
         CUR["CURATED Layer"]
-        KG["Ontology Knowledge Graph<br/>Snowflake-native (recursive CTEs)<br/>+ optional Neo4j sidecar on SPCS"]
+        subgraph KG["Ontology Knowledge Graph"]
+            NODES["ONTOLOGY_GRAPH_NODES<br/>ONTOLOGY_GRAPH_EDGES<br/>(graph of record)"]
+            SF_ENG["<b>Snowflake-native engine</b><br/>recursive CTEs<br/>default · no sidecar"]
+            NEO_ENG["<b>Neo4j sidecar on SPCS</b><br/>Cypher + GDS<br/>optional · deep traversal"]
+        end
         ANA["Analytics Tables"]
         SIS["Streamlit"]
     end
@@ -40,9 +44,17 @@ graph LR
     WD --> RAW
     PAYER --> RAW
     RAW --> CUR
-    CUR --> KG
-    KG --> ANA
+    CUR --> NODES
+    NODES --> SF_ENG
+    NODES --> NEO_ENG
+    SF_ENG --> ANA
+    NEO_ENG --> ANA
     ANA --> SIS
+
+    classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
+    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
+    class SF_ENG snowflake
+    class NEO_ENG graphdb
 ```
 
 ## Data Model

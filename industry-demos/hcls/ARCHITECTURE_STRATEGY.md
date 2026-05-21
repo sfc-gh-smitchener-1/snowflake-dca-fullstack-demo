@@ -45,27 +45,41 @@ flowchart TB
         subgraph DATA["DATA LAYERS"]
             RAW["RAW"] --> CURATED["CURATED"] --> SEMANTIC["SEMANTIC"]
         end
-        subgraph GRAPH["ONTOLOGY KNOWLEDGE GRAPH"]
-            NODES["Clinical + Metadata Nodes"]
-            EDGES["Lineage + Governance Edges"]
-            SF_ENG["Snowflake-native Engine<br/>(recursive CTEs, default)"]
-            NEO_ENG["Neo4j Sidecar<br/>(Cypher, optional)"]
+        subgraph GRAPH["ONTOLOGY KNOWLEDGE GRAPH — Graph of Record in Snowflake"]
+            NODES["ONTOLOGY_GRAPH_NODES<br/>(Clinical + Metadata)"]
+            EDGES["ONTOLOGY_GRAPH_EDGES<br/>(Lineage + Governance)"]
+        end
+        subgraph ENGINES["GRAPH ENGINES — dispatch via ?backend="]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs + label propagation<br/>default · no sidecar · always live"]
+            NEO_ENG["<b>Neo4j sidecar on SPCS</b><br/>Cypher + Graph Data Science<br/>optional · deep traversal · GDS algorithms"]
         end
         subgraph OUTPUTS["AUTOMATED OUTPUTS"]
             RECS["PHI Recommendations"]
             SCORES["HIPAA Scores (0-1)"]
             CLUSTERS["Entity Clusters"]
             PATHWAYS["Care Pathways"]
-        end2
+        end
         subgraph VIZ["CONSUMPTION"]
-            STREAMLIT["Streamlit\nCompliance Dashboard"]
-            API["SPCS API\nClinical Apps"]
+            STREAMLIT["Streamlit<br/>Compliance Dashboard"]
+            API["SPCS API<br/>Clinical Apps"]
+            COMPARE["/inference/compare<br/>side-by-side timings"]
         end
     end
     SOURCES --> RAW
-    DATA --> GRAPH
-    GRAPH --> OUTPUTS
+    DATA --> NODES
+    DATA --> EDGES
+    NODES --> SF_ENG
+    EDGES --> SF_ENG
+    NODES --> NEO_ENG
+    EDGES --> NEO_ENG
+    SF_ENG --> OUTPUTS
+    NEO_ENG --> OUTPUTS
     OUTPUTS --> VIZ
+
+    classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
+    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
+    class SF_ENG snowflake
+    class NEO_ENG graphdb
 ```
 
 ### Stage 3: Federated HCLS Platform (Research + External Sharing)
@@ -73,29 +87,42 @@ flowchart TB
 ```mermaid
 flowchart TB
     subgraph GOVERNED["KNOWLEDGE GRAPH-GOVERNED PLATFORM"]
-        CLINICAL["Clinical Data\n(PHI classified, scored)"]
-        GRAPH["Knowledge Graph\n(Continuous inference)"]
+        CLINICAL["Clinical Data<br/>(PHI classified, scored)"]
+        subgraph KG["Knowledge Graph (Continuous inference)"]
+            NODES["Nodes + Edges<br/>(graph of record in Snowflake)"]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs · default"]
+            NEO_ENG["<b>Neo4j sidecar</b><br/>Cypher + GDS · optional"]
+        end
     end
     subgraph RESEARCH["RESEARCH ENABLEMENT"]
-        DEID["De-identified Datasets\n(Provenance tracked)"]
+        DEID["De-identified Datasets<br/>(Provenance tracked)"]
         IRB["IRB Approval Edges"]
-        ML["ML Training Sets\n(Governed)"]
+        ML["ML Training Sets<br/>(Governed)"]
     end
     subgraph EXTERNAL["EXTERNAL SHARING"]
-        SHARE["Snowflake Data Share\n(De-identified only)"]
-        PARTNERS["External Partners\n(BAA-covered)"]
+        SHARE["Snowflake Data Share<br/>(De-identified only)"]
+        PARTNERS["External Partners<br/>(BAA-covered)"]
     end
     subgraph APPS["CLINICAL APPLICATIONS"]
-        SPCS["SPCS Graph API"]
+        SPCS["SPCS Graph API<br/>?backend=snowflake|neo4j|both"]
         CDS["Clinical Decision Support"]
         POP["Population Health"]
     end
+    NODES --> SF_ENG
+    NODES --> NEO_ENG
+    SF_ENG -->|"DE_IDENTIFIED_FROM<br/>edges"| DEID
+    SF_ENG -->|"BAA_COVERS<br/>edges"| SHARE
+    NEO_ENG -->|"deep traversal<br/>(beneficial-ownership, pathways)"| SPCS
+    SF_ENG --> SPCS
     GOVERNED --> RESEARCH
     GOVERNED --> EXTERNAL
     GOVERNED --> APPS
-    GRAPH -->|"DE_IDENTIFIED_FROM\nedges"| DEID
-    GRAPH -->|"BAA_COVERS\nedges"| SHARE
     SHARE --> PARTNERS
+
+    classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
+    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
+    class SF_ENG snowflake
+    class NEO_ENG graphdb
 ```
 
 ## HIPAA Compliance Mapping

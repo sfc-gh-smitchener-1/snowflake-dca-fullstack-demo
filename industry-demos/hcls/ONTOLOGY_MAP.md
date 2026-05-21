@@ -26,9 +26,14 @@ flowchart TB
         end
 
         subgraph GOVERNANCE["GOVERNANCE — KNOWLEDGE GRAPH"]
-            NODES["ONTOLOGY_GRAPH_NODES\nAll entity types"]
-            EDGES["ONTOLOGY_GRAPH_EDGES\nAll relationship types"]
-            ANALYTICS["Analytical Tables\nCCI, Correlation, Metrics"]
+            NODES["ONTOLOGY_GRAPH_NODES<br/>All entity types"]
+            EDGES["ONTOLOGY_GRAPH_EDGES<br/>All relationship types"]
+            ANALYTICS["Analytical Tables<br/>CCI, Correlation, Metrics"]
+        end
+
+        subgraph ENGINES["GRAPH ENGINES — dispatch via ?backend="]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs · default<br/>no sidecar · always live"]
+            NEO_ENG["<b>Neo4j sidecar on SPCS</b><br/>Cypher + GDS · optional<br/>deep traversal"]
         end
 
         subgraph CONSUMPTION["ANALYTICS & CONSUMPTION"]
@@ -41,10 +46,27 @@ flowchart TB
     EPIC --> R1 --> C1
     WORKDAY --> R2 --> C2
     PAYER --> R3 --> C3
-    C1 --> GOVERNANCE
-    C2 --> GOVERNANCE
-    C3 --> GOVERNANCE
-    GOVERNANCE --> CONSUMPTION
+    C1 --> NODES
+    C2 --> NODES
+    C3 --> NODES
+    C1 --> EDGES
+    C2 --> EDGES
+    C3 --> EDGES
+    NODES --> SF_ENG
+    EDGES --> SF_ENG
+    NODES --> NEO_ENG
+    EDGES --> NEO_ENG
+    SF_ENG --> ANALYTICS
+    NEO_ENG --> ANALYTICS
+    SF_ENG --> SPCS
+    NEO_ENG --> SPCS
+    ANALYTICS --> STREAMLIT
+    ANALYTICS --> REPORTS
+
+    classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
+    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
+    class SF_ENG snowflake
+    class NEO_ENG graphdb
 ```
 
 ## 2. Node Type Catalog (Complete)
