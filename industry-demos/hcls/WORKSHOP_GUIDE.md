@@ -135,33 +135,33 @@ For each lane, capture on the whiteboard:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         METADATA LAYER                                       │
-│  ┌──────────┐    HAS_COLUMN    ┌──────────┐    TAGGED_WITH    ┌──────────┐ │
-│  │  TABLE   │────────────────→ │  COLUMN  │────────────────→  │   TAG    │ │
-│  │DIM_PATIENT│                  │BIRTH_DATE│                   │HIPAA_PHI │ │
-│  └──────────┘                  └──────────┘                   └──────────┘ │
+│                         METADATA LAYER                                      │
+│  ┌──────────┐    HAS_COLUMN    ┌──────────┐    TAGGED_WITH    ┌──────────┐  │
+│  │  TABLE   │────────────────→ │  COLUMN  │────────────────→  │   TAG    │  │
+│  │DIM_PATIEN│                  │BIRTH_DATE│                   │HIPAA_PHI │  │
+│  └──────────┘                  └──────────┘                   └──────────┘  │
 │       ↑                                                                     │
-│       │ STORED_IN (cross-layer)                                            │
+│       │ STORED_IN (cross-layer)                                             │
 │       │                                                                     │
 ├───────┼─────────────────────────────────────────────────────────────────────┤
-│       │                    BUSINESS LAYER                                    │
-│  ┌──────────┐  HAS_ENCOUNTER  ┌──────────┐  RESULTED_IN  ┌──────────┐     │
-│  │ PATIENT  │────────────────→│ENCOUNTER │───────────────→│CONDITION │     │
-│  └──────────┘                 └──────────┘                └──────────┘     │
+│       │                    BUSINESS LAYER                                   │
+│  ┌──────────┐  HAS_ENCOUNTER  ┌──────────┐  RESULTED_IN  ┌──────────┐       │
+│  │ PATIENT  │────────────────→│ENCOUNTER │──────────────→│CONDITION │       │
+│  └──────────┘                 └──────────┘               └──────────┘       │
 │       │                            │                           │            │
-│       │ DIAGNOSED_WITH             │ PERFORMED_BY              │TREATMENT_ │
-│       │                            ↓                           │ PLAN      │
-│       │                      ┌──────────┐                     ↓            │
-│       └─────────────────────→│PRACTIONER│          ┌──────────────┐        │
-│                              └──────────┘          │  MEDICATION  │        │
-│                                    │               └──────────────┘        │
-│                                    │ PRESCRIBED           ↑                │
-│                                    └──────────────────────┘                │
+│       │ DIAGNOSED_WITH             │ PERFORMED_BY              │TREATMENT_  │
+│       │                            ↓                           │ PLAN       │
+│       │                      ┌──────────┐                     ↓             │
+│       └─────────────────────→│PRACTIONER│          ┌──────────────┐         │
+│                              └──────────┘          │  MEDICATION  │         │
+│                                    │               └──────────────┘         │
+│                                    │ PRESCRIBED           ↑                 │
+│                                    └──────────────────────┘                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                         CROSS LAYER                                          │
-│  PATIENT node ←── SAME_AS ──→ EMPLOYEE node (entity resolution)            │
-│  ENCOUNTER node ── STORED_IN ──→ FACT_ENCOUNTERS table node                │
-│  CONDITION node ── STORED_IN ──→ FACT_CONDITIONS table node                │
+│                         CROSS LAYER                                         │
+│  PATIENT node ←── SAME_AS ──→ EMPLOYEE node (entity resolution)             │
+│  ENCOUNTER node ── STORED_IN ──→ FACT_ENCOUNTERS table node                 │
+│  CONDITION node ── STORED_IN ──→ FACT_CONDITIONS table node                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -198,13 +198,15 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 │ EHR │──────────→ │ RAW │──────────→ │CURATED  │────────→│ GRAPH NODES   │──────→│Streamlit │
 │(FHIR)│           │FHIR │            │  FHIR   │         │ GRAPH EDGES   │       │Dashboard │
 └─────┘            └─────┘            └─────────┘         ├───────────────┤       ├──────────┤
-┌─────┐            ┌─────┐            ┌─────────┐         │ NEO4J ENGINE  │       │Compliance│
-│Claims│──────────→│ RAW │──────────→ │CURATED  │────────→│  - PHI Detect │──────→│  Reports │
-│     │            │CLAIMS│           │ CLAIMS  │         │  - Resolution │       ├──────────┤
-└─────┘            └─────┘            └─────────┘         │  - Pathways   │       │ SPCS API │
-┌─────┐            ┌─────┐            ┌─────────┐         │  - Scoring    │──────→│ Clinical │
-│ HR  │──────────→ │ RAW │──────────→ │CURATED  │────────→│               │       │  Apps    │
-│(WDay)│           │WKDAY│            │ WORKDAY │         └───────────────┘       └──────────┘
+┌─────┐            ┌─────┐            ┌─────────┐         │ DUAL ENGINE:  │       │Compliance│
+│Claims│──────────→│ RAW │──────────→ │CURATED  │────────→│  Snowflake-   │──────→│  Reports │
+│     │            │CLAIMS│           │ CLAIMS  │         │  native (def.)│       ├──────────┤
+└─────┘            └─────┘            └─────────┘         │  + Neo4j      │       │ SPCS API │
+┌─────┐            ┌─────┐            ┌─────────┐         │  (optional)   │──────→│ Clinical │
+│ HR  │──────────→ │ RAW │──────────→ │CURATED  │────────→│  PHI / Match  │       │  Apps    │
+│(WDay)│           │WKDAY│            │ WORKDAY │         │  Pathways     │       │          │
+└─────┘            └─────┘            └─────────┘         │  Scoring      │       └──────────┘
+                                                          └───────────────┘
 └─────┘            └─────┘            └─────────┘                │
                                                                   ↓
                                                          ┌───────────────┐
@@ -221,6 +223,7 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 2. Inference runs as stored procedures — scheduled or on-demand
 3. Scores and recommendations are queryable tables — consumable by any BI tool
 4. Entity clusters enable cross-system patient matching without an MPI appliance
+5. **Dual query backends behind one API**: Snowflake-native (recursive CTEs, no sidecar, always live against the source tables — handles governance scoring, PHI propagation, entity resolution) plus an optional Neo4j sidecar on SPCS (Cypher + GDS algorithms — reach for it for sub-100ms multi-hop pathway traversal or visual exploration). Pick per request with `?backend=snowflake|neo4j|both`. See `docs/GRAPH_BACKENDS.md` for the decision matrix.
 
 ---
 
@@ -461,10 +464,10 @@ Ask the room:
 
 ```
 ┌──────────────────┐    INFLUENCED_BY    ┌──────────────────┐
-│  STAFFING_CONTEXT │──────────────────→  │  PATIENT_OUTCOME │
-│  Nurse Ratio: 1:6 │   r=0.68           │  Readmission: Y  │
-│  Unit: ICU         │                    │  30-day return    │
-│  Overtime: 18%     │                    │                   │
+│  STAFFING_CONTEXT│──────────────────→  │  PATIENT_OUTCOME │
+│  Nurse Ratio: 1:6│   r=0.68            │  Readmission: Y  │
+│  Unit: ICU       │                     │  30-day return   │
+│  Overtime: 18%   │                     │                  │
 └──────────────────┘                     └──────────────────┘
 ```
 

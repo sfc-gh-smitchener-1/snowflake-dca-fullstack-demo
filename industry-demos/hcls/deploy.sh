@@ -270,11 +270,15 @@ phase_2_foundation_sql() {
     run_sql_file "${CORE_SQL_DIR}/05_curated_layer.sql"         "Curated layer (Dynamic Tables)"
     run_sql_file "${CORE_SQL_DIR}/07_governance.sql"            "Governance (masking, RLS, tags)"
 
-    # Ontology graph infrastructure (no RAI dependency — uses Neo4j on SPCS)
-    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"             "SPCS infrastructure (compute pool, image repo, roles)"
-    run_sql_file "${CORE_SQL_DIR}/12_ontology_graph_tables.sql" "Graph tables (nodes, edges, scores)"
+    # Ontology graph infrastructure — dual-backend
+    #   * Snowflake-native (default): recursive CTEs on the nodes/edges tables, no sidecar
+    #   * Neo4j (optional): SPCS sidecar container, loaded when GRAPH_BACKEND=neo4j|both
+    # See docs/GRAPH_BACKENDS.md for the compare/contrast and when to choose which.
+    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"               "SPCS infrastructure (compute pool, image repo, roles)"
+    run_sql_file "${CORE_SQL_DIR}/12_ontology_graph_tables.sql"   "Graph tables (nodes, edges, scores)"
     run_sql_file "${CORE_SQL_DIR}/13_ontology_graph_populate.sql" "Graph population procedures"
-    run_sql_file "${CORE_SQL_DIR}/14_rai_graph_sync.sql"        "Graph inference procedures (pure SQL)"
+    run_sql_file "${CORE_SQL_DIR}/14_rai_graph_sync.sql"          "Graph inference procedures (pure SQL, batch)"
+    run_sql_file "${CORE_SQL_DIR}/16_graph_algorithms.sql"        "On-demand graph algorithms (views + SPs, Snowflake-native)"
     # Note: 15_ontology_sharing.sql runs in Phase 4 after graph data is populated
 
     echo ""

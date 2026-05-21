@@ -231,7 +231,7 @@ All generated records include:
 
 ## Graph-Based Governance Analysis
 
-The DCA includes an **Ontology Knowledge Graph** powered by Neo4j on SPCS that provides automated governance gap detection and remediation recommendations.
+The DCA includes an **Ontology Knowledge Graph** that provides automated governance gap detection and remediation recommendations. Queries run through either of two interchangeable backends — Snowflake-native (recursive CTEs, default, no sidecar) or Neo4j on SPCS (Cypher, optional, for deep traversal and GDS algorithms). See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md).
 
 ### How It Works
 

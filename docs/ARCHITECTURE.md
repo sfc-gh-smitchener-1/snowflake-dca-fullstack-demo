@@ -524,7 +524,7 @@ flowchart TB
     end
     subgraph GOVERNANCE["GOVERNANCE LAYER"]
         G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary, including contracts"]
-        KG["KNOWLEDGE GRAPH (Neo4j on SPCS)\nNode/Edge Model | Inference | Scoring | Recommendations"]
+        KG["KNOWLEDGE GRAPH (Dual-Backend)\nSnowflake-native (recursive CTEs, default) + optional Neo4j sidecar on SPCS\nNode/Edge Model | Inference | Scoring | Recommendations"]
     end
     subgraph CONSUMPTION["CONSUMPTION LAYER"]
         CORTEX["CORTEX ANALYST\nNatural Language"]
@@ -585,9 +585,16 @@ For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md]
 
 ---
 
-## Ontology Knowledge Graph (Neo4j on SPCS)
+## Ontology Knowledge Graph (Dual-Backend)
 
-The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis using Neo4j Community on Snowpark Container Services (SPCS).
+The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis through **two interchangeable backends behind a single API**:
+
+1. **Snowflake-native (default).** Recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES`. No sidecar, always live against the source tables, inherits Snowflake's governance / replication / sharing. Suited to governance scoring, PII propagation, ownership gaps, entity resolution, and traversal up to ~10 hops.
+2. **Neo4j (optional sidecar).** Cypher against a property-graph engine running as a container on Snowpark Container Services (SPCS). Sub-100ms shortest path at any depth and GDS-class algorithms (PageRank, Louvain, community detection). Reach for it when you need deep traversal, real-time visual exploration, or competing positioning against TigerGraph / Neptune.
+
+Both backends read from the same Snowflake tables (the graph of record always lives in Snowflake). Selection is per service deployment (`GRAPH_BACKEND=snowflake|neo4j|both`) and per request (`?backend=` query param). The `/inference/compare` endpoint runs the same query through every loaded backend and returns timings + results side-by-side.
+
+See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full compare/contrast and decision matrix.
 
 ### Purpose
 
@@ -636,9 +643,10 @@ flowchart TB
 
 ### Graph Inference
 
-The graph engine provides inference via two paths:
-- **Batch (SQL)**: `SP_RUN_INFERENCE()` stored procedure executes pure-SQL detection rules
-- **Real-time (Cypher)**: Neo4j sidecar serves graph traversal queries via the SPCS API
+The graph engine provides inference via three complementary paths:
+- **Batch (SQL)**: `SP_RUN_INFERENCE()` materializes PII propagation, ownership gaps, entity resolution, and governance scores into recommendation tables (`sql/14_rai_graph_sync.sql`)
+- **On-demand (SQL)**: Views and stored procedures in `sql/16_graph_algorithms.sql` expose shortest path, centrality, connected components, and k-hop neighborhood — callable from any Worksheet, no SPCS service required
+- **Real-time API (SPCS)**: FastAPI service dispatches every request to the Snowflake-native backend (always) and/or the Neo4j sidecar (when loaded), via `?backend=snowflake|neo4j|both`
 
 Inference capabilities:
 
@@ -649,11 +657,13 @@ Inference capabilities:
 
 ### SPCS Service Endpoint
 
-A FastAPI container + Neo4j Community sidecar running on `RAI_COMPUTE_POOL` exposes the graph as a REST API:
+A FastAPI container — optionally with a Neo4j Community sidecar — running on `RAI_COMPUTE_POOL` exposes the graph as a REST API. Every inference endpoint accepts `?backend=snowflake|neo4j|both`:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Service health check (Neo4j connection status) |
+| `/health` | GET | Service health + per-backend connection status |
+| `/inference/backends` | GET | List loaded backends and the default |
+| `/inference/compare?endpoint=...` | GET | Run the same query through every loaded backend; return timings + results |
 | `/nodes` | GET | List/filter nodes |
 | `/nodes/{id}/neighbors` | GET | Get connected nodes |
 | `/edges/path/{from}/{to}` | GET | Shortest path between nodes (Cypher) |

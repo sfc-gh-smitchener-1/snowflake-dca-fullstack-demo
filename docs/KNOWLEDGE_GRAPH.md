@@ -1,10 +1,23 @@
-# Ontology Knowledge Graph — Neo4j on SPCS
+# Ontology Knowledge Graph — Dual-Backend Architecture
 
-> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, powered by Neo4j Community on Snowpark Container Services.
+> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, queryable through either a Snowflake-native engine (recursive CTEs + window functions, default) or a Neo4j sidecar on Snowpark Container Services (Cypher / property-graph), or both.
 
 ## Overview
 
-The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/04-dca-ontological-synthesis.md](../ontology/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph with Neo4j Cypher-based inference for governance gap detection, entity resolution, and scoring.
+The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/04-dca-ontological-synthesis.md](../ontology/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph, with graph inference for governance gap detection, entity resolution, and scoring.
+
+The **graph of record always lives in Snowflake** — two tables, `ONTOLOGY_GRAPH_NODES` and `ONTOLOGY_GRAPH_EDGES`. Both query engines read from those tables. Neo4j syncs into its in-memory representation; the Snowflake-native engine queries the tables directly with recursive CTEs.
+
+### Two interchangeable backends, one API
+
+| Backend | Strengths | When to use |
+|---|---|---|
+| **Snowflake-native** (default) | Zero sidecar, always live, inherits Snowflake governance/replication/sharing, queries against the data of record | Governance scoring, PII propagation, ownership gaps, entity resolution, paths up to ~10 hops |
+| **Neo4j** (optional sidecar) | Sub-100ms shortest path at any depth, GDS-class algorithms (PageRank, Louvain), visual exploration via Neo4j Browser | Deep traversal (5+ hops), real-time exploration, competing against TigerGraph/Neptune |
+
+Select the backend with the `GRAPH_BACKEND` env var (`snowflake` | `neo4j` | `both`) and override per request via `?backend=`. The `/inference/compare` endpoint runs the same query through every loaded backend and returns timings + results side-by-side.
+
+**See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full compare/contrast and decision matrix.**
 
 ## Architecture
 
@@ -28,10 +41,10 @@ flowchart LR
         E[ONTOLOGY_GRAPH_EDGES]
     end
 
-    subgraph "Neo4j (SPCS Sidecar)"
-        LOAD[FastAPI loads]
-        NEO[Neo4j Cypher queries]
-        WB[Results writeback]
+    subgraph "Graph Query Engines"
+        SFE["Snowflake-native<br/>(recursive CTEs)"]
+        N4J["Neo4j Sidecar<br/>(Cypher) - optional"]
+        API[FastAPI dispatcher<br/>?backend=...]
     end
 
     subgraph "Output Tables"
@@ -50,10 +63,10 @@ flowchart LR
     CT --> SP3 & SP4
     SP1 & SP3 --> N
     SP2 & SP4 & SP5 --> E
-    N & E --> LOAD
-    LOAD --> NEO
-    NEO --> WB
-    WB --> SC & RC
+    N & E --> SFE
+    N & E --> N4J
+    SFE & N4J --> API
+    API --> SC & RC
     N & E --> SN
     SC & RC --> ST & API & SH
     N & E --> API & SH
@@ -72,9 +85,34 @@ flowchart LR
 @sql/11_rai_setup.sql              -- SPCS infrastructure, compute pool, image repo, roles
 @sql/12_ontology_graph_tables.sql  -- Node/edge/snapshot/output table DDL
 @sql/13_ontology_graph_populate.sql -- Graph population stored procedures
-@sql/14_rai_graph_sync.sql         -- Graph inference procedures (pure SQL)
+@sql/14_rai_graph_sync.sql         -- Batch graph inference (pure SQL stored procs)
 @sql/15_ontology_sharing.sql       -- Sharing configuration
+@sql/16_graph_algorithms.sql       -- On-demand graph algorithms (views + procs callable from any Worksheet)
 ```
+
+After `@sql/16_graph_algorithms.sql`, the Snowflake-native graph engine is fully usable from any Snowsight Worksheet — no SPCS service required:
+
+```sql
+-- Top hubs
+SELECT * FROM DCA_DEMO.GOVERNANCE.V_GRAPH_DEGREE_CENTRALITY ORDER BY centrality_rank LIMIT 20;
+
+-- Live PHI propagation findings
+SELECT * FROM DCA_DEMO.GOVERNANCE.V_GRAPH_PII_PROPAGATION;
+
+-- Live composite governance scores
+SELECT * FROM DCA_DEMO.GOVERNANCE.V_GRAPH_GOVERNANCE_SCORES ORDER BY overall_score ASC LIMIT 10;
+
+-- Shortest path between two nodes
+CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_SHORTEST_PATH('<from_node_id>', '<to_node_id>', 10);
+
+-- Weakly connected components
+CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_CONNECTED_COMPONENTS(15, 25);
+
+-- 3-hop neighborhood
+CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_NEIGHBORHOOD('<start_node_id>', 3);
+```
+
+The SPCS service is only required if you want the **Neo4j backend** (for deep traversal / GDS algorithms) or the **REST API surface** (for Streamlit / external apps).
 
 ### SPCS Service Deployment
 
@@ -131,9 +169,14 @@ docker push <repo_url>/ontology-graph-api:latest
 | WORKS_FOR | BUSINESS | EMPLOYEE → ORG | Employment relationship |
 | REPRESENTS | CROSS | BUSINESS_NODE → TABLE_NODE | Business entity stored in table |
 
-## Graph Inference (Neo4j + SQL)
+## Graph Inference (Dual-Backend)
 
-Inference is done via (a) Cypher queries in the SPCS FastAPI service for real-time graph traversal, and (b) pure SQL stored procedures for batch inference (PII propagation, ownership gaps, entity resolution, governance scoring).
+Inference runs through one or both query engines, chosen by `GRAPH_BACKEND`:
+
+- **Snowflake-native (default).** Recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `EDGES`. Materialized in `sql/14_rai_graph_sync.sql` (batch) and `sql/16_graph_algorithms.sql` (on-demand views/procs). Always live — reads source tables directly.
+- **Neo4j (optional sidecar).** Cypher queries against an in-memory property graph synced from Snowflake at startup. Strengths: deep traversal, GDS-class algorithms, sub-100ms shortest path.
+
+Both backends compute identical results for governance scoring, PII propagation, ownership gaps, and entity resolution. They diverge in performance on shortest-path queries (Neo4j wins at depth) and visual exploration (Neo4j Browser has no Snowflake equivalent). See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full comparison.
 
 ### Inference Rules
 
@@ -144,10 +187,16 @@ Inference is done via (a) Cypher queries in the SPCS FastAPI service for real-ti
 
 ### Graph Algorithms
 
-- **Transitive Closure** — Full lineage paths (not just direct edges)
-- **Connected Components** — Entity clusters across source systems
-- **PageRank** — Hub node identification (most-connected objects)
-- **Shortest Path** — Lineage tracing between any two nodes
+Available through both backends (Cypher / recursive CTE) and as Snowflake stored procedures in `sql/16_graph_algorithms.sql`:
+
+| Algorithm | Snowflake-native | Neo4j | Recommended use |
+|---|---|---|---|
+| **Shortest path** | `SP_GRAPH_SHORTEST_PATH(from, to, hops)` — recursive CTE, ≤10 hops | `shortestPath((a)-[*..15]-(b))` — any depth | Snowflake for governance lineage; Neo4j for 10+ hops |
+| **Degree centrality** | `V_GRAPH_DEGREE_CENTRALITY` — single query | `size([(n)-[]-()])` | Snowflake (one query, no sync) |
+| **Connected components** | `SP_GRAPH_CONNECTED_COMPONENTS()` — iterative reachability | GDS `wcc.stream` | Neo4j for >100k nodes |
+| **k-hop neighborhood** | `SP_GRAPH_NEIGHBORHOOD(start, k)` — recursive CTE | `MATCH (n)-[*..k]-(m)` | Neo4j for deeper, denser |
+| **PageRank / Louvain** | Not practical in pure SQL | GDS library | Neo4j (only) |
+| **Transitive closure** | Recursive CTE in any view | Cypher variable-depth | Either |
 
 ### Governance Scoring
 
@@ -179,29 +228,45 @@ Base URL: `https://<account>.snowflakecomputing.app/ontology-api/`
 
 ### Endpoints
 
+Every inference endpoint accepts `?backend=snowflake|neo4j|both` to override the default backend per request.
+
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| GET | `/health` | Service health | Public |
+| GET | `/health` | Service health + per-backend status | Public |
+| GET | `/inference/backends` | List loaded backends and the default | Public |
 | GET | `/nodes` | List nodes (query params: layer, node_type, source_system, limit, offset) | ONTOLOGY_CONSUMER |
 | GET | `/nodes/{id}` | Get single node | ONTOLOGY_CONSUMER |
 | GET | `/nodes/{id}/neighbors` | Connected nodes | ONTOLOGY_CONSUMER |
 | GET | `/edges` | List edges (query params: layer, edge_type, limit, offset) | ONTOLOGY_CONSUMER |
-| GET | `/edges/path/{from}/{to}` | Shortest path | ONTOLOGY_CONSUMER |
+| GET | `/edges/path/{from}/{to}?backend=` | Shortest path | ONTOLOGY_CONSUMER |
 | GET | `/governance-scores` | All scores (query param: min_score) | ONTOLOGY_CONSUMER |
 | GET | `/governance-scores/{id}` | Single node score | ONTOLOGY_CONSUMER |
-| POST | `/query` | Execute Cypher query | ONTOLOGY_ADMIN |
+| GET | `/inference/pii-propagation?backend=` | Live PII propagation findings | ONTOLOGY_CONSUMER |
+| GET | `/inference/ownership-gaps?backend=` | Tables without owner/contract/steward | ONTOLOGY_CONSUMER |
+| GET | `/inference/entity-resolution?threshold=&backend=` | Cross-system entity match | ONTOLOGY_CONSUMER |
+| GET | `/inference/centrality?top_n=&backend=` | Hub detection | ONTOLOGY_CONSUMER |
+| GET | `/inference/components?backend=` | Connected components | ONTOLOGY_CONSUMER |
+| GET | `/inference/governance-scores/compute?backend=` | Live composite scores | ONTOLOGY_CONSUMER |
+| GET | `/inference/compare?endpoint=...` | Run query through every backend; return timings + diff | ONTOLOGY_CONSUMER |
+| POST | `/inference/reload?backend=` | Re-sync graph (no-op for Snowflake backend) | ONTOLOGY_ADMIN |
 
 ### Example Requests
 
 ```bash
 # Get all poorly-governed tables
-curl "$BASE_URL/governance-scores?min_score=0&max_score=0.4"
+curl "$BASE_URL/governance-scores?min_score=0"
 
 # Get neighbors of a specific node
 curl "$BASE_URL/nodes/META_abc123/neighbors"
 
-# Find lineage path
+# Find shortest path — let the service pick the backend
 curl "$BASE_URL/edges/path/META_source_table/META_target_table"
+
+# Force the Snowflake-native backend
+curl "$BASE_URL/edges/path/META_source_table/META_target_table?backend=snowflake"
+
+# Side-by-side comparison: run PII propagation through every loaded backend
+curl "$BASE_URL/inference/compare?endpoint=pii-propagation"
 ```
 
 ## Sharing

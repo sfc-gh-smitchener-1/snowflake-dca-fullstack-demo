@@ -1,3 +1,20 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Default deployment — BOTH backends loaded.
+#
+# This spec runs the API container AND a Neo4j sidecar so that the demo can
+# showcase Cypher-powered graph traversal alongside Snowflake-native recursive
+# CTEs. The API selects backends via the GRAPH_BACKEND env var:
+#
+#   GRAPH_BACKEND=snowflake   Snowflake-native only (sidecar idle)
+#   GRAPH_BACKEND=neo4j       Neo4j only
+#   GRAPH_BACKEND=both        Both — every route accepts ?backend=...
+#
+# For a lighter / cheaper deployment without the Neo4j sidecar, use the
+# alternative spec at: service-spec.snowflake-only.yaml
+#
+# See docs/GRAPH_BACKENDS.md for the compare/contrast and decision matrix.
+# ────────────────────────────────────────────────────────────────────────────
+
 spec:
   containers:
     - name: ontology-graph-api
@@ -15,6 +32,8 @@ spec:
       env:
         SNOWFLAKE_ACCOUNT: "{{snowflake.account}}"
         SNOWFLAKE_HOST: "{{snowflake.host}}"
+        # GRAPH_BACKEND: snowflake | neo4j | both  (default: both — see above)
+        GRAPH_BACKEND: "both"
         NEO4J_URI: "bolt://localhost:7687"
         NEO4J_USER: "neo4j"
         NEO4J_PASSWORD: "ontology-graph"

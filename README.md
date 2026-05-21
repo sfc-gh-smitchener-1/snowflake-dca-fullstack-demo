@@ -91,7 +91,7 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 | **Snowflake Horizon** | Tag-based governance, masking, row-level security |
 | **Compliance Framework** | GDPR, HIPAA, FERPA, CCPA, SOC2, PCI-DSS patterns |
 | **Data Marketplace** | Secure data products for internal/external consumption |
-| **Ontology Knowledge Graph** | Neo4j-powered node/edge graph linking metadata and business entities with governance scoring via SPCS |
+| **Ontology Knowledge Graph** | Dual-backend node/edge graph linking metadata and business entities with governance scoring. Snowflake-native (recursive CTEs, default) and/or Neo4j sidecar on SPCS (Cypher, optional) |
 | **Streamlit in Snowflake** | Interactive demo with role-switching |
 
 ## Architecture Overview
@@ -376,7 +376,8 @@ graph TD
 - [DBT_VS_DYNAMIC_TABLES.md](docs/DBT_VS_DYNAMIC_TABLES.md) — dbt vs Dynamic Tables: comparison, decision framework, hybrid architecture
 - [DATA_GENERATION.md](docs/DATA_GENERATION.md) — Source system data generation (SAP, Salesforce, Oracle, FHIR, Workday, ServiceNow)
 - [GOVERNANCE.md](docs/GOVERNANCE.md) — Compliance framework details
-- [KNOWLEDGE_GRAPH.md](docs/KNOWLEDGE_GRAPH.md) — Ontology Knowledge Graph: Neo4j on SPCS, graph schema, API reference
+- [KNOWLEDGE_GRAPH.md](docs/KNOWLEDGE_GRAPH.md) — Ontology Knowledge Graph: dual-backend architecture, schema, API reference
+- [GRAPH_BACKENDS.md](docs/GRAPH_BACKENDS.md) — Snowflake-native vs Neo4j: compare/contrast and when-to-choose-which decision matrix
 - [DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) — 15-minute demo walkthrough
 - [SAMPLE_QUESTIONS.md](docs/SAMPLE_QUESTIONS.md) — Cortex Analyst examples
 

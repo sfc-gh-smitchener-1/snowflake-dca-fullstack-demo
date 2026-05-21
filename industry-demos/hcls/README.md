@@ -31,7 +31,7 @@ graph LR
     subgraph "Snowflake Data Cloud"
         RAW["RAW Layer"]
         CUR["CURATED Layer"]
-        KG["Ontology Knowledge Graph<br/>(Neo4j on SPCS)"]
+        KG["Ontology Knowledge Graph<br/>Snowflake-native (recursive CTEs)<br/>+ optional Neo4j sidecar on SPCS"]
         ANA["Analytics Tables"]
         SIS["Streamlit"]
     end

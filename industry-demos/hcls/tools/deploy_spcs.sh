@@ -16,7 +16,15 @@ set -euo pipefail
 #   ./deploy_spcs.sh --org SFSENORTHAMERICA --account OAB74379
 #   ./deploy_spcs.sh --org SFSENORTHAMERICA --account OAB74379 --rebuild
 #   ./deploy_spcs.sh --org SFSENORTHAMERICA --account OAB74379 --restart-only
+#   ./deploy_spcs.sh --org SFSENORTHAMERICA --account OAB74379 --backend snowflake
 #   ./deploy_spcs.sh --help
+#
+# Graph backend selection (--backend):
+#   both       (default) — FastAPI + Neo4j sidecar; dispatch per request via ?backend=
+#   snowflake             — FastAPI only, no Neo4j image pull/push; uses service-spec.snowflake-only.yaml
+#   neo4j                 — same image set as "both" but defaults requests to Neo4j
+#
+# See docs/GRAPH_BACKENDS.md for the compare/contrast and when to choose which.
 
 # ── Defaults ────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -29,6 +37,7 @@ CONNECTION=""
 TAG="latest"
 REBUILD=false
 RESTART_ONLY=false
+BACKEND="both"   # snowflake | neo4j | both
 
 IMAGE_NAME="ontology-graph-api"
 NEO4J_IMAGE="neo4j:5-community"
@@ -49,6 +58,11 @@ Options:
   --tag         Docker image tag          (default: latest)
   --rebuild     Force Docker build with --no-cache
   --restart-only  Skip build/push, just restart the SPCS service
+  --backend     Graph backend: snowflake | neo4j | both  (default: both)
+                  snowflake → Snowflake-native only (no Neo4j sidecar; lighter footprint)
+                  neo4j     → both engines deployed; default request routes to Neo4j
+                  both      → both engines deployed; default request routes to Snowflake
+                See docs/GRAPH_BACKENDS.md for the trade-off and decision matrix.
   --help        Show this help
 EOF
     exit 0
@@ -77,6 +91,7 @@ while [ $# -gt 0 ]; do
         --tag)         TAG="$2";        shift 2 ;;
         --rebuild)     REBUILD=true;    shift   ;;
         --restart-only) RESTART_ONLY=true; shift ;;
+        --backend)     BACKEND="$2";    shift 2 ;;
         --help|-h)     usage ;;
         *) echo "Unknown option: $1"; usage ;;
     esac
@@ -85,6 +100,19 @@ done
 if [ -z "${ORG}" ] || [ -z "${ACCOUNT}" ]; then
     echo "ERROR: --org and --account are required."
     usage
+fi
+
+case "${BACKEND}" in
+    snowflake|neo4j|both) ;;
+    *) echo "ERROR: --backend must be 'snowflake', 'neo4j', or 'both' (got '${BACKEND}')"; exit 1 ;;
+esac
+
+# Choose service spec file based on backend selection.
+# "snowflake" deploys without a Neo4j sidecar; the other two share the dual-backend spec.
+if [ "${BACKEND}" = "snowflake" ]; then
+    SERVICE_SPEC_FILE="service-spec.snowflake-only.yaml"
+else
+    SERVICE_SPEC_FILE="service-spec.yaml"
 fi
 
 # ── Derived variables ──────────────────────────────────────────────────
@@ -120,10 +148,17 @@ check_prerequisites() {
         exit 1
     fi
 
+    if [ ! -f "${SPCS_DIR}/${SERVICE_SPEC_FILE}" ]; then
+        fail "Service spec not found at ${SPCS_DIR}/${SERVICE_SPEC_FILE}"
+        exit 1
+    fi
+
     ok "All prerequisites met"
-    log "  Registry : ${REGISTRY}"
-    log "  Image    : ${FULL_IMAGE}"
-    log "  SPCS dir : ${SPCS_DIR}"
+    log "  Registry     : ${REGISTRY}"
+    log "  Image        : ${FULL_IMAGE}"
+    log "  SPCS dir     : ${SPCS_DIR}"
+    log "  Graph backend: ${BACKEND}"
+    log "  Service spec : ${SERVICE_SPEC_FILE}"
 }
 
 # ── Docker Build ───────────────────────────────────────────────────────
@@ -131,7 +166,6 @@ check_prerequisites() {
 docker_build() {
     log "=== BUILDING CONTAINER IMAGES ==="
 
-    # Build the FastAPI app image
     local build_args=(-t "${IMAGE_NAME}:${TAG}" "${SPCS_DIR}")
     if [ "${REBUILD}" = "true" ]; then
         log "  (forced rebuild, no cache)"
@@ -140,10 +174,13 @@ docker_build() {
     docker build "${build_args[@]}"
     ok "API image built: ${IMAGE_NAME}:${TAG}"
 
-    # Pull Neo4j Community image
-    log "  Pulling Neo4j Community..."
-    docker pull "${NEO4J_IMAGE}"
-    ok "Neo4j pulled: ${NEO4J_IMAGE}"
+    if [ "${BACKEND}" = "snowflake" ]; then
+        log "  Skipping Neo4j image (backend=snowflake only)"
+    else
+        log "  Pulling Neo4j Community..."
+        docker pull "${NEO4J_IMAGE}"
+        ok "Neo4j pulled: ${NEO4J_IMAGE}"
+    fi
 }
 
 # ── Docker Tag ─────────────────────────────────────────────────────────
@@ -152,8 +189,10 @@ docker_tag() {
     log "=== TAGGING FOR SNOWFLAKE REGISTRY ==="
     docker tag "${IMAGE_NAME}:${TAG}" "${FULL_IMAGE}"
     ok "Tagged: ${FULL_IMAGE}"
-    docker tag "${NEO4J_IMAGE}" "${FULL_NEO4J_IMAGE}"
-    ok "Tagged: ${FULL_NEO4J_IMAGE}"
+    if [ "${BACKEND}" != "snowflake" ]; then
+        docker tag "${NEO4J_IMAGE}" "${FULL_NEO4J_IMAGE}"
+        ok "Tagged: ${FULL_NEO4J_IMAGE}"
+    fi
 }
 
 # ── Docker Login ───────────────────────────────────────────────────────
@@ -187,17 +226,20 @@ docker_push() {
     log "=== PUSHING IMAGES TO SNOWFLAKE ==="
     docker push "${FULL_IMAGE}"
     ok "Pushed: ${FULL_IMAGE}"
-    docker push "${FULL_NEO4J_IMAGE}"
-    ok "Pushed: ${FULL_NEO4J_IMAGE}"
+    if [ "${BACKEND}" != "snowflake" ]; then
+        docker push "${FULL_NEO4J_IMAGE}"
+        ok "Pushed: ${FULL_NEO4J_IMAGE}"
+    fi
 }
 
 # ── Create / Restart SPCS Service ──────────────────────────────────────
 
 create_service() {
     log "=== CREATING / UPDATING SPCS SERVICE ==="
+    log "  Using spec: ${SERVICE_SPEC_FILE}  (backend=${BACKEND})"
 
     local spec
-    spec=$(cat "${SPCS_DIR}/service-spec.yaml")
+    spec=$(cat "${SPCS_DIR}/${SERVICE_SPEC_FILE}")
 
     snow_sql "
 USE ROLE ONTOLOGY_ADMIN;

@@ -3,7 +3,12 @@
 -- ============================================================================
 --
 -- Sets up the foundational infrastructure for the Ontology Knowledge Graph
--- module, which uses Neo4j on SPCS for graph-based governance analysis.
+-- module. The graph can be queried two ways (see docs/GRAPH_BACKENDS.md):
+--   1. Snowflake-native (default) — recursive CTEs, no SPCS required
+--   2. Neo4j sidecar on SPCS — for Cypher / GDS-class algorithms
+--
+-- This script provisions the SPCS infrastructure needed for backend #2.
+-- The Snowflake-native backend works without any of this.
 --
 -- Prerequisites:
 --   1. Scripts 01-10 have been executed successfully
@@ -25,13 +30,16 @@ USE ROLE ACCOUNTADMIN;
 USE DATABASE DCA_DEMO;
 USE WAREHOUSE COMPUTE_WH;
 
--- Compute pool for the Ontology Graph SPCS service (Neo4j + API containers)
--- Using CPU_X64_M for Neo4j memory requirements
+-- Compute pool for the Ontology Graph SPCS service.
+--
+-- CPU_X64_M sized to accommodate the Neo4j sidecar's heap + pagecache.
+-- If you deploy with service-spec.snowflake-only.yaml (no Neo4j sidecar),
+-- you can downsize this pool to CPU_X64_S to cut cost.
 CREATE COMPUTE POOL IF NOT EXISTS RAI_COMPUTE_POOL
     MIN_NODES = 1
     MAX_NODES = 1
     INSTANCE_FAMILY = CPU_X64_M
-    COMMENT = 'Compute pool for Ontology Knowledge Graph SPCS service (Neo4j + FastAPI)';
+    COMMENT = 'Compute pool for Ontology Knowledge Graph SPCS service (FastAPI + optional Neo4j sidecar)';
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- SECTION 2: IMAGE REPOSITORY

@@ -48,7 +48,8 @@ flowchart TB
         subgraph GRAPH["ONTOLOGY KNOWLEDGE GRAPH"]
             NODES["Clinical + Metadata Nodes"]
             EDGES["Lineage + Governance Edges"]
-            NEO4J["Neo4j Inference Engine"]
+            SF_ENG["Snowflake-native Engine<br/>(recursive CTEs, default)"]
+            NEO_ENG["Neo4j Sidecar<br/>(Cypher, optional)"]
         end
         subgraph OUTPUTS["AUTOMATED OUTPUTS"]
             RECS["PHI Recommendations"]
