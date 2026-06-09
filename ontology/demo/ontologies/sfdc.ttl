@@ -1,0 +1,197 @@
+# SALESFORCE source-system ontology (OWL/SHACL)
+# Generated from mappings/salesforce.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix sfdc: <http://example.com/ont/sfdc/> .
+
+<http://example.com/ont/sfdc/> a owl:Ontology ; rdfs:label "SALESFORCE source-system ontology" .
+
+# --- Classes ---
+sfdc:Account a owl:Class ;
+    rdfs:label "Account" ;
+    rdfs:subClassOf schema:Organization .
+sfdc:Contact a owl:Class ;
+    rdfs:label "Contact" ;
+    rdfs:subClassOf schema:Person .
+sfdc:Opportunity a owl:Class ;
+    rdfs:label "Opportunity" ;
+    rdfs:subClassOf schema:Thing .
+sfdc:Case a owl:Class ;
+    rdfs:label "Case" ;
+    rdfs:subClassOf schema:Thing .
+sfdc:Lead a owl:Class ;
+    rdfs:label "Lead" ;
+    rdfs:subClassOf schema:Organization .
+sfdc:Product a owl:Class ;
+    rdfs:label "Product" ;
+    rdfs:subClassOf schema:Thing .
+sfdc:Campaign a owl:Class ;
+    rdfs:label "Campaign" ;
+    rdfs:subClassOf schema:Organization .
+sfdc:Task a owl:Class ;
+    rdfs:label "Task" ;
+    rdfs:subClassOf schema:Thing .
+
+# --- Properties ---
+sfdc:industry a owl:DatatypeProperty ;
+    rdfs:label "industry" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:string .
+sfdc:accountType a owl:DatatypeProperty ;
+    rdfs:label "account Type" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:string .
+sfdc:rating a owl:DatatypeProperty ;
+    rdfs:label "rating" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:string .
+sfdc:annualRevenue a owl:DatatypeProperty ;
+    rdfs:label "annual Revenue" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:decimal .
+sfdc:numberOfEmployees a owl:DatatypeProperty ;
+    rdfs:label "number Of Employees" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:integer .
+sfdc:customerSegment a owl:DatatypeProperty ;
+    rdfs:label "customer Segment" ;
+    rdfs:domain sfdc:Account ;
+    rdfs:range xsd:string .
+sfdc:firstName a owl:DatatypeProperty ;
+    rdfs:label "first Name" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range xsd:string .
+sfdc:lastName a owl:DatatypeProperty ;
+    rdfs:label "last Name" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range xsd:string .
+sfdc:title a owl:DatatypeProperty ;
+    rdfs:label "title" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range xsd:string .
+sfdc:department a owl:DatatypeProperty ;
+    rdfs:label "department" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range xsd:string .
+sfdc:leadSource a owl:DatatypeProperty ;
+    rdfs:label "lead Source" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range xsd:string .
+sfdc:belongsToAccount a owl:ObjectProperty ;
+    rdfs:label "belongs To Account" ;
+    rdfs:domain sfdc:Contact ;
+    rdfs:range sfdc:Account .
+sfdc:amount a owl:DatatypeProperty ;
+    rdfs:label "amount" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:decimal .
+sfdc:stageName a owl:DatatypeProperty ;
+    rdfs:label "stage Name" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:string .
+sfdc:probability a owl:DatatypeProperty ;
+    rdfs:label "probability" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:integer .
+sfdc:closeDate a owl:DatatypeProperty ;
+    rdfs:label "close Date" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:string .
+sfdc:opportunityType a owl:DatatypeProperty ;
+    rdfs:label "opportunity Type" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:string .
+sfdc:forecastCategory a owl:DatatypeProperty ;
+    rdfs:label "forecast Category" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range xsd:string .
+sfdc:relatedAccount a owl:ObjectProperty ;
+    rdfs:label "related Account" ;
+    rdfs:domain sfdc:Opportunity ;
+    rdfs:range sfdc:Account .
+sfdc:caseNumber a owl:DatatypeProperty ;
+    rdfs:label "case Number" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range xsd:string .
+sfdc:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range xsd:string .
+sfdc:priority a owl:DatatypeProperty ;
+    rdfs:label "priority" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range xsd:string .
+sfdc:caseType a owl:DatatypeProperty ;
+    rdfs:label "case Type" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range xsd:string .
+sfdc:origin a owl:DatatypeProperty ;
+    rdfs:label "origin" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range xsd:string .
+sfdc:relatedContact a owl:ObjectProperty ;
+    rdfs:label "related Contact" ;
+    rdfs:domain sfdc:Case ;
+    rdfs:range sfdc:Contact .
+sfdc:productCode a owl:DatatypeProperty ;
+    rdfs:label "product Code" ;
+    rdfs:domain sfdc:Product ;
+    rdfs:range xsd:string .
+sfdc:family a owl:DatatypeProperty ;
+    rdfs:label "family" ;
+    rdfs:domain sfdc:Product ;
+    rdfs:range xsd:string .
+sfdc:sku a owl:DatatypeProperty ;
+    rdfs:label "sku" ;
+    rdfs:domain sfdc:Product ;
+    rdfs:range xsd:string .
+sfdc:unitOfMeasure a owl:DatatypeProperty ;
+    rdfs:label "unit Of Measure" ;
+    rdfs:domain sfdc:Product ;
+    rdfs:range xsd:string .
+sfdc:campaignType a owl:DatatypeProperty ;
+    rdfs:label "campaign Type" ;
+    rdfs:domain sfdc:Campaign ;
+    rdfs:range xsd:string .
+sfdc:budgetedCost a owl:DatatypeProperty ;
+    rdfs:label "budgeted Cost" ;
+    rdfs:domain sfdc:Campaign ;
+    rdfs:range xsd:decimal .
+sfdc:expectedRevenue a owl:DatatypeProperty ;
+    rdfs:label "expected Revenue" ;
+    rdfs:domain sfdc:Campaign ;
+    rdfs:range xsd:decimal .
+sfdc:activityDate a owl:DatatypeProperty ;
+    rdfs:label "activity Date" ;
+    rdfs:domain sfdc:Task ;
+    rdfs:range xsd:string .
+
+# --- SHACL shapes ---
+sfdc:AccountShape a sh:NodeShape ;
+    sh:targetClass sfdc:Account ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:ContactShape a sh:NodeShape ;
+    sh:targetClass sfdc:Contact .
+sfdc:OpportunityShape a sh:NodeShape ;
+    sh:targetClass sfdc:Opportunity ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:CaseShape a sh:NodeShape ;
+    sh:targetClass sfdc:Case ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:LeadShape a sh:NodeShape ;
+    sh:targetClass sfdc:Lead ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:ProductShape a sh:NodeShape ;
+    sh:targetClass sfdc:Product ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:CampaignShape a sh:NodeShape ;
+    sh:targetClass sfdc:Campaign ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sfdc:TaskShape a sh:NodeShape ;
+    sh:targetClass sfdc:Task ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .

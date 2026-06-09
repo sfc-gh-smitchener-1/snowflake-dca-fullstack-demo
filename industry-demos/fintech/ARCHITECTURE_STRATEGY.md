@@ -45,9 +45,8 @@ flowchart TB
         NODES["CUSTOMER | BENEFICIARY | AGENT\nTRANSACTION | CORRIDOR | WATCHLIST"]
         EDGES["SENDS_TO | SHARES_ADDRESS |\nSHARES_BENEFICIARY | MATCHED_WATCHLIST |\nOPERATES_IN | ROUTED_THROUGH"]
     end
-    subgraph ENGINES["GRAPH ENGINES (Dispatch via ?backend=)"]
-        SF_ENG["Snowflake-native\n(recursive CTEs, default)"]
-        NEO_ENG["Neo4j Sidecar on SPCS\n(Cypher + GDS, optional)"]
+    subgraph ENGINE["GRAPH ENGINE (Snowflake-native)"]
+        SF_ENG["Recursive CTEs + label propagation\n(sql/16_graph_algorithms.sql)"]
     end
     subgraph INF["GRAPH INFERENCE WORKLOADS"]
         FRAUD_RING["Fraud Ring Detection\n(Connected Components)"]
@@ -62,10 +61,10 @@ flowchart TB
         SCORES["Continuous Compliance Scores"]
         REPORT["Regulatory Reports"]
     end
-    SOURCES --> GRAPH --> ENGINES --> INF --> OUTPUT
+    SOURCES --> GRAPH --> ENGINE --> INF --> OUTPUT
 ```
 
-Both engines read from the same `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` tables. The default Snowflake-native engine handles fraud-ring detection, AML scoring, corridor scoring, and agent scoring; the optional Neo4j sidecar accelerates the deep-traversal cases — beneficial-ownership chains (4+ hops to a sanctioned UBO) and sub-100 ms `/edges/path/{customer}/{watchlist}` calls in the payment authorization path. See [docs/GRAPH_BACKENDS.md](../../docs/GRAPH_BACKENDS.md) for the trade-off and decision matrix.
+The Snowflake-native engine reads directly from the `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` tables and handles fraud-ring detection, AML scoring, corridor scoring, agent scoring, and sanctions traversal — including beneficial-ownership chains and shortest-path queries from a customer to a watchlist entity in the payment authorization path. Everything runs in SQL inside the warehouse. See [docs/KNOWLEDGE_GRAPH.md](../../docs/KNOWLEDGE_GRAPH.md) for the graph model and algorithms.
 
 ### Stage 3: Federated Financial Intelligence Network
 
@@ -73,7 +72,7 @@ Both engines read from the same `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` 
 flowchart TB
     subgraph INTERNAL["INTERNAL INTELLIGENCE"]
         GRAPH["Knowledge Graph (Nodes + Edges in Snowflake)"]
-        ENG["Graph Engines\nSnowflake-native (default) + Neo4j (optional)"]
+        ENG["Graph Engine\nSnowflake-native (recursive CTEs)"]
     end
     subgraph EXTERNAL["EXTERNAL INTELLIGENCE"]
         OFAC["OFAC/SDN Updates\n(Real-time ingestion)"]
@@ -151,4 +150,3 @@ flowchart TB
 - [OFAC Sanctions Programs](https://ofac.treasury.gov/sanctions-programs-and-country-information)
 - [FATF Recommendations](https://www.fatf-gafi.org/recommendations.html)
 - [DCA Knowledge Graph Documentation](../../docs/KNOWLEDGE_GRAPH.md)
-- [Graph Backends — Snowflake-native vs Neo4j](../../docs/GRAPH_BACKENDS.md)

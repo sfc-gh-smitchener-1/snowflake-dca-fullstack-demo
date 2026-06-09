@@ -1,0 +1,191 @@
+# SAP source-system ontology (OWL/SHACL)
+# Generated from mappings/sap.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix sap: <http://example.com/ont/sap/> .
+
+<http://example.com/ont/sap/> a owl:Ontology ; rdfs:label "SAP source-system ontology" .
+
+# --- Classes ---
+sap:Customer a owl:Class ;
+    rdfs:label "Customer" ;
+    rdfs:subClassOf schema:Organization .
+sap:Material a owl:Class ;
+    rdfs:label "Material" ;
+    rdfs:subClassOf schema:Thing .
+sap:SalesOrder a owl:Class ;
+    rdfs:label "Sales Order" ;
+    rdfs:subClassOf schema:Thing .
+sap:SalesOrderItem a owl:Class ;
+    rdfs:label "Sales Order Item" ;
+    rdfs:subClassOf schema:Thing .
+sap:Vendor a owl:Class ;
+    rdfs:label "Vendor" ;
+    rdfs:subClassOf schema:Organization .
+sap:PurchaseOrder a owl:Class ;
+    rdfs:label "Purchase Order" ;
+    rdfs:subClassOf schema:Thing .
+sap:AccountingDocument a owl:Class ;
+    rdfs:label "Accounting Document" ;
+    rdfs:subClassOf schema:Thing .
+sap:Employee a owl:Class ;
+    rdfs:label "Employee" ;
+    rdfs:subClassOf schema:Person .
+
+# --- Properties ---
+sap:country a owl:DatatypeProperty ;
+    rdfs:label "country" ;
+    rdfs:domain sap:Customer ;
+    rdfs:range xsd:string .
+sap:accountGroup a owl:DatatypeProperty ;
+    rdfs:label "account Group" ;
+    rdfs:domain sap:Customer ;
+    rdfs:range xsd:string .
+sap:industryKey a owl:DatatypeProperty ;
+    rdfs:label "industry Key" ;
+    rdfs:domain sap:Customer ;
+    rdfs:range xsd:string .
+sap:vatNumber a owl:DatatypeProperty ;
+    rdfs:label "vat Number" ;
+    rdfs:domain sap:Customer ;
+    rdfs:range xsd:string .
+sap:materialType a owl:DatatypeProperty ;
+    rdfs:label "material Type" ;
+    rdfs:domain sap:Material ;
+    rdfs:range xsd:string .
+sap:materialGroup a owl:DatatypeProperty ;
+    rdfs:label "material Group" ;
+    rdfs:domain sap:Material ;
+    rdfs:range xsd:string .
+sap:baseUnit a owl:DatatypeProperty ;
+    rdfs:label "base Unit" ;
+    rdfs:domain sap:Material ;
+    rdfs:range xsd:string .
+sap:grossWeight a owl:DatatypeProperty ;
+    rdfs:label "gross Weight" ;
+    rdfs:domain sap:Material ;
+    rdfs:range xsd:decimal .
+sap:netWeight a owl:DatatypeProperty ;
+    rdfs:label "net Weight" ;
+    rdfs:domain sap:Material ;
+    rdfs:range xsd:decimal .
+sap:orderType a owl:DatatypeProperty ;
+    rdfs:label "order Type" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range xsd:string .
+sap:documentDate a owl:DatatypeProperty ;
+    rdfs:label "document Date" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range xsd:string .
+sap:netValue a owl:DatatypeProperty ;
+    rdfs:label "net Value" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range xsd:decimal .
+sap:currency a owl:DatatypeProperty ;
+    rdfs:label "currency" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range xsd:string .
+sap:overallStatus a owl:DatatypeProperty ;
+    rdfs:label "overall Status" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range xsd:string .
+sap:soldToParty a owl:ObjectProperty ;
+    rdfs:label "sold To Party" ;
+    rdfs:domain sap:SalesOrder ;
+    rdfs:range sap:Customer .
+sap:quantity a owl:DatatypeProperty ;
+    rdfs:label "quantity" ;
+    rdfs:domain sap:SalesOrderItem ;
+    rdfs:range xsd:decimal .
+sap:netPrice a owl:DatatypeProperty ;
+    rdfs:label "net Price" ;
+    rdfs:domain sap:SalesOrderItem ;
+    rdfs:range xsd:decimal .
+sap:partOfOrder a owl:ObjectProperty ;
+    rdfs:label "part Of Order" ;
+    rdfs:domain sap:SalesOrderItem ;
+    rdfs:range sap:SalesOrder .
+sap:refersToMaterial a owl:ObjectProperty ;
+    rdfs:label "refers To Material" ;
+    rdfs:domain sap:SalesOrderItem ;
+    rdfs:range sap:Material .
+sap:documentType a owl:DatatypeProperty ;
+    rdfs:label "document Type" ;
+    rdfs:domain sap:PurchaseOrder ;
+    rdfs:range xsd:string .
+sap:totalValue a owl:DatatypeProperty ;
+    rdfs:label "total Value" ;
+    rdfs:domain sap:PurchaseOrder ;
+    rdfs:range xsd:decimal .
+sap:vendorParty a owl:ObjectProperty ;
+    rdfs:label "vendor Party" ;
+    rdfs:domain sap:PurchaseOrder ;
+    rdfs:range sap:Vendor .
+sap:postingDate a owl:DatatypeProperty ;
+    rdfs:label "posting Date" ;
+    rdfs:domain sap:AccountingDocument ;
+    rdfs:range xsd:string .
+sap:fiscalYear a owl:DatatypeProperty ;
+    rdfs:label "fiscal Year" ;
+    rdfs:domain sap:AccountingDocument ;
+    rdfs:range xsd:string .
+sap:companyCode a owl:DatatypeProperty ;
+    rdfs:label "company Code" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:plant a owl:DatatypeProperty ;
+    rdfs:label "plant" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:costCenter a owl:DatatypeProperty ;
+    rdfs:label "cost Center" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:orgUnit a owl:DatatypeProperty ;
+    rdfs:label "org Unit" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:firstName a owl:DatatypeProperty ;
+    rdfs:label "first Name" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:lastName a owl:DatatypeProperty ;
+    rdfs:label "last Name" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:birthDate a owl:DatatypeProperty ;
+    rdfs:label "birth Date" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+sap:nationality a owl:DatatypeProperty ;
+    rdfs:label "nationality" ;
+    rdfs:domain sap:Employee ;
+    rdfs:range xsd:string .
+
+# --- SHACL shapes ---
+sap:CustomerShape a sh:NodeShape ;
+    sh:targetClass sap:Customer ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sap:MaterialShape a sh:NodeShape ;
+    sh:targetClass sap:Material ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sap:SalesOrderShape a sh:NodeShape ;
+    sh:targetClass sap:SalesOrder .
+sap:SalesOrderItemShape a sh:NodeShape ;
+    sh:targetClass sap:SalesOrderItem ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sap:VendorShape a sh:NodeShape ;
+    sh:targetClass sap:Vendor ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sap:PurchaseOrderShape a sh:NodeShape ;
+    sh:targetClass sap:PurchaseOrder .
+sap:AccountingDocumentShape a sh:NodeShape ;
+    sh:targetClass sap:AccountingDocument ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+sap:EmployeeShape a sh:NodeShape ;
+    sh:targetClass sap:Employee .

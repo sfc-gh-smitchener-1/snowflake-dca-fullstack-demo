@@ -1,0 +1,299 @@
+name: fhir_ontology
+description: >-
+  Cortex Analyst semantic model for the FHIR ontology, generated
+  from mappings/fhir.py. One logical table per ontology class, backed by
+  the GOLD.V_FHIR_* views.
+tables:
+  - name: fhir_patient
+    description: FHIR Patient
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_PATIENT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: address_region
+        expr: address_region
+        data_type: text
+      - name: birth_date
+        expr: birth_date
+        data_type: date
+      - name: gender
+        expr: gender
+        data_type: text
+      - name: mrn
+        expr: mrn
+        data_type: text
+  - name: fhir_practitioner
+    description: FHIR Practitioner
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_PRACTITIONER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: gender
+        expr: gender
+        data_type: text
+      - name: npi
+        expr: npi
+        data_type: text
+      - name: specialty
+        expr: specialty
+        data_type: text
+  - name: fhir_organization
+    description: FHIR Organization
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_ORGANIZATION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: npi
+        expr: npi
+        data_type: text
+      - name: organization_type
+        expr: organization_type
+        data_type: text
+  - name: fhir_encounter
+    description: FHIR Encounter
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_ENCOUNTER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: encounter_class
+        expr: encounter_class
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+  - name: fhir_condition
+    description: FHIR Condition
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_CONDITION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: clinical_status
+        expr: clinical_status
+        data_type: text
+      - name: icd10_code
+        expr: icd10_code
+        data_type: text
+      - name: onset_date
+        expr: onset_date
+        data_type: date
+      - name: severity
+        expr: severity
+        data_type: text
+      - name: part_of_encounter_uid
+        expr: part_of_encounter_uid
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+  - name: fhir_observation
+    description: FHIR Observation
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_OBSERVATION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: loinc_code
+        expr: loinc_code
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: unit
+        expr: unit
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+    facts:
+      - name: value
+        expr: value
+        data_type: number
+  - name: fhir_medication_request
+    description: FHIR MedicationRequest
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_MEDICATIONREQUEST
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: intent
+        expr: intent
+        data_type: text
+      - name: rx_norm_code
+        expr: rx_norm_code
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: requester_uid
+        expr: requester_uid
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+  - name: fhir_procedure
+    description: FHIR Procedure
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_PROCEDURE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: performed_date
+        expr: performed_date
+        data_type: text
+      - name: snomed_code
+        expr: snomed_code
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: part_of_encounter_uid
+        expr: part_of_encounter_uid
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+  - name: fhir_claim
+    description: FHIR Claim
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_FHIR_CLAIM
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: claim_type
+        expr: claim_type
+        data_type: text
+      - name: created_date
+        expr: created_date
+        data_type: date
+      - name: status
+        expr: status
+        data_type: text
+      - name: use
+        expr: use
+        data_type: text
+      - name: provider_uid
+        expr: provider_uid
+        data_type: text
+      - name: subject_uid
+        expr: subject_uid
+        data_type: text
+    facts:
+      - name: total_value
+        expr: total_value
+        data_type: number

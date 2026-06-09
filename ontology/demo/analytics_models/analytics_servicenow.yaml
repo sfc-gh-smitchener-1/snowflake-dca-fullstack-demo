@@ -1,0 +1,270 @@
+name: servicenow_ontology
+description: >-
+  Cortex Analyst semantic model for the SERVICENOW ontology, generated
+  from mappings/servicenow.py. One logical table per ontology class, backed by
+  the GOLD.V_SNOW_* views.
+tables:
+  - name: snow_user
+    description: SERVICENOW User
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_USER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: active
+        expr: active
+        data_type: boolean
+      - name: email
+        expr: email
+        data_type: text
+      - name: title
+        expr: title
+        data_type: text
+      - name: user_name
+        expr: user_name
+        data_type: text
+      - name: vip
+        expr: vip
+        data_type: boolean
+  - name: snow_incident
+    description: SERVICENOW Incident
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_INCIDENT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: category
+        expr: category
+        data_type: text
+      - name: number
+        expr: number
+        data_type: text
+      - name: opened_at
+        expr: opened_at
+        data_type: text
+      - name: state
+        expr: state
+        data_type: text
+      - name: assigned_to_uid
+        expr: assigned_to_uid
+        data_type: text
+      - name: caller_uid
+        expr: caller_uid
+        data_type: text
+    facts:
+      - name: impact
+        expr: impact
+        data_type: number
+      - name: priority
+        expr: priority
+        data_type: number
+      - name: urgency
+        expr: urgency
+        data_type: number
+  - name: snow_change_request
+    description: SERVICENOW ChangeRequest
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_CHANGEREQUEST
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: change_type
+        expr: change_type
+        data_type: text
+      - name: number
+        expr: number
+        data_type: text
+      - name: risk
+        expr: risk
+        data_type: text
+      - name: start_date
+        expr: start_date
+        data_type: text
+      - name: state
+        expr: state
+        data_type: text
+      - name: assigned_to_uid
+        expr: assigned_to_uid
+        data_type: text
+      - name: requested_by_uid
+        expr: requested_by_uid
+        data_type: text
+  - name: snow_problem
+    description: SERVICENOW Problem
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_PROBLEM
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: known_error
+        expr: known_error
+        data_type: boolean
+      - name: number
+        expr: number
+        data_type: text
+      - name: state
+        expr: state
+        data_type: text
+      - name: assigned_to_uid
+        expr: assigned_to_uid
+        data_type: text
+    facts:
+      - name: priority
+        expr: priority
+        data_type: number
+  - name: snow_configuration_item
+    description: SERVICENOW ConfigurationItem
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_CONFIGURATIONITEM
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: asset_tag
+        expr: asset_tag
+        data_type: text
+      - name: ci_class
+        expr: ci_class
+        data_type: text
+      - name: ip_address
+        expr: ip_address
+        data_type: text
+      - name: serial_number
+        expr: serial_number
+        data_type: text
+    facts:
+      - name: cost
+        expr: cost
+        data_type: number
+      - name: install_status
+        expr: install_status
+        data_type: number
+  - name: snow_catalog_request
+    description: SERVICENOW CatalogRequest
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_CATALOGREQUEST
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: number
+        expr: number
+        data_type: text
+      - name: stage
+        expr: stage
+        data_type: text
+      - name: state
+        expr: state
+        data_type: text
+      - name: requested_for_uid
+        expr: requested_for_uid
+        data_type: text
+    facts:
+      - name: price
+        expr: price
+        data_type: number
+  - name: snow_knowledge_article
+    description: SERVICENOW KnowledgeArticle
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SNOW_KNOWLEDGEARTICLE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: number
+        expr: number
+        data_type: text
+      - name: workflow_state
+        expr: workflow_state
+        data_type: text
+      - name: author_uid
+        expr: author_uid
+        data_type: text
+    facts:
+      - name: rating
+        expr: rating
+        data_type: number
+      - name: view_count
+        expr: view_count
+        data_type: number

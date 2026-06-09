@@ -1,0 +1,297 @@
+name: sap_ontology
+description: >-
+  Cortex Analyst semantic model for the SAP ontology, generated
+  from mappings/sap.py. One logical table per ontology class, backed by
+  the GOLD.V_SAP_* views.
+tables:
+  - name: sap_customer
+    description: SAP Customer
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_CUSTOMER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: account_group
+        expr: account_group
+        data_type: text
+      - name: address_locality
+        expr: address_locality
+        data_type: text
+      - name: address_region
+        expr: address_region
+        data_type: text
+      - name: country
+        expr: country
+        data_type: text
+      - name: email
+        expr: email
+        data_type: text
+      - name: industry_key
+        expr: industry_key
+        data_type: text
+      - name: vat_number
+        expr: vat_number
+        data_type: text
+  - name: sap_material
+    description: SAP Material
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_MATERIAL
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: base_unit
+        expr: base_unit
+        data_type: text
+      - name: material_group
+        expr: material_group
+        data_type: text
+      - name: material_type
+        expr: material_type
+        data_type: text
+    facts:
+      - name: gross_weight
+        expr: gross_weight
+        data_type: number
+      - name: net_weight
+        expr: net_weight
+        data_type: number
+  - name: sap_sales_order
+    description: SAP SalesOrder
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_SALESORDER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: document_date
+        expr: document_date
+        data_type: text
+      - name: order_type
+        expr: order_type
+        data_type: text
+      - name: overall_status
+        expr: overall_status
+        data_type: text
+      - name: sold_to_party_uid
+        expr: sold_to_party_uid
+        data_type: text
+    facts:
+      - name: net_value
+        expr: net_value
+        data_type: number
+  - name: sap_sales_order_item
+    description: SAP SalesOrderItem
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_SALESORDERITEM
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: part_of_order_uid
+        expr: part_of_order_uid
+        data_type: text
+      - name: refers_to_material_uid
+        expr: refers_to_material_uid
+        data_type: text
+    facts:
+      - name: net_price
+        expr: net_price
+        data_type: number
+      - name: net_value
+        expr: net_value
+        data_type: number
+      - name: quantity
+        expr: quantity
+        data_type: number
+  - name: sap_vendor
+    description: SAP Vendor
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_VENDOR
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: account_group
+        expr: account_group
+        data_type: text
+      - name: address_locality
+        expr: address_locality
+        data_type: text
+      - name: country
+        expr: country
+        data_type: text
+      - name: email
+        expr: email
+        data_type: text
+  - name: sap_purchase_order
+    description: SAP PurchaseOrder
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_PURCHASEORDER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: document_date
+        expr: document_date
+        data_type: text
+      - name: document_type
+        expr: document_type
+        data_type: text
+      - name: overall_status
+        expr: overall_status
+        data_type: text
+      - name: vendor_party_uid
+        expr: vendor_party_uid
+        data_type: text
+    facts:
+      - name: total_value
+        expr: total_value
+        data_type: number
+  - name: sap_accounting_document
+    description: SAP AccountingDocument
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_ACCOUNTINGDOCUMENT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: document_type
+        expr: document_type
+        data_type: text
+      - name: fiscal_year
+        expr: fiscal_year
+        data_type: text
+      - name: posting_date
+        expr: posting_date
+        data_type: text
+  - name: sap_employee
+    description: SAP Employee
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SAP_EMPLOYEE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: birth_date
+        expr: birth_date
+        data_type: text
+      - name: company_code
+        expr: company_code
+        data_type: text
+      - name: cost_center
+        expr: cost_center
+        data_type: text
+      - name: first_name
+        expr: first_name
+        data_type: text
+      - name: last_name
+        expr: last_name
+        data_type: text
+      - name: nationality
+        expr: nationality
+        data_type: text
+      - name: org_unit
+        expr: org_unit
+        data_type: text
+      - name: plant
+        expr: plant
+        data_type: text

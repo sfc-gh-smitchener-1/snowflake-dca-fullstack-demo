@@ -45,7 +45,7 @@ Layer analytics that require joining across system boundaries: risk scoring, MTT
 |---|-------------|---------|
 | 1 | Risk scoring engine | SP_DCIM_RISK_SCORING: 40% error rate + 30% cert gap + 30% SLA tier |
 | 2 | MTTR analysis | SP_DCIM_MTTR_ANALYSIS: risk-weighted resolution metrics by campus |
-| 3 | Knowledge Graph | RAI SPCS with infrastructure + workforce nodes and edges |
+| 3 | Knowledge Graph | Snowflake-native ONTOLOGY_GRAPH_NODES / ONTOLOGY_GRAPH_EDGES (recursive-CTE traversal) with infrastructure + workforce nodes and edges |
 | 4 | Dispatch optimization | SP_DCIM_NEAREST_QUALIFIED_TECH: graph pathfinding for dispatch |
 | 5 | Time Travel procedures | SP_DCIM_TIME_TRAVEL: full state reconstruction for any entity |
 | 6 | Audit trail | SP_DCIM_CHANGE_AUDIT_TRAIL: cross-system change correlation |
@@ -173,7 +173,6 @@ flowchart LR
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|-----------|
 | ServiceNow API rate limits | Medium | Delays P1 ingestion | Batch CDC with Fivetran; negotiate API tier |
-| RAI SPCS availability | Low | Blocks P2 graph features | Dispatch falls back to rule-based scoring |
 | Telemetry volume exceeds estimates | Medium | Cost overrun on Snowpipe | Implement sampling; tier by criticality |
 | Workday data quality (cert dates) | High | False cert gap alerts | Validation layer with manual override |
 | Organizational change resistance | High | Adoption stalls at NOC | Start with "advisor mode"; human confirms dispatch |

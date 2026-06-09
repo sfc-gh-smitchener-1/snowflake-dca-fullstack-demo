@@ -1,0 +1,66 @@
+flowchart TB
+    classDef src    fill:#5C6E8C,stroke:#3F4D63,color:#FFFFFF
+    classDef raw    fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+    classDef cur    fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef sem    fill:#F8B14F,stroke:#B07A2F,color:#000000
+    classDef cons   fill:#11975F,stroke:#0B6E45,color:#FFFFFF
+    classDef gov    fill:#444444,stroke:#222222,color:#FFFFFF
+    classDef obs    fill:#666666,stroke:#444444,color:#FFFFFF
+    classDef sec    fill:#888888,stroke:#666666,color:#FFFFFF
+
+    subgraph SRC["Sources"]
+        direction LR
+        SRC1["ERP · MDM · PIM · PLM<br/>(SAP MDG · Stibo · Salsify)"]:::src
+        SRC2["CRM · Operational apps · IoT"]:::src
+        SRC3["External standards · Marketplace<br/>Inbound Data Shares"]:::src
+    end
+
+    subgraph RAW["RAW LAYER — landing zone · fidelity-preserving · (schema BRONZE)"]
+        direction LR
+        RA["Ingest patterns<br/>Snowpipe · Snowpipe Streaming<br/>External Tables · Iceberg ingest<br/>COPY INTO · Replication · CDC"]:::raw
+        RB["Object types<br/>External + Internal Stages<br/>Raw landing tables<br/>VARIANT JSON columns<br/>File Format objects"]:::raw
+        RC["Patterns<br/>append-only · schema-on-read<br/>idempotent retries<br/>backpressure · raw-zone tagging"]:::raw
+    end
+
+    subgraph CUR["CURATED LAYER — canonical truth · governed model · (schema SILVER)"]
+        direction LR
+        CA["Identity &amp; MDM<br/>canonical UID + IRI<br/>alt-key bridges<br/>bi-temporal valid_from / valid_to<br/>survivorship rules"]:::cur
+        CB["Models<br/>triple store (statement · individual)<br/>dimensional · SCD2<br/>property-graph projection (node · edge)"]:::cur
+        CC["Vocabulary &amp; taxonomy<br/>controlled vocab · UCUM units<br/>code lists · enums<br/>parallel taxonomies"]:::cur
+        CD["Quality<br/>SHACL → Data Metric Functions<br/>dbt tests · data contracts<br/>Horizon DQ scores"]:::cur
+        CE["Performance<br/>Hybrid Tables (Unistore hot reads)<br/>Search Optimization<br/>Dynamic Tables · clustering keys"]:::cur
+    end
+
+    subgraph SEM["SEMANTIC LAYER — query-ready · AI-grounded · (schema GOLD)"]
+        direction LR
+        SA["Ontology (formal)<br/>RDF · OWL · SHACL · Turtle<br/>classes · properties · shapes"]:::sem
+        SB["Business views<br/>Semantic Views (native)<br/>v_* friendly views<br/>materialized aggregates"]:::sem
+        SC["Cortex Analyst<br/>semantic_model.yaml<br/>NL → governed SQL"]:::sem
+        SD["Cortex Search<br/>hybrid lexical + vector<br/>EMBED_TEXT_768 vectors"]:::sem
+        SE["Graph RAG<br/>class_profile rollup (descendants)<br/>node_embedding · synonym overrides<br/>recursive CTE traversal · Cortex Guard"]:::sem
+        SF["Cortex Agents<br/>2-tool pattern (search + analyst)<br/>p_graph_rag stored proc<br/>Cortex Code optimize / eval loop"]:::sem
+    end
+
+    subgraph CONS["Activation"]
+        direction LR
+        CO1["Streamlit · Apps<br/>Snowflake Notebooks"]:::cons
+        CO2["Outbound Data Sharing<br/>Iceberg out · Reverse ETL"]:::cons
+        CO3["MCP server · JSON-LD<br/>AEO surface · external agents"]:::cons
+    end
+
+    SRC --> RAW
+    RAW --> CUR
+    CUR --> SEM
+    SEM --> CONS
+
+    subgraph CROSS["Cross-cutting concerns — applied at every layer"]
+        direction LR
+        GOV["GOVERN<br/>Horizon Catalog · object tagging<br/>classifications · column lineage<br/>Row Access · Masking · DMFs"]:::gov
+        OBS["OBSERVE<br/>ACCESS_HISTORY · QUERY_HISTORY<br/>Cortex telemetry · DQ history<br/>RAG feedback log"]:::obs
+        SEC["SECURE &amp; RESILIENT<br/>Network policies · Private Link<br/>Tri-Secret Secure · Failover Groups<br/>Time Travel · Fail-safe · Replication"]:::sec
+    end
+
+    CROSS -. cross-cuts .-> RAW
+    CROSS -.-> CUR
+    CROSS -.-> SEM
+    CROSS -.-> CONS

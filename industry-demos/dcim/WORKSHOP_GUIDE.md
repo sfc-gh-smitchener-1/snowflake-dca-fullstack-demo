@@ -24,7 +24,7 @@
 | **NOC Director** | Dispatch speed, shift coverage, incident resolution | Anything that adds steps to incident workflow | "Gets me the right tech in 30 seconds" |
 | **Facilities Manager** | Power/cooling capacity, maintenance windows, safety | Automation replacing human judgment | "Shows me coverage gaps before they matter" |
 | **Data Engineer** | Pipeline reliability, schema stability, freshness SLAs | Yet another ETL tool to maintain | "Dynamic Tables handle refresh; I set target lag" |
-| **Enterprise Architect** | Integration patterns, vendor lock-in, governance | SPCS/RAI complexity | "Core value works without RAI; graph is additive" |
+| **Enterprise Architect** | Integration patterns, vendor lock-in, governance | Added platform complexity | "Everything—including the graph—runs natively in Snowflake" |
 
 ---
 
@@ -109,7 +109,7 @@ Show the three-stage architecture evolution. Position Snowflake-native capabilit
 
 - "Dynamic Tables are declarative — you define the transform and the freshness target. Snowflake handles scheduling, retries, and dependency ordering."
 - "SCD6 is in *our* raw layer, not Snowflake Time Travel. No retention limit, no storage premium, full state reconstruction forever."
-- "The graph is a *projection* of Snowflake data, not a copy. RAI reads from curated views. If RAI is unavailable, everything else still works."
+- "The graph is a *projection* of Snowflake data, not a copy. Recursive CTEs traverse the curated views directly — no separate graph database to deploy or keep in sync."
 - "Governance is baked in from day one — not bolted on after the fact."
 
 ### Architecture Questions to Ask
@@ -227,7 +227,7 @@ Typical answers:
 | "We don't use ServiceNow" | Architecture is source-agnostic; swap in their ITSM tool |
 | One person dominates | Direct questions to quieter roles: "NOC perspective?" |
 | Conversation goes too deep on one topic | "Let's capture that for follow-up and keep moving" |
-| Skepticism about RAI/graph | Emphasize: "Core platform works without RAI. Graph adds dispatch optimization as an enhancement." |
+| Skepticism about the graph | Emphasize: "The graph runs entirely in Snowflake with recursive SQL — no external graph database or extra infrastructure to operate." |
 
 ### Pre-Workshop Checklist
 

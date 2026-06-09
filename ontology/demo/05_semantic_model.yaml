@@ -1,0 +1,191 @@
+name: ontology_demo
+description: |
+  Cortex Analyst semantic model for the Snowflake-native ontology reference demo.
+  Backed by the GOLD views over the SILVER triple-store + property-graph projections.
+  Every customer-facing entity (Customer, Account, Product, Order) is a thin view
+  over `silver.node` filtered by `class_iri`, joined to `silver.edge` for relationships.
+
+tables:
+  - name: customer
+    description: One row per ex:Customer individual.
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_CUSTOMER
+    primary_key:
+      columns: [CUSTOMER_UID]
+    dimensions:
+      - name: customer_uid
+        synonyms: [customer, customer id, account holder id]
+        description: Canonical customer identifier.
+        expr: CUSTOMER_UID
+        data_type: TEXT
+        unique: true
+      - name: customer_name
+        synonyms: [name, customer name, party name, account name]
+        description: Display name of the customer.
+        expr: CUSTOMER_NAME
+        data_type: TEXT
+      - name: address_region
+        synonyms: [state, region, where, location]
+        description: US two-letter state code of the customer's primary address.
+        expr: ADDRESS_REGION
+        data_type: TEXT
+        sample_values: [CA, MA, TX, NY]
+
+  - name: account
+    description: One row per ex:Account individual; joined to the holding customer.
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ACCOUNT
+    primary_key:
+      columns: [ACCOUNT_UID]
+    dimensions:
+      - name: account_uid
+        description: Canonical account identifier.
+        expr: ACCOUNT_UID
+        data_type: TEXT
+        unique: true
+      - name: account_label
+        synonyms: [account name]
+        expr: ACCOUNT_LABEL
+        data_type: TEXT
+      - name: account_status
+        synonyms: [status, state]
+        expr: ACCOUNT_STATUS
+        data_type: TEXT
+        sample_values: [ACTIVE, SUSPENDED, CLOSED]
+      - name: customer_uid
+        description: Owning customer (join key).
+        expr: CUSTOMER_UID
+        data_type: TEXT
+
+  - name: product
+    description: One row per ex:Product or ex:Beverage individual.
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_PRODUCT
+    primary_key:
+      columns: [PRODUCT_UID]
+    dimensions:
+      - name: product_uid
+        expr: PRODUCT_UID
+        data_type: TEXT
+        unique: true
+      - name: product_name
+        synonyms: [name, sku name, item name]
+        expr: PRODUCT_NAME
+        data_type: TEXT
+      - name: class_iri
+        synonyms: [type, category iri, product class]
+        description: 'ex:Product or ex:Beverage'
+        expr: CLASS_IRI
+        data_type: TEXT
+        sample_values: ['ex:Product', 'ex:Beverage']
+    facts:
+      - name: price_usd
+        synonyms: [price, list price, cost in usd]
+        description: List price in US dollars.
+        expr: PRICE_USD
+        data_type: NUMBER
+
+  - name: sales_order
+    description: One row per ex:Order individual; joined to the placing customer.
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORDER
+    primary_key:
+      columns: [ORDER_UID]
+    dimensions:
+      - name: order_uid
+        expr: ORDER_UID
+        data_type: TEXT
+        unique: true
+      - name: order_label
+        expr: ORDER_LABEL
+        data_type: TEXT
+      - name: order_status
+        synonyms: [status]
+        expr: ORDER_STATUS
+        data_type: TEXT
+        sample_values: [PLACED, PAID, SHIPPED, DELIVERED, CANCELED]
+      - name: customer_uid
+        expr: CUSTOMER_UID
+        data_type: TEXT
+
+  - name: order_line
+    description: Bridge table — which products are on which orders.
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORDER_LINE
+    dimensions:
+      - name: order_uid
+        expr: ORDER_UID
+        data_type: TEXT
+      - name: product_uid
+        expr: PRODUCT_UID
+        data_type: TEXT
+
+relationships:
+  - name: account_to_customer
+    left_table: account
+    right_table: customer
+    relationship_columns:
+      - left_column: customer_uid
+        right_column: customer_uid
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: order_to_customer
+    left_table: sales_order
+    right_table: customer
+    relationship_columns:
+      - left_column: customer_uid
+        right_column: customer_uid
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: order_line_to_order
+    left_table: order_line
+    right_table: sales_order
+    relationship_columns:
+      - left_column: order_uid
+        right_column: order_uid
+    join_type: left_outer
+    relationship_type: many_to_one
+  - name: order_line_to_product
+    left_table: order_line
+    right_table: product
+    relationship_columns:
+      - left_column: product_uid
+        right_column: product_uid
+    join_type: left_outer
+    relationship_type: many_to_one
+
+verified_queries:
+  - name: customers_in_california
+    question: How many customers are in California?
+    sql: |
+      SELECT COUNT(*) AS customer_count
+      FROM ONT_DEMO.GOLD.V_CUSTOMER
+      WHERE ADDRESS_REGION = 'CA'
+
+  - name: acme_accounts
+    question: List all accounts for Acme Inc. with their statuses.
+    sql: |
+      SELECT a.ACCOUNT_LABEL, a.ACCOUNT_STATUS
+      FROM   ONT_DEMO.GOLD.V_CUSTOMER c
+      JOIN   ONT_DEMO.GOLD.V_ACCOUNT  a USING (CUSTOMER_UID)
+      WHERE  c.CUSTOMER_NAME = 'Acme Inc.'
+
+  - name: products_ordered_by_acme
+    question: What products has Acme Inc. ever ordered?
+    sql: |
+      SELECT DISTINCT p.PRODUCT_NAME, p.PRICE_USD
+      FROM   ONT_DEMO.GOLD.V_CUSTOMER  c
+      JOIN   ONT_DEMO.GOLD.V_ORDER     o   USING (CUSTOMER_UID)
+      JOIN   ONT_DEMO.GOLD.V_ORDER_LINE ol ON o.ORDER_UID = ol.ORDER_UID
+      JOIN   ONT_DEMO.GOLD.V_PRODUCT   p   USING (PRODUCT_UID)
+      WHERE  c.CUSTOMER_NAME = 'Acme Inc.'

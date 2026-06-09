@@ -1,0 +1,89 @@
+flowchart LR
+    classDef src    fill:#5C6E8C,stroke:#3F4D63,color:#FFFFFF
+    classDef raw    fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+    classDef cur    fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef sem    fill:#F8B14F,stroke:#B07A2F,color:#000000
+    classDef act    fill:#11975F,stroke:#0B6E45,color:#FFFFFF
+    classDef cortex fill:#1B7DA8,stroke:#0D5A82,color:#FFFFFF
+    classDef ont    fill:#9B5BA3,stroke:#6D3F75,color:#FFFFFF
+    classDef tax    fill:#E69138,stroke:#A66422,color:#FFFFFF
+    classDef hzn    fill:#444444,stroke:#222222,color:#FFFFFF
+
+    subgraph SOURCES["Business Units / Source Systems"]
+        direction TB
+        D1["Domain 1<br/>Oracle · MES<br/>PLM · IoT / Sensors"]:::src
+        D2["Domain 2<br/>SAP / ERP · MES<br/>PLM · IoT / Sensors"]:::src
+        D3["Domain 3<br/>CRM · Project Mgt<br/>ServiceNow · HR Systems"]:::src
+    end
+
+    subgraph RAW["Raw (schema BRONZE) — landing zone, fidelity-preserving"]
+        direction TB
+        R_INGEST["Ingest patterns<br/>Openflow · Snowpipe<br/>Snowpipe Streaming<br/>External Tables · Iceberg ingest<br/>COPY INTO · Replication · CDC"]:::raw
+        R_OBJ["Object types<br/>External + Internal Stages<br/>Raw landing tables<br/>VARIANT JSON columns<br/>File Format objects"]:::raw
+        R_PAT["Conventions<br/>append-only · schema-on-read<br/>idempotent retries · backpressure<br/>source-system + ingest-time tagging<br/>per-source retention policy"]:::raw
+    end
+
+    subgraph CUR["Curated (schema SILVER) — canonical, governed truth"]
+        direction TB
+        C_ID["Identity &amp; MDM<br/>canonical UID + IRI<br/>alt-key bridges<br/>bi-temporal valid_from / valid_to<br/>survivorship rules"]:::cur
+        C_MOD["Models<br/>triple store (statement · individual)<br/>node + edge Dynamic Tables<br/>dimensional · SCD2<br/>Hybrid Tables (Unistore hot reads)"]:::cur
+        C_VOC["Vocabulary &amp; taxonomy<br/>controlled vocab · UCUM units<br/>code lists · enums<br/>parallel taxonomies"]:::cur
+        C_QUAL["Quality<br/>SHACL → Data Metric Functions<br/>dbt tests · data contracts<br/>Horizon DQ scores"]:::cur
+        C_PERF["Performance<br/>Search Optimization<br/>clustering keys<br/>Dynamic Table cascades"]:::cur
+    end
+
+    subgraph SEM["Semantic (schema GOLD) — query-ready, AI-grounded"]
+        direction TB
+        S_VIEW["Business interface<br/>Semantic Views (native)<br/>friendly v_* views<br/>materialized aggregates"]:::sem
+        S_ANALYST["Cortex Analyst<br/>semantic_model.yaml<br/>NL → governed SQL"]:::sem
+        S_SEARCH["Cortex Search<br/>hybrid lexical + vector<br/>node embeddings (Arctic 768d)"]:::sem
+        S_RAG["Graph RAG<br/>class_profile descendant rollup<br/>synonym overrides · Cortex Guard<br/>recursive CTE traversal<br/>p_graph_rag (2-tool agent)"]:::sem
+        S_PROD["Data products<br/>Enterprise KPIs · AI/ML features<br/>executive dashboards<br/>blast-radius walkers"]:::sem
+    end
+
+    subgraph ACT["Activation"]
+        direction TB
+        ACT_INT["Internal Democratization<br/>Internal Marketplace<br/>Streamlit Apps · Notebooks<br/>Cortex Agents"]:::act
+        ACT_AGG["Cross-Business Aggregation<br/>Unified program views<br/>Enterprise supply chain<br/>Combined financial metrics<br/>Workforce analytics<br/>Cross-program benchmarks"]:::act
+        ACT_EXT["External Democratization<br/>Secure Data Shares<br/>Snowflake Marketplace<br/>Data Clean Rooms<br/>Partner Data"]:::act
+    end
+
+    D1 -- "Openflow / ELT" --> RAW
+    D2 -- "Openflow / ELT" --> RAW
+    D3 -- "Openflow / ELT" --> RAW
+    RAW --> CUR
+    CUR --> SEM
+    SEM --> ACT
+
+    subgraph CORTEX["Cortex — runtime AI services (cross-layer)"]
+        direction LR
+        CX["Cortex Analyst · Cortex Search · Cortex Complete<br/>Cortex Embed · Cortex Guard · Cortex Classify<br/>Cortex Fine-Tune · Cortex Agents · Cortex Code"]:::cortex
+    end
+
+    subgraph ONT["Ontology — the contract layer"]
+        direction LR
+        OX["RDF · OWL · SHACL · Turtle · JSON-LD<br/>TBox: class · property · shape · constraint · value_domain<br/>ABox: individual · statement (with source + confidence)<br/>industry layers: GS1 · FIBO · FHIR · SNOMED · CIM"]:::ont
+    end
+
+    subgraph TAX["Taxonomy — parallel hierarchical classifications"]
+        direction LR
+        TX["GS1 GPC (Segment → Family → Class → Brick)<br/>retailer-specific trees (Walmart · Kroger · Amazon · Target)<br/>regulatory codes (FDA UNII · USDA · EFSA · NAICS · HS)<br/>internal master + marketing categories<br/>recursive CTE traversal · synonym table for composites"]:::tax
+    end
+
+    CORTEX -. cross-cuts .-> CUR
+    CORTEX -.-> SEM
+    CORTEX -.-> ACT
+    ONT -.-> CUR
+    ONT -.-> SEM
+    TAX -.-> CUR
+    TAX -.-> SEM
+
+    subgraph HZN["Snowflake Horizon — governance &amp; observability plane"]
+        direction LR
+        HX["BigID Discovery · PII / PHI / PCI Classification · Data Privacy &amp; Risk · Compliance Reporting<br/>FedRAMP · IL5 · CJIS · IRAP &mdash; Row Access Policies · Dynamic Data Masking · Cortex Guard<br/>Object Tagging · Data Metric Functions · Data Lineage · ACCESS_HISTORY · QUERY_HISTORY"]:::hzn
+    end
+
+    HZN -. tags + policies + lineage .-> RAW
+    HZN -.-> CUR
+    HZN -.-> SEM
+    HZN -.-> ACT

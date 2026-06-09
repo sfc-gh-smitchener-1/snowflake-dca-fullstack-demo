@@ -1,23 +1,18 @@
-# Ontology Knowledge Graph — Dual-Backend Architecture
+# Ontology Knowledge Graph — Snowflake-Native
 
-> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, queryable through either a Snowflake-native engine (recursive CTEs + window functions, default) or a Neo4j sidecar on Snowpark Container Services (Cypher / property-graph), or both.
+> **Graph-based governance analysis** — A knowledge graph that links metadata objects and business entities, queried entirely in-database with recursive CTEs and SQL stored procedures. No sidecar, no container service.
 
 ## Overview
 
-The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/04-dca-ontological-synthesis.md](../ontology/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph, with graph inference for governance gap detection, entity resolution, and scoring.
+The Ontology Knowledge Graph operationalizes the philosophical framework described in [ontology/philosophy/04-dca-ontological-synthesis.md](../ontology/philosophy/04-dca-ontological-synthesis.md). It materializes the relationships between Snowflake metadata (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable node/edge graph, with graph inference for governance gap detection, entity resolution, and scoring.
 
-The **graph of record always lives in Snowflake** — two tables, `ONTOLOGY_GRAPH_NODES` and `ONTOLOGY_GRAPH_EDGES`. Both query engines read from those tables. Neo4j syncs into its in-memory representation; the Snowflake-native engine queries the tables directly with recursive CTEs.
+The **graph of record lives in Snowflake** — two tables, `ONTOLOGY_GRAPH_NODES` and `ONTOLOGY_GRAPH_EDGES`. All queries run directly against those tables with recursive CTEs and window functions, so the graph is always live against the data of record and inherits Snowflake's governance, replication, and sharing.
 
-### Two interchangeable backends, one API
-
-| Backend | Strengths | When to use |
-|---|---|---|
-| **Snowflake-native** (default) | Zero sidecar, always live, inherits Snowflake governance/replication/sharing, queries against the data of record | Governance scoring, PII propagation, ownership gaps, entity resolution, paths up to ~10 hops |
-| **Neo4j** (optional sidecar) | Sub-100ms shortest path at any depth, GDS-class algorithms (PageRank, Louvain), visual exploration via Neo4j Browser | Deep traversal (5+ hops), real-time exploration, competing against TigerGraph/Neptune |
-
-Select the backend with the `GRAPH_BACKEND` env var (`snowflake` | `neo4j` | `both`) and override per request via `?backend=`. The `/inference/compare` endpoint runs the same query through every loaded backend and returns timings + results side-by-side.
-
-**See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full compare/contrast and decision matrix.**
+> For the broader, multi-source ontology reference architecture (triple store,
+> property-graph projections, Graph RAG, and a per-source Cortex Analyst layer),
+> see [ONTOLOGY.md](ONTOLOGY.md) and [`ontology/demo/`](../ontology/demo/). This
+> document covers the governance-focused node/edge graph used by the core DCA
+> demo and the industry demos.
 
 ## Architecture
 
@@ -41,10 +36,8 @@ flowchart LR
         E[ONTOLOGY_GRAPH_EDGES]
     end
 
-    subgraph "Graph Query Engines"
-        SFE["Snowflake-native<br/>(recursive CTEs)"]
-        N4J["Neo4j Sidecar<br/>(Cypher) - optional"]
-        API[FastAPI dispatcher<br/>?backend=...]
+    subgraph "Graph Query Engine"
+        SFE["Snowflake-native<br/>recursive CTEs + window functions<br/>(sql/14 batch, sql/16 on-demand)"]
     end
 
     subgraph "Output Tables"
@@ -54,8 +47,7 @@ flowchart LR
     end
 
     subgraph Consumption
-        ST[Streamlit Page 6]
-        API[SPCS REST API]
+        WS[Snowsight Worksheets / BI]
         SH[Snowflake Share]
     end
 
@@ -64,25 +56,22 @@ flowchart LR
     SP1 & SP3 --> N
     SP2 & SP4 & SP5 --> E
     N & E --> SFE
-    N & E --> N4J
-    SFE & N4J --> API
-    API --> SC & RC
+    SFE --> SC & RC
     N & E --> SN
-    SC & RC --> ST & API & SH
-    N & E --> API & SH
+    SC & RC --> WS & SH
+    N & E --> WS & SH
 ```
 
 ## Deployment
 
 ### Prerequisites
 - Scripts 01-10 deployed successfully
-- Docker (for building/pushing images to Snowflake registry)
 - Curated layer populated with source system data
 
 ### Deployment Order
 
 ```sql
-@sql/11_rai_setup.sql              -- SPCS infrastructure, compute pool, image repo, roles
+@sql/11_rai_setup.sql              -- Roles & grants for the graph (ONTOLOGY_ADMIN / ONTOLOGY_CONSUMER)
 @sql/12_ontology_graph_tables.sql  -- Node/edge/snapshot/output table DDL
 @sql/13_ontology_graph_populate.sql -- Graph population stored procedures
 @sql/14_rai_graph_sync.sql         -- Batch graph inference (pure SQL stored procs)
@@ -90,7 +79,7 @@ flowchart LR
 @sql/16_graph_algorithms.sql       -- On-demand graph algorithms (views + procs callable from any Worksheet)
 ```
 
-After `@sql/16_graph_algorithms.sql`, the Snowflake-native graph engine is fully usable from any Snowsight Worksheet — no SPCS service required:
+After `@sql/16_graph_algorithms.sql`, the graph is fully usable from any Snowsight Worksheet:
 
 ```sql
 -- Top hubs
@@ -110,24 +99,6 @@ CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_CONNECTED_COMPONENTS(15, 25);
 
 -- 3-hop neighborhood
 CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_NEIGHBORHOOD('<start_node_id>', 3);
-```
-
-The SPCS service is only required if you want the **Neo4j backend** (for deep traversal / GDS algorithms) or the **REST API surface** (for Streamlit / external apps).
-
-### SPCS Service Deployment
-
-```bash
-# Build and push container image
-cd ontology/spcs
-docker build -t ontology-graph-api:latest .
-docker tag ontology-graph-api:latest <repo_url>/ontology-graph-api:latest
-docker push <repo_url>/ontology-graph-api:latest
-
-# Deploy service (from Snowsight or SQL)
-# CREATE SERVICE DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_SERVICE
-#   IN COMPUTE POOL ONTOLOGY_COMPUTE_POOL
-#   FROM @DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_STAGE
-#   SPEC = 'service-spec.yaml';
 ```
 
 ## Graph Schema
@@ -169,34 +140,28 @@ docker push <repo_url>/ontology-graph-api:latest
 | WORKS_FOR | BUSINESS | EMPLOYEE → ORG | Employment relationship |
 | REPRESENTS | CROSS | BUSINESS_NODE → TABLE_NODE | Business entity stored in table |
 
-## Graph Inference (Dual-Backend)
+## Graph Inference
 
-Inference runs through one or both query engines, chosen by `GRAPH_BACKEND`:
-
-- **Snowflake-native (default).** Recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `EDGES`. Materialized in `sql/14_rai_graph_sync.sql` (batch) and `sql/16_graph_algorithms.sql` (on-demand views/procs). Always live — reads source tables directly.
-- **Neo4j (optional sidecar).** Cypher queries against an in-memory property graph synced from Snowflake at startup. Strengths: deep traversal, GDS-class algorithms, sub-100ms shortest path.
-
-Both backends compute identical results for governance scoring, PII propagation, ownership gaps, and entity resolution. They diverge in performance on shortest-path queries (Neo4j wins at depth) and visual exploration (Neo4j Browser has no Snowflake equivalent). See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full comparison.
+Inference runs as recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `EDGES`, materialized in `sql/14_rai_graph_sync.sql` (batch) and exposed live via `sql/16_graph_algorithms.sql` (on-demand views/procs). Everything reads the source tables directly — there is no separate engine to sync.
 
 ### Inference Rules
 
-1. **PII Propagation** — If column A is tagged PII and has LINEAGE_FROM edge to column B, and column B has no PII tag → recommend tagging B
+1. **PII Propagation** — If column A is tagged PII and has a LINEAGE_FROM edge to column B, and column B has no PII tag → recommend tagging B
 2. **Ownership Gaps** — SEMANTIC-layer tables with no `data_contract_owner` tag edge → recommend assigning owner
 3. **Layer Bypass** — Consumer roles with GRANTED_TO edges directly to RAW-layer tables → flag as bypass
 4. **Entity Resolution** — Cross-system nodes with similar display_name (Jaccard > 0.7) → suggest as same entity
 
 ### Graph Algorithms
 
-Available through both backends (Cypher / recursive CTE) and as Snowflake stored procedures in `sql/16_graph_algorithms.sql`:
+Implemented as Snowflake stored procedures and views in `sql/16_graph_algorithms.sql`:
 
-| Algorithm | Snowflake-native | Neo4j | Recommended use |
-|---|---|---|---|
-| **Shortest path** | `SP_GRAPH_SHORTEST_PATH(from, to, hops)` — recursive CTE, ≤10 hops | `shortestPath((a)-[*..15]-(b))` — any depth | Snowflake for governance lineage; Neo4j for 10+ hops |
-| **Degree centrality** | `V_GRAPH_DEGREE_CENTRALITY` — single query | `size([(n)-[]-()])` | Snowflake (one query, no sync) |
-| **Connected components** | `SP_GRAPH_CONNECTED_COMPONENTS()` — iterative reachability | GDS `wcc.stream` | Neo4j for >100k nodes |
-| **k-hop neighborhood** | `SP_GRAPH_NEIGHBORHOOD(start, k)` — recursive CTE | `MATCH (n)-[*..k]-(m)` | Neo4j for deeper, denser |
-| **PageRank / Louvain** | Not practical in pure SQL | GDS library | Neo4j (only) |
-| **Transitive closure** | Recursive CTE in any view | Cypher variable-depth | Either |
+| Algorithm | Implementation | Notes |
+|---|---|---|
+| **Shortest path** | `SP_GRAPH_SHORTEST_PATH(from, to, hops)` | BFS via recursive CTE; sub-second to ~10 hops on graphs < 1M edges |
+| **Degree centrality** | `V_GRAPH_DEGREE_CENTRALITY` | Single query, no precompute |
+| **Connected components** | `SP_GRAPH_CONNECTED_COMPONENTS()` | Iterative reachability; suitable for demo graphs < 50k nodes |
+| **k-hop neighborhood** | `SP_GRAPH_NEIGHBORHOOD(start, k)` | Recursive CTE neighborhood expansion |
+| **Transitive closure** | Recursive CTE in any view | Variable-depth reachability |
 
 ### Governance Scoring
 
@@ -222,63 +187,12 @@ Composite score (0.0 - 1.0) per node:
 | `SP_RUN_INFERENCE()` | Executes inference rules, writes results back |
 | `SP_APPLY_RECOMMENDATIONS()` | Applies approved recommendations (tags/policies) |
 
-## SPCS REST API
-
-Base URL: `https://<account>.snowflakecomputing.app/ontology-api/`
-
-### Endpoints
-
-Every inference endpoint accepts `?backend=snowflake|neo4j|both` to override the default backend per request.
-
-| Method | Path | Description | Auth |
-|--------|------|-------------|------|
-| GET | `/health` | Service health + per-backend status | Public |
-| GET | `/inference/backends` | List loaded backends and the default | Public |
-| GET | `/nodes` | List nodes (query params: layer, node_type, source_system, limit, offset) | ONTOLOGY_CONSUMER |
-| GET | `/nodes/{id}` | Get single node | ONTOLOGY_CONSUMER |
-| GET | `/nodes/{id}/neighbors` | Connected nodes | ONTOLOGY_CONSUMER |
-| GET | `/edges` | List edges (query params: layer, edge_type, limit, offset) | ONTOLOGY_CONSUMER |
-| GET | `/edges/path/{from}/{to}?backend=` | Shortest path | ONTOLOGY_CONSUMER |
-| GET | `/governance-scores` | All scores (query param: min_score) | ONTOLOGY_CONSUMER |
-| GET | `/governance-scores/{id}` | Single node score | ONTOLOGY_CONSUMER |
-| GET | `/inference/pii-propagation?backend=` | Live PII propagation findings | ONTOLOGY_CONSUMER |
-| GET | `/inference/ownership-gaps?backend=` | Tables without owner/contract/steward | ONTOLOGY_CONSUMER |
-| GET | `/inference/entity-resolution?threshold=&backend=` | Cross-system entity match | ONTOLOGY_CONSUMER |
-| GET | `/inference/centrality?top_n=&backend=` | Hub detection | ONTOLOGY_CONSUMER |
-| GET | `/inference/components?backend=` | Connected components | ONTOLOGY_CONSUMER |
-| GET | `/inference/governance-scores/compute?backend=` | Live composite scores | ONTOLOGY_CONSUMER |
-| GET | `/inference/compare?endpoint=...` | Run query through every backend; return timings + diff | ONTOLOGY_CONSUMER |
-| POST | `/inference/reload?backend=` | Re-sync graph (no-op for Snowflake backend) | ONTOLOGY_ADMIN |
-
-### Example Requests
-
-```bash
-# Get all poorly-governed tables
-curl "$BASE_URL/governance-scores?min_score=0"
-
-# Get neighbors of a specific node
-curl "$BASE_URL/nodes/META_abc123/neighbors"
-
-# Find shortest path — let the service pick the backend
-curl "$BASE_URL/edges/path/META_source_table/META_target_table"
-
-# Force the Snowflake-native backend
-curl "$BASE_URL/edges/path/META_source_table/META_target_table?backend=snowflake"
-
-# Side-by-side comparison: run PII propagation through every loaded backend
-curl "$BASE_URL/inference/compare?endpoint=pii-propagation"
-```
-
 ## Sharing
 
 ### Snowflake Share
 - Share name: `ONTOLOGY_GRAPH_DATA_SHARE`
 - Contains: Secure views over NODES, EDGES, SCORES, RECOMMENDATIONS
 - Grant to consumer accounts as needed
-
-### SPCS Endpoint
-- Service role: `ONTOLOGY_GRAPH_SERVICE!ALL_ENDPOINTS_USAGE`
-- Granted to: `ONTOLOGY_CONSUMER` role
 
 ### Data Product Catalog
 - Registered in `GOVERNANCE.DATA_PRODUCT_CATALOG`
@@ -287,50 +201,35 @@ curl "$BASE_URL/inference/compare?endpoint=pii-propagation"
 
 ## Roles and Access
 
-| Role | Graph Tables | Inference Procedures | SPCS API | Share |
-|------|-------------|----------------|----------|-------|
-| ONTOLOGY_ADMIN | Full | Execute | All endpoints | Manage |
-| ONTOLOGY_CONSUMER | SELECT | - | Read endpoints | Query via share |
-| DATA_ADMIN | Full (inherits) | Execute (inherits) | All | Manage |
-| DATA_STEWARD | SELECT (inherits) | - | Read | Query |
-
-## Streamlit Visualization
-
-**Page 6: Knowledge Graph** (`ontology/streamlit/pages/6_Knowledge_Graph.py`)
-
-Three tabs:
-1. **Graph Explorer** — Interactive node/edge visualization with filters (layer, source system, node type)
-2. **Governance Scores** — Color-coded score table with heatmap (red/yellow/green)
-3. **Recommendations** — Open recommendations grouped by type with severity badges
+| Role | Graph Tables | Inference Procedures | Share |
+|------|-------------|----------------|-------|
+| ONTOLOGY_ADMIN | Full | Execute | Manage |
+| ONTOLOGY_CONSUMER | SELECT | - | Query via share |
+| DATA_ADMIN | Full (inherits) | Execute (inherits) | Manage |
+| DATA_STEWARD | SELECT (inherits) | - | Query |
 
 ## Troubleshooting
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | Empty graph after SP_REFRESH_GRAPH | Curated tables not populated | Run scripts 04 (load data) first |
-| Neo4j container not ready | Compute pool suspended or container restarting | Check SPCS service logs: `CALL SYSTEM$GET_SERVICE_LOGS('DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_SERVICE', 0, 'neo4j')` |
-| SPCS service unhealthy | Container not started | Check `SHOW SERVICES` and service logs |
-| Zero recommendations | No governance gaps exist | Run `ontology/setup/04_governance_gaps.sql` to create test gaps |
+| Zero recommendations | No governance gaps exist | Run `ontology/philosophy/setup/04_governance_gaps.sql` to create test gaps |
 | Low node count | Missing source system data | Check which source systems have data in CURATED_DEV |
 
 ## File Reference
 
 | File | Purpose |
 |------|---------|
-| `sql/11_rai_setup.sql` | Infrastructure: SPCS compute pool, image repo, roles |
+| `sql/11_rai_setup.sql` | Roles & grants (ONTOLOGY_ADMIN / ONTOLOGY_CONSUMER) |
 | `sql/12_ontology_graph_tables.sql` | Table DDL (6 tables) |
 | `sql/13_ontology_graph_populate.sql` | Population procedures (6 SPs) |
 | `sql/14_rai_graph_sync.sql` | Graph inference procedures (pure SQL) |
 | `sql/15_ontology_sharing.sql` | Share + views + catalog registration |
-| `ontology/spcs/app/cypher_queries/` | Cypher inference queries |
-| `ontology/spcs/Dockerfile` | Container image build |
-| `ontology/spcs/service-spec.yaml` | SPCS service spec |
-| `ontology/spcs/app/` | FastAPI application (main + routes) |
-| `ontology/streamlit/pages/6_Knowledge_Graph.py` | Streamlit visualization |
+| `sql/16_graph_algorithms.sql` | On-demand graph algorithms (views + procs) |
 
 ## References
 
-- [Snowpark Container Services](https://docs.snowflake.com/en/developer-guide/snowpark-container-services/overview)
-- [DCA Ontological Synthesis](../ontology/04-dca-ontological-synthesis.md)
+- [Ontology Reference Architecture](ONTOLOGY.md)
+- [DCA Ontological Synthesis](../ontology/philosophy/04-dca-ontological-synthesis.md)
 - [Governance Documentation](GOVERNANCE.md)
 - [Architecture Documentation](ARCHITECTURE.md)

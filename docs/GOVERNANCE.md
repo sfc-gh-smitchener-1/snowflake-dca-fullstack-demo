@@ -231,15 +231,15 @@ All generated records include:
 
 ## Graph-Based Governance Analysis
 
-The DCA includes an **Ontology Knowledge Graph** that provides automated governance gap detection and remediation recommendations. Queries run through either of two interchangeable backends — Snowflake-native (recursive CTEs, default, no sidecar) or Neo4j on SPCS (Cypher, optional, for deep traversal and GDS algorithms). See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md).
+The DCA includes an **Ontology Knowledge Graph** that provides automated governance gap detection and remediation recommendations. It runs entirely in Snowflake — recursive CTEs and SQL stored procedures over the node/edge graph of record, with no sidecar or container service. See [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md).
 
 ### How It Works
 
-The knowledge graph ingests metadata from `INFORMATION_SCHEMA`, `TAG_REFERENCES`, and curated business entity tables, then applies graph inference rules via Cypher and SQL to detect governance issues that are invisible to point-in-time checks.
+The knowledge graph ingests metadata from `INFORMATION_SCHEMA`, `TAG_REFERENCES`, and curated business entity tables, then applies graph inference rules in SQL to detect governance issues that are invisible to point-in-time checks.
 
 ### Detected Governance Gaps
 
-The inference engine detects the four intentional governance gaps introduced by `ontology/setup/04_governance_gaps.sql`:
+The inference engine detects the four intentional governance gaps introduced by `ontology/philosophy/setup/04_governance_gaps.sql`:
 
 | Gap | Type | Detection Method |
 |-----|------|-----------------|
@@ -280,7 +280,7 @@ Each node in the graph receives a composite governance score (0.0 - 1.0):
 | Role | Permissions |
 |------|------------|
 | `ONTOLOGY_ADMIN` | Full CRUD on graph tables, execute inference, apply recommendations |
-| `ONTOLOGY_CONSUMER` | Read-only access to graph tables, scores, and SPCS API endpoint |
+| `ONTOLOGY_CONSUMER` | Read-only access to graph tables, scores, and recommendations |
 
 See [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md) for full technical documentation.
 

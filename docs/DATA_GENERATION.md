@@ -424,6 +424,86 @@ Tables are automatically created in source-specific schemas:
 
 ---
 
+## Ontology Adapter (relational → triples)
+
+The data generator described above produces **relational** tables (KNA1,
+Account, HZ_PARTIES, …). The ontology reference demo under
+[`ontology/demo/`](../ontology/demo/)
+reuses that exact generator and projects its output into a **triple store**
+(individuals + statements) so the same enterprise data can power a knowledge
+graph, Graph RAG, SHACL data-quality, and Cortex Analyst — all source-aware.
+
+Nothing about the relational generator changes; the adapter sits on top of it.
+
+### The pipeline
+
+```
+tools/data_generator.py              demo/tools/mappings/<source>.py  (curated MappingSpec)
+  (relational rows)        ─────────────────────┐
+                                                 ▼
+                         demo/tools/ontology_adapter.py
+                  (emit_triples / derive_tbox — the engine)
+                                                 │
+        ┌────────────────────────┬──────────────┴───────────────┐
+        ▼                        ▼                               ▼
+ generate_ontology_data.py   generate_tbox.py          generate_semantic_models.py
+   data/<prefix>/*.csv        ontologies/<prefix>.{sql,ttl}   analytics_models/analytics_<source>.yaml
+      (ABox)                       (TBox)                    (Cortex Analyst — analytics layer)
+```
+
+The **ontology layer** (TBox/ABox in `ontologies/`) and the **analytics layer**
+(Cortex Analyst YAMLs in `analytics_models/`) are kept deliberately separate —
+they share the same `MappingSpec` source of truth but serve different
+consumers (graph/knowledge vs. natural-language BI).
+
+All three generators derive from the **same** `MappingSpec`, so every predicate
+emitted into the ABox is guaranteed to have a matching TBox class/property and a
+Gold-view column — no dangling references at load time.
+
+### The mapping spec
+
+Each source has one curated module, `demo/tools/mappings/<source>.py`, exporting
+a `MappingSpec`. Per source table it declares:
+
+| Field | Purpose |
+|---|---|
+| `class_iri` | Ontology class each row becomes an individual of (e.g. `sap:Customer`) |
+| `uid_prefix` + `key` | How to mint a stable individual UID; `key` may be a callable for composite keys |
+| `literals` (`PropMap`) | Datatype properties: source column → predicate IRI + `xsd:` type |
+| `edges` (`EdgeMap`) | Object properties / foreign keys: column → predicate IRI + target `uid_prefix` |
+
+`PropMap`/`EdgeMap` accept a `getter` callable for nested payloads (used heavily
+by FHIR's JSON resources). The engine runs two passes: build a UID index for all
+individuals, then emit individuals + object/literal statements with referential
+integrity preserved.
+
+### Running it
+
+```bash
+cd ontology/demo
+pip install -r tools/requirements.txt
+
+# ABox + TBox + analytics models for all six systems
+python tools/generate_ontology_data.py --system all   # data/<prefix>/*.csv
+python tools/generate_tbox.py                         # ontologies/<prefix>.{sql,ttl}
+python tools/generate_semantic_models.py              # analytics_models/analytics_<source>.yaml
+```
+
+`--system` uses the **CLI name** (`salesforce`); every output and the SQL
+`SYSTEM` variable is keyed by the **namespace prefix** (`sfdc`). See the
+[demo README](../ontology/demo/README.md)
+for the full Snowflake load order.
+
+### Adding a source to the ontology demo
+
+After registering a generator (see *Extending for Custom Systems* below), add a
+`demo/tools/mappings/<source>.py` with a `MappingSpec`, append it to the
+`SUPPORTED` / `SYSTEMS` lists in the three generator scripts, and re-run them.
+The TBox, ABox, analytics model, Gold views, and DMFs are all derived
+automatically — no hand-written SQL per entity.
+
+---
+
 ## Best Practices
 
 1. **Match Your Source System**: Use the generator that matches your actual source for realistic demos

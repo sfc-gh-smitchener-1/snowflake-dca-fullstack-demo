@@ -12,7 +12,6 @@ set -euo pipefail
 #   ./deploy.sh --connection default
 #   ./deploy.sh --connection default --quick          # 10% data for testing
 #   ./deploy.sh --connection default --skip-data      # Skip data generation (reuse existing)
-#   ./deploy.sh --connection default --skip-spcs      # Skip SPCS deployment
 #   ./deploy.sh --connection default --skip-hardening # Skip network/BCDR
 #   ./deploy.sh --connection default --data-only      # Only generate + load data
 #   ./deploy.sh --connection default --sql-only       # Only run SQL scripts
@@ -20,7 +19,6 @@ set -euo pipefail
 #
 # Prerequisites:
 #   - Python 3.9+ with faker and snowflake-connector-python
-#   - Docker (for SPCS deployment)
 #   - snow CLI (Snowflake CLI) installed
 #   - Snowflake Business Critical account with ACCOUNTADMIN access
 #
@@ -29,9 +27,8 @@ set -euo pipefail
 #   Phase 2: Foundation SQL (01_setup, 03_raw, 07_governance, etc.)
 #   Phase 3: Data Upload & Load
 #   Phase 4: HCLS Graph Extensions (scripts 01-07)
-#   Phase 5: SPCS Service Deployment
-#   Phase 6: Security Hardening (optional, interactive)
-#   Phase 7: Validation
+#   Phase 5: Security Hardening (optional, interactive)
+#   Phase 6: Validation
 #
 # ============================================================================
 
@@ -52,12 +49,9 @@ CONNECTION=""
 QUICK=false
 SCALE="1.0"
 SKIP_DATA=false
-SKIP_SPCS=false
 SKIP_HARDENING=false
 DATA_ONLY=false
 SQL_ONLY=false
-ORG=""
-ACCOUNT=""
 
 # ---------------------------------------------------------------------------
 # Colours / formatting helpers
@@ -84,7 +78,7 @@ print_banner() {
     echo "  Started : $(date '+%Y-%m-%d %H:%M:%S %Z')"
     echo "  Conn    : ${CONNECTION}"
     echo "  Quick   : ${QUICK}  (scale=${SCALE})"
-    echo "  Flags   : skip-data=${SKIP_DATA} skip-spcs=${SKIP_SPCS} skip-hardening=${SKIP_HARDENING}"
+    echo "  Flags   : skip-data=${SKIP_DATA} skip-hardening=${SKIP_HARDENING}"
     echo "            data-only=${DATA_ONLY} sql-only=${SQL_ONLY}"
     echo ""
 }
@@ -100,19 +94,15 @@ Options:
   --quick                 Generate ~10 % data for fast testing
   --scale FLOAT           Data scale factor (default: 1.0, --quick sets 0.1)
   --skip-data             Skip Phase 1 data generation (reuse existing files)
-  --skip-spcs             Skip Phase 5 SPCS container deployment
-  --skip-hardening        Skip Phase 6 network hardening / BCDR
+  --skip-hardening        Skip Phase 5 network hardening / BCDR
   --data-only             Run only Phases 1 + 3 (generate + load)
   --sql-only              Run only Phases 2 + 4 (foundation + extensions SQL)
-  --org ORG               Snowflake org name  (auto-detected if not set)
-  --account ACCOUNT       Snowflake account name (auto-detected if not set)
   -h, --help              Show this help message
 
 Examples:
   ./deploy.sh --connection default
   ./deploy.sh --connection default --quick
-  ./deploy.sh --connection default --quick --skip-spcs
-  ./deploy.sh --connection default --org MYORG --account MYACCT
+  ./deploy.sh --connection default --skip-hardening
   ./deploy.sh --connection default --data-only --quick
 EOF
     exit 0
@@ -125,12 +115,9 @@ parse_args() {
             --quick)        QUICK=true; SCALE="0.1"; shift ;;
             --scale)        SCALE="$2"; shift 2 ;;
             --skip-data)    SKIP_DATA=true; shift ;;
-            --skip-spcs)    SKIP_SPCS=true; shift ;;
             --skip-hardening) SKIP_HARDENING=true; shift ;;
             --data-only)    DATA_ONLY=true; shift ;;
             --sql-only)     SQL_ONLY=true; shift ;;
-            --org)          ORG="$2"; shift 2 ;;
-            --account)      ACCOUNT="$2"; shift 2 ;;
             -h|--help)      usage ;;
             *)
                 echo -e "${RED}[ERROR] Unknown option: $1${NC}" >&2
@@ -182,18 +169,6 @@ check_prerequisites() {
         echo -e "  ${GREEN}[OK]${NC} snow CLI $(snow --version 2>&1 | head -1)"
     else
         echo -e "  ${RED}[MISSING]${NC} snow CLI (https://docs.snowflake.com/en/developer-guide/snowflake-cli)"; ok=false
-    fi
-
-    # Docker (only needed for SPCS)
-    if [ "${SKIP_SPCS}" = "false" ] && [ "${SQL_ONLY}" = "false" ] && [ "${DATA_ONLY}" = "false" ]; then
-        if docker info &>/dev/null; then
-            echo -e "  ${GREEN}[OK]${NC} docker   $(docker --version 2>&1)"
-        else
-            echo -e "  ${YELLOW}[WARN]${NC} docker not available — SPCS phase will be skipped"
-            SKIP_SPCS=true
-        fi
-    else
-        echo -e "  ${YELLOW}[SKIP]${NC} docker   (not needed for this run)"
     fi
 
     echo ""
@@ -270,11 +245,10 @@ phase_2_foundation_sql() {
     run_sql_file "${CORE_SQL_DIR}/05_curated_layer.sql"         "Curated layer (Dynamic Tables)"
     run_sql_file "${CORE_SQL_DIR}/07_governance.sql"            "Governance (masking, RLS, tags)"
 
-    # Ontology graph infrastructure — dual-backend
-    #   * Snowflake-native (default): recursive CTEs on the nodes/edges tables, no sidecar
-    #   * Neo4j (optional): SPCS sidecar container, loaded when GRAPH_BACKEND=neo4j|both
-    # See docs/GRAPH_BACKENDS.md for the compare/contrast and when to choose which.
-    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"               "SPCS infrastructure (compute pool, image repo, roles)"
+    # Ontology Knowledge Graph — Snowflake-native (recursive CTEs on the
+    # nodes/edges tables, no sidecar or container service).
+    # See docs/KNOWLEDGE_GRAPH.md for the graph model and query patterns.
+    run_sql_file "${CORE_SQL_DIR}/11_rai_setup.sql"               "Ontology graph roles & grants"
     run_sql_file "${CORE_SQL_DIR}/12_ontology_graph_tables.sql"   "Graph tables (nodes, edges, scores)"
     run_sql_file "${CORE_SQL_DIR}/13_ontology_graph_populate.sql" "Graph population procedures"
     run_sql_file "${CORE_SQL_DIR}/14_rai_graph_sync.sql"          "Graph inference procedures (pure SQL, batch)"
@@ -336,38 +310,12 @@ phase_4_hcls_extensions() {
 }
 
 # ---------------------------------------------------------------------------
-# Phase 5 — SPCS Service Deployment
+# Phase 5 — Security Hardening
 # ---------------------------------------------------------------------------
-phase_5_spcs() {
+phase_5_hardening() {
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}PHASE 5: SPCS SERVICE DEPLOYMENT${NC}"
-    echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
-    echo ""
-
-    if [ -z "${ORG}" ] || [ -z "${ACCOUNT}" ]; then
-        echo -e "  ${YELLOW}[SKIP]${NC} SPCS: --org and --account required for container registry."
-        echo "  Run manually: ./tools/deploy_spcs.sh --org <ORG> --account <ACCOUNT>"
-        return 0
-    fi
-
-    bash "${TOOLS_DIR}/deploy_spcs.sh" \
-        --org "${ORG}" \
-        --account "${ACCOUNT}" \
-        --connection "${CONNECTION}"
-
-    echo ""
-    echo -e "  ${GREEN}[OK]${NC} SPCS deployment complete"
-    echo ""
-}
-
-# ---------------------------------------------------------------------------
-# Phase 6 — Security Hardening
-# ---------------------------------------------------------------------------
-phase_6_hardening() {
-    echo ""
-    echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}PHASE 6: SECURITY HARDENING (interactive)${NC}"
+    echo -e "${BOLD}PHASE 5: SECURITY HARDENING (interactive)${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
 
@@ -388,12 +336,12 @@ phase_6_hardening() {
 }
 
 # ---------------------------------------------------------------------------
-# Phase 7 — Validation
+# Phase 6 — Validation
 # ---------------------------------------------------------------------------
-phase_7_validation() {
+phase_6_validation() {
     echo ""
     echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
-    echo -e "${BOLD}PHASE 7: VALIDATION${NC}"
+    echo -e "${BOLD}PHASE 6: VALIDATION${NC}"
     echo -e "${BOLD}═══════════════════════════════════════════════════════════════${NC}"
     echo ""
 
@@ -442,12 +390,6 @@ print_summary() {
     echo "  Data scale   : ${SCALE}"
     echo ""
 
-    if [ "${SKIP_SPCS}" = "false" ] && [ -n "${ORG}" ] && [ -n "${ACCOUNT}" ]; then
-        echo "  SPCS Endpoint: Check with:"
-        echo "    snow sql --connection ${CONNECTION} -q \"SHOW SERVICES IN SCHEMA DCA_DEMO.GOVERNANCE;\""
-        echo ""
-    fi
-
     echo "  Streamlit    : Deploy via Snowsight or:"
     echo "    snow streamlit deploy --connection ${CONNECTION}"
     echo ""
@@ -466,25 +408,6 @@ main() {
     print_banner
     check_prerequisites
 
-    # Auto-detect ORG and ACCOUNT from Snowflake if not provided (needed for SPCS)
-    if [ "${SKIP_SPCS}" = "false" ] && [ "${SQL_ONLY}" = "false" ] && [ "${DATA_ONLY}" = "false" ]; then
-        if [ -z "${ORG}" ] || [ -z "${ACCOUNT}" ]; then
-            echo -e "  ${CYAN}[AUTO]${NC} Detecting ORG/ACCOUNT from Snowflake..."
-            if [ -z "${ORG}" ]; then
-                ORG=$(snow sql --connection "${CONNECTION}" -q "SELECT CURRENT_ORGANIZATION_NAME()" --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['CURRENT_ORGANIZATION_NAME()'])" 2>/dev/null || true)
-            fi
-            if [ -z "${ACCOUNT}" ]; then
-                ACCOUNT=$(snow sql --connection "${CONNECTION}" -q "SELECT CURRENT_ACCOUNT()" --format json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['CURRENT_ACCOUNT()'])" 2>/dev/null || true)
-            fi
-            if [ -n "${ORG}" ] && [ -n "${ACCOUNT}" ]; then
-                echo -e "  ${GREEN}[OK]${NC}  ORG=${ORG}  ACCOUNT=${ACCOUNT}"
-            else
-                echo -e "  ${YELLOW}[WARN]${NC} Could not auto-detect ORG/ACCOUNT — SPCS phase will require --org/--account"
-            fi
-            echo ""
-        fi
-    fi
-
     START_TIME=$(date +%s)
 
     if [ "${DATA_ONLY}" = "true" ]; then
@@ -498,9 +421,8 @@ main() {
         phase_2_foundation_sql
         phase_3_upload_and_load
         phase_4_hcls_extensions
-        [ "${SKIP_SPCS}" = "false" ] && phase_5_spcs
-        [ "${SKIP_HARDENING}" = "false" ] && phase_6_hardening
-        phase_7_validation
+        [ "${SKIP_HARDENING}" = "false" ] && phase_5_hardening
+        phase_6_validation
     fi
 
     END_TIME=$(date +%s)

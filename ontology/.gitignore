@@ -1,0 +1,36 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.python-version
+
+# ---- Snowflake CLI / Streamlit build artifacts ----
+demo/output/
+*.log
+
+# ---- Generated synthetic data ----
+# Recreate with: python demo/tools/generate_ontology_data.py --system <system>
+demo/data/
+
+# ---- Rendered / derived docs (source of truth is the .md + .mmd) ----
+*.docx
+*.pdf
+*.pre-mermaid-render.bak
+*.bak
+
+# ---- Local connection config / secrets ----
+.env
+*.local.toml
+config.toml
+connections.toml
+
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/
+
+# ---- Local-only notes / session handoff (never publish) ----
+*.local.md
+HANDOFF.local.md

@@ -1,0 +1,232 @@
+name: workday_ontology
+description: >-
+  Cortex Analyst semantic model for the WORKDAY ontology, generated
+  from mappings/workday.py. One logical table per ontology class, backed by
+  the GOLD.V_WD_* views.
+tables:
+  - name: wd_worker
+    description: WORKDAY Worker
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_WORKER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: active_status
+        expr: active_status
+        data_type: text
+      - name: address_region
+        expr: address_region
+        data_type: text
+      - name: cost_center
+        expr: cost_center
+        data_type: text
+      - name: email
+        expr: email
+        data_type: text
+      - name: employee_id
+        expr: employee_id
+        data_type: text
+      - name: first_name
+        expr: first_name
+        data_type: text
+      - name: gender
+        expr: gender
+        data_type: text
+      - name: hire_date
+        expr: hire_date
+        data_type: date
+      - name: job_family
+        expr: job_family
+        data_type: text
+      - name: job_level
+        expr: job_level
+        data_type: text
+      - name: last_name
+        expr: last_name
+        data_type: text
+      - name: worker_type
+        expr: worker_type
+        data_type: text
+    facts:
+      - name: annual_salary
+        expr: annual_salary
+        data_type: number
+  - name: wd_organization
+    description: WORKDAY Organization
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_ORGANIZATION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: organization_code
+        expr: organization_code
+        data_type: text
+      - name: organization_subtype
+        expr: organization_subtype
+        data_type: text
+      - name: organization_type
+        expr: organization_type
+        data_type: text
+  - name: wd_job_profile
+    description: WORKDAY JobProfile
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_JOBPROFILE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: job_code
+        expr: job_code
+        data_type: text
+      - name: job_family
+        expr: job_family
+        data_type: text
+      - name: job_level
+        expr: job_level
+        data_type: text
+      - name: management_level
+        expr: management_level
+        data_type: text
+  - name: wd_compensation
+    description: WORKDAY Compensation
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_COMPENSATION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: compensation_grade
+        expr: compensation_grade
+        data_type: text
+      - name: effective_date
+        expr: effective_date
+        data_type: date
+      - name: for_worker_uid
+        expr: for_worker_uid
+        data_type: text
+    facts:
+      - name: base_pay_amount
+        expr: base_pay_amount
+        data_type: number
+      - name: compa_ratio
+        expr: compa_ratio
+        data_type: number
+      - name: total_compensation
+        expr: total_compensation
+        data_type: number
+  - name: wd_time_off
+    description: WORKDAY TimeOff
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_TIMEOFF
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: end_date
+        expr: end_date
+        data_type: date
+      - name: start_date
+        expr: start_date
+        data_type: date
+      - name: status
+        expr: status
+        data_type: text
+      - name: for_worker_uid
+        expr: for_worker_uid
+        data_type: text
+    facts:
+      - name: total_days
+        expr: total_days
+        data_type: number
+  - name: wd_benefit_election
+    description: WORKDAY BenefitElection
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_WD_BENEFITELECTION
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: benefit_plan_type
+        expr: benefit_plan_type
+        data_type: text
+      - name: coverage_level
+        expr: coverage_level
+        data_type: text
+      - name: for_worker_uid
+        expr: for_worker_uid
+        data_type: text
+    facts:
+      - name: employee_cost
+        expr: employee_cost
+        data_type: number
+      - name: employer_cost
+        expr: employer_cost
+        data_type: number

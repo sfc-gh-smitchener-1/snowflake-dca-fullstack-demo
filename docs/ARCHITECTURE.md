@@ -524,7 +524,7 @@ flowchart TB
     end
     subgraph GOVERNANCE["GOVERNANCE LAYER"]
         G["Tags | Masking | Row Access | Compliance | Audit\nGovernance protects at EVERY boundary, including contracts"]
-        KG["KNOWLEDGE GRAPH (Dual-Backend)\nSnowflake-native (recursive CTEs, default) + optional Neo4j sidecar on SPCS\nNode/Edge Model | Inference | Scoring | Recommendations"]
+        KG["KNOWLEDGE GRAPH (Snowflake-native)\nRecursive CTEs + SQL graph algorithms\nNode/Edge Model | Inference | Scoring | Recommendations"]
     end
     subgraph CONSUMPTION["CONSUMPTION LAYER"]
         CORTEX["CORTEX ANALYST\nNatural Language"]
@@ -585,20 +585,13 @@ For a detailed comparison and decision framework, see [DBT_VS_DYNAMIC_TABLES.md]
 
 ---
 
-## Ontology Knowledge Graph (Dual-Backend)
+## Ontology Knowledge Graph (Snowflake-Native)
 
-The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis through **two interchangeable backends behind a single API**:
-
-1. **Snowflake-native (default).** Recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES`. No sidecar, always live against the source tables, inherits Snowflake's governance / replication / sharing. Suited to governance scoring, PII propagation, ownership gaps, entity resolution, and traversal up to ~10 hops.
-2. **Neo4j (optional sidecar).** Cypher against a property-graph engine running as a container on Snowpark Container Services (SPCS). Sub-100ms shortest path at any depth and GDS-class algorithms (PageRank, Louvain, community detection). Reach for it when you need deep traversal, real-time visual exploration, or competing positioning against TigerGraph / Neptune.
-
-Both backends read from the same Snowflake tables (the graph of record always lives in Snowflake). Selection is per service deployment (`GRAPH_BACKEND=snowflake|neo4j|both`) and per request (`?backend=` query param). The `/inference/compare` endpoint runs the same query through every loaded backend and returns timings + results side-by-side.
-
-See [GRAPH_BACKENDS.md](./GRAPH_BACKENDS.md) for the full compare/contrast and decision matrix.
+The architecture includes an **Ontology Knowledge Graph** that provides graph-based governance analysis entirely in Snowflake — recursive CTEs + window functions over `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES`. There is no sidecar and no container service: the graph is always live against the source tables and inherits Snowflake's governance, replication, and sharing. It handles governance scoring, PII propagation, ownership gaps, entity resolution, and traversal (shortest path, centrality, connected components, k-hop neighborhood).
 
 ### Purpose
 
-The Knowledge Graph operationalizes the ontological framework described in `ontology/04-dca-ontological-synthesis.md`. It materializes the relationships between metadata objects (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable graph with graph-powered inference via Cypher and SQL.
+The Knowledge Graph operationalizes the ontological framework described in `ontology/philosophy/04-dca-ontological-synthesis.md`. It materializes the relationships between metadata objects (tables, columns, tags, roles, policies) and business entities (customers, patients, employees, products) as a queryable graph with SQL-powered inference.
 
 ### Architecture
 
@@ -613,8 +606,8 @@ flowchart TB
         EDGES["ONTOLOGY_GRAPH_EDGES\n(Relationship table)"]
         SNAP["ONTOLOGY_GRAPH_SNAPSHOTS"]
     end
-    subgraph NEO4J["NEO4J ENGINE (SPCS SIDECAR)"]
-        MODEL["Cypher Queries\n(Graph inference model)"]
+    subgraph ENGINE["SNOWFLAKE-NATIVE ENGINE"]
+        SQLPROC["Recursive CTEs + SQL stored procs\n(sql/14 batch, sql/16 on-demand)"]
         INFER["Inference Rules:\n• PII propagation\n• Ownership gaps\n• Entity resolution\n• Governance scoring"]
     end
     subgraph OUTPUT["GRAPH OUTPUTS"]
@@ -623,13 +616,12 @@ flowchart TB
         SCORES["RAI_GOVERNANCE_SCORES\n(Per-node scores)"]
     end
     subgraph CONSUME["CONSUMPTION"]
-        API["SPCS REST API\n(FastAPI service)"]
-        ST["Streamlit Page 6\n(Interactive graph viz)"]
+        WS["Snowsight Worksheets / BI\n(views + procs)"]
         SHARE["ONTOLOGY_GRAPH_DATA_SHARE\n(Snowflake Share)"]
     end
     SOURCES --> GRAPH
-    GRAPH --> NEO4J
-    NEO4J --> OUTPUT
+    GRAPH --> ENGINE
+    ENGINE --> OUTPUT
     OUTPUT --> CONSUME
 ```
 
@@ -643,10 +635,9 @@ flowchart TB
 
 ### Graph Inference
 
-The graph engine provides inference via three complementary paths:
-- **Batch (SQL)**: `SP_RUN_INFERENCE()` materializes PII propagation, ownership gaps, entity resolution, and governance scores into recommendation tables (`sql/14_rai_graph_sync.sql`)
-- **On-demand (SQL)**: Views and stored procedures in `sql/16_graph_algorithms.sql` expose shortest path, centrality, connected components, and k-hop neighborhood — callable from any Worksheet, no SPCS service required
-- **Real-time API (SPCS)**: FastAPI service dispatches every request to the Snowflake-native backend (always) and/or the Neo4j sidecar (when loaded), via `?backend=snowflake|neo4j|both`
+The graph engine provides inference via two complementary paths, both pure SQL:
+- **Batch**: `SP_RUN_INFERENCE()` materializes PII propagation, ownership gaps, entity resolution, and governance scores into recommendation tables (`sql/14_rai_graph_sync.sql`)
+- **On-demand**: Views and stored procedures in `sql/16_graph_algorithms.sql` expose shortest path, centrality, connected components, and k-hop neighborhood — callable from any Worksheet
 
 Inference capabilities:
 
@@ -655,30 +646,22 @@ Inference capabilities:
 3. **Entity Resolution** — Cross-system entity matching using name similarity (e.g., same customer in SAP and Salesforce)
 4. **Governance Scoring** — Composite score per node: tag coverage (30%), contract (30%), ownership (25%), quality monitoring (15%)
 
-### SPCS Service Endpoint
+### On-Demand Graph Algorithms
 
-A FastAPI container — optionally with a Neo4j Community sidecar — running on `RAI_COMPUTE_POOL` exposes the graph as a REST API. Every inference endpoint accepts `?backend=snowflake|neo4j|both`:
+`sql/16_graph_algorithms.sql` exposes graph algorithms as views and stored procedures, callable from any Snowsight Worksheet:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Service health + per-backend connection status |
-| `/inference/backends` | GET | List loaded backends and the default |
-| `/inference/compare?endpoint=...` | GET | Run the same query through every loaded backend; return timings + results |
-| `/nodes` | GET | List/filter nodes |
-| `/nodes/{id}/neighbors` | GET | Get connected nodes |
-| `/edges/path/{from}/{to}` | GET | Shortest path between nodes (Cypher) |
-| `/governance-scores` | GET | Governance scores with threshold filter |
-| `/inference/pii-propagation` | GET | Detect untagged PHI columns |
-| `/inference/ownership-gaps` | GET | Detect tables without owners |
-| `/inference/entity-resolution` | GET | Cross-system entity matching |
-| `/inference/centrality` | GET | Hub node detection |
-| `/inference/reload` | POST | Reload graph from Snowflake tables |
+| Object | Type | Description |
+|--------|------|-------------|
+| `V_GRAPH_DEGREE_CENTRALITY` | View | Top-N hub nodes by degree |
+| `V_GRAPH_PII_PROPAGATION` | View | Live PII propagation findings |
+| `V_GRAPH_GOVERNANCE_SCORES` | View | Live composite governance scores |
+| `SP_GRAPH_SHORTEST_PATH(from, to, hops)` | Procedure | Shortest path between two nodes |
+| `SP_GRAPH_CONNECTED_COMPONENTS()` | Procedure | Weakly connected components |
+| `SP_GRAPH_NEIGHBORHOOD(start, k)` | Procedure | k-hop neighborhood expansion |
 
 ### Sharing
 
-The graph is shareable via:
-- **Snowflake Share** (`ONTOLOGY_GRAPH_DATA_SHARE`) — secure views over node/edge/score tables
-- **SPCS Service Endpoint** — granted to `ONTOLOGY_CONSUMER` role for live graph queries
+The graph is shareable via the **Snowflake Share** (`ONTOLOGY_GRAPH_DATA_SHARE`) — secure views over the node/edge/score tables, granted to consumer accounts as needed.
 
 For full documentation, see [KNOWLEDGE_GRAPH.md](KNOWLEDGE_GRAPH.md).
 

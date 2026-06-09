@@ -1,0 +1,24 @@
+flowchart TB
+    classDef q fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+    classDef p fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef o fill:#5C9F69,stroke:#3F6E48,color:#FFFFFF
+
+    Q1["Q1 · Lookup<br/>'show me Customer 1234<br/>and its current Account'"]:::q
+    Q2["Q2 · Hierarchy walk<br/>'all descendant categories<br/>of Beverages'"]:::q
+    Q3["Q3 · Multi-hop traceback<br/>'which retailers received<br/>any batch from supplier X<br/>in the last 30 days?'"]:::q
+    Q4["Q4 · Semantic discovery<br/>'find products similar to<br/>this one' / 'is this attribute<br/>the same concept as that one?'"]:::q
+
+    P1["Hybrid Table point read on<br/>individual + node, then<br/>edge join on owns/holds"]:::p
+    P2["Recursive CTE over taxonomy_node<br/>OR over edge where<br/>predicate_iri = subClassOf"]:::p
+    P3["Recursive CTE over edge<br/>with predicate filter,<br/>cluster key on (predicate_iri, src_uid),<br/>BLOOM filter via search_optimization"]:::p
+    P4["Cortex Search service<br/>+ EMBED_TEXT_768 cosine<br/>+ optional LLM rerank (CORTEX.COMPLETE)"]:::p
+
+    O1["Sub-10ms<br/>(Unistore primary key)"]:::o
+    O2["<1s for trees up to ~10⁵ nodes<br/>(predicate-clustered edge)"]:::o
+    O3["1–10s on 10⁹ edges<br/>w/ search_optimization +<br/>predicate cluster key"]:::o
+    O4["~100ms search, ~500ms rerank<br/>(both on Snowflake-managed infra)"]:::o
+
+    Q1 --> P1 --> O1
+    Q2 --> P2 --> O2
+    Q3 --> P3 --> O3
+    Q4 --> P4 --> O4

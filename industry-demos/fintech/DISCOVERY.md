@@ -6,7 +6,7 @@
 
 Global money transfer companies face an escalating compliance challenge: transaction volumes grow 15-20% YoY while rule-based AML systems produce 95%+ false positive rates, sanctions screening runs in overnight batch (missing real-time threats), and fraud rings exploit the gap between siloed systems. Regulators (FinCEN, OFAC, state MTLs) demand faster detection, better SAR quality, and provable compliance — while simultaneously reducing the $50M+ annual compliance operations cost.
 
-The primary objective is to **deploy a dual-backend Knowledge Graph platform for financial crime detection** that reduces AML false positives by 70%+, enables real-time sanctions screening via graph traversal, and automates fraud ring detection using connected component analysis. The graph of record lives in Snowflake; the default query engine is Snowflake-native recursive CTEs (no sidecar, no extra license), with an optional Neo4j sidecar on SPCS reserved for deep beneficial-ownership traversal and sub-100 ms shortest-path on the payment authorization path. See [GRAPH_BACKENDS.md](../../docs/GRAPH_BACKENDS.md) for the trade-off.
+The primary objective is to **deploy a Snowflake-native Knowledge Graph platform for financial crime detection** that reduces AML false positives by 70%+, enables real-time sanctions screening via graph traversal, and automates fraud ring detection using connected component analysis. The graph of record lives in Snowflake and is queried entirely in SQL — recursive CTEs and label propagation (no sidecar, no extra license) — covering everything from network-position scoring to deep beneficial-ownership traversal and shortest-path on the payment authorization path. See [KNOWLEDGE_GRAPH.md](../../docs/KNOWLEDGE_GRAPH.md) for the graph model and algorithms.
 
 ## Current State Architecture
 
@@ -62,7 +62,7 @@ flowchart LR
 
 **Impact**: $10M+ annual fraud losses from coordinated structuring rings. Each individual transaction is below thresholds, but the aggregate pattern (20 customers, same beneficiary, structured amounts) is clearly suspicious.
 
-**DCA Solution**: Connected-component analysis on SHARES_BENEFICIARY, SHARES_ADDRESS, SHARES_DEVICE edges. Fraud rings become visible as graph clusters. Default implementation uses Snowflake-native iterative label propagation in pure SQL; the optional Neo4j sidecar provides GDS community detection (Louvain, Leiden) for the larger, denser-graph cases.
+**DCA Solution**: Connected-component analysis on SHARES_BENEFICIARY, SHARES_ADDRESS, SHARES_DEVICE edges. Fraud rings become visible as graph clusters, detected via Snowflake-native iterative label propagation in pure SQL — scaling with the warehouse, no separate graph engine to operate.
 
 ### 3. Sanctions Screening Latency (Batch, Not Real-Time)
 
@@ -70,7 +70,7 @@ flowchart LR
 
 **Impact**: 12-24 hour window where sanctioned entities can still transact. Beneficial ownership obscures true sanctioned parties. $1M+ potential OFAC violation per incident.
 
-**DCA Solution**: Graph traversal: CUSTOMER → BENEFICIARY → (1-3 hops) → WATCHLIST_ENTITY. Real-time on every transaction via the SPCS `/edges/path` endpoint. Snowflake-native recursive CTE handles the typical 1-3 hop case at warehouse-query speed; the optional Neo4j sidecar handles deeper beneficial-ownership chains (4+ hops to a sanctioned UBO) in sub-100 ms when that's the access pattern. Pick per request with `?backend=`.
+**DCA Solution**: Graph traversal: CUSTOMER → BENEFICIARY → (multiple hops) → WATCHLIST_ENTITY. Real-time on every transaction via the `SP_GRAPH_SHORTEST_PATH` procedure (`sql/16_graph_algorithms.sql`). A Snowflake-native recursive CTE handles the typical 1-3 hop case at warehouse-query speed and walks deeper beneficial-ownership chains (to a sanctioned UBO) when that's the access pattern — all in SQL.
 
 ### 4. Payment Corridor Risk Opacity
 

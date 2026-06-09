@@ -221,7 +221,6 @@ The demo deploys (`09_hcls_network_hardening.sql`):
 | `HCLS_SNOWFLAKE_INTERNAL` | Network Rule (Egress) | Snowflake service access |
 | `HCLS_RESTRICTED_ACCESS` | Network Policy | Combines rules — account-level enforcement |
 | `HCLS_SESSION_POLICY` | Session Policy | 30-min idle, 15-min UI timeout |
-| `HCLS_SPCS_EGRESS` | Network Rule (Egress) | Container egress lockdown |
 
 ### Architecture with PrivateLink
 
@@ -249,9 +248,6 @@ The demo deploys (`09_hcls_network_hardening.sql`):
                     │  └──────────────────────┘   │
                     └─────────────────────────────┘
 ```
-
-### SPCS Container Isolation
-Containers running on Snowpark Container Services (including inference Native Apps) are restricted via `HCLS_SPCS_EGRESS` to communicate only with `*.snowflakecomputing.com:443`. This prevents any data exfiltration from container workloads to external endpoints.
 
 ---
 
@@ -369,7 +365,6 @@ Snowflake Business Critical maintains the following certifications:
 | Column-level audit | ACCESS_HISTORY (automatic) | Limited | Limited |
 | HITRUST CSF certification | Yes | No | No |
 | Session policies | Native (idle + UI timeout) | Workspace-level settings | IAM session |
-| SPCS egress control | Network rules on compute pools | Cluster network config | N/A |
 | BAA execution | Standard on BC edition | Available | Available |
 | Periodic data rekeying | Auto-enabled on BC | Not available | Limited |
 
@@ -389,7 +384,7 @@ Use these when presenting to a CISO, VP of Security, or Compliance Officer:
 
 5. **Tri-Secret Secure means you hold the kill switch.** Your KMS key + Snowflake's key = composite encryption. Disable your key and all data is instantly inaccessible, even to Snowflake.
 
-6. **Network isolation eliminates public internet exposure.** PrivateLink + network policies + SPCS egress restrictions. Containers cannot reach external endpoints.
+6. **Network isolation eliminates public internet exposure.** PrivateLink + network policies + egress control on Snowflake-internal services. Traffic stays within the customer's network perimeter.
 
 7. **HITRUST CSF r2 validated — the only major cloud data platform with this certification.** HITRUST is the accepted framework for healthcare security assessments. This accelerates your security review.
 

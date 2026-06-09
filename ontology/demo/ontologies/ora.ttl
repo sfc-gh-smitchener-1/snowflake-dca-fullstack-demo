@@ -1,0 +1,195 @@
+# ORACLE source-system ontology (OWL/SHACL)
+# Generated from mappings/oracle.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix ora: <http://example.com/ont/ora/> .
+
+<http://example.com/ont/ora/> a owl:Ontology ; rdfs:label "ORACLE source-system ontology" .
+
+# --- Classes ---
+ora:Party a owl:Class ;
+    rdfs:label "Party" ;
+    rdfs:subClassOf schema:Organization .
+ora:Supplier a owl:Class ;
+    rdfs:label "Supplier" ;
+    rdfs:subClassOf schema:Organization .
+ora:InventoryItem a owl:Class ;
+    rdfs:label "Inventory Item" ;
+    rdfs:subClassOf schema:Thing .
+ora:SalesOrder a owl:Class ;
+    rdfs:label "Sales Order" ;
+    rdfs:subClassOf schema:Thing .
+ora:SalesOrderLine a owl:Class ;
+    rdfs:label "Sales Order Line" ;
+    rdfs:subClassOf schema:Thing .
+ora:PayablesInvoice a owl:Class ;
+    rdfs:label "Payables Invoice" ;
+    rdfs:subClassOf schema:Thing .
+ora:ReceivablesInvoice a owl:Class ;
+    rdfs:label "Receivables Invoice" ;
+    rdfs:subClassOf schema:Thing .
+ora:JournalLine a owl:Class ;
+    rdfs:label "Journal Line" ;
+    rdfs:subClassOf schema:Thing .
+
+# --- Properties ---
+ora:partyType a owl:DatatypeProperty ;
+    rdfs:label "party Type" ;
+    rdfs:domain ora:Party ;
+    rdfs:range xsd:string .
+ora:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain ora:Party ;
+    rdfs:range xsd:string .
+ora:categoryCode a owl:DatatypeProperty ;
+    rdfs:label "category Code" ;
+    rdfs:domain ora:Party ;
+    rdfs:range xsd:string .
+ora:dunsNumber a owl:DatatypeProperty ;
+    rdfs:label "duns Number" ;
+    rdfs:domain ora:Party ;
+    rdfs:range xsd:string .
+ora:vendorNumber a owl:DatatypeProperty ;
+    rdfs:label "vendor Number" ;
+    rdfs:domain ora:Supplier ;
+    rdfs:range xsd:string .
+ora:vendorType a owl:DatatypeProperty ;
+    rdfs:label "vendor Type" ;
+    rdfs:domain ora:Supplier ;
+    rdfs:range xsd:string .
+ora:enabledFlag a owl:DatatypeProperty ;
+    rdfs:label "enabled Flag" ;
+    rdfs:domain ora:Supplier ;
+    rdfs:range xsd:string .
+ora:paymentMethod a owl:DatatypeProperty ;
+    rdfs:label "payment Method" ;
+    rdfs:domain ora:Supplier ;
+    rdfs:range xsd:string .
+ora:itemNumber a owl:DatatypeProperty ;
+    rdfs:label "item Number" ;
+    rdfs:domain ora:InventoryItem ;
+    rdfs:range xsd:string .
+ora:itemType a owl:DatatypeProperty ;
+    rdfs:label "item Type" ;
+    rdfs:domain ora:InventoryItem ;
+    rdfs:range xsd:string .
+ora:primaryUom a owl:DatatypeProperty ;
+    rdfs:label "primary Uom" ;
+    rdfs:domain ora:InventoryItem ;
+    rdfs:range xsd:string .
+ora:listPrice a owl:DatatypeProperty ;
+    rdfs:label "list Price" ;
+    rdfs:domain ora:InventoryItem ;
+    rdfs:range xsd:decimal .
+ora:unitWeight a owl:DatatypeProperty ;
+    rdfs:label "unit Weight" ;
+    rdfs:domain ora:InventoryItem ;
+    rdfs:range xsd:decimal .
+ora:orderNumber a owl:DatatypeProperty ;
+    rdfs:label "order Number" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range xsd:string .
+ora:orderedDate a owl:DatatypeProperty ;
+    rdfs:label "ordered Date" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range xsd:string .
+ora:flowStatus a owl:DatatypeProperty ;
+    rdfs:label "flow Status" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range xsd:string .
+ora:currency a owl:DatatypeProperty ;
+    rdfs:label "currency" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range xsd:string .
+ora:bookedFlag a owl:DatatypeProperty ;
+    rdfs:label "booked Flag" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range xsd:string .
+ora:soldToParty a owl:ObjectProperty ;
+    rdfs:label "sold To Party" ;
+    rdfs:domain ora:SalesOrder ;
+    rdfs:range ora:Party .
+ora:orderedQuantity a owl:DatatypeProperty ;
+    rdfs:label "ordered Quantity" ;
+    rdfs:domain ora:SalesOrderLine ;
+    rdfs:range xsd:decimal .
+ora:uom a owl:DatatypeProperty ;
+    rdfs:label "uom" ;
+    rdfs:domain ora:SalesOrderLine ;
+    rdfs:range xsd:string .
+ora:unitSellingPrice a owl:DatatypeProperty ;
+    rdfs:label "unit Selling Price" ;
+    rdfs:domain ora:SalesOrderLine ;
+    rdfs:range xsd:decimal .
+ora:partOfOrder a owl:ObjectProperty ;
+    rdfs:label "part Of Order" ;
+    rdfs:domain ora:SalesOrderLine ;
+    rdfs:range ora:SalesOrder .
+ora:invoiceNumber a owl:DatatypeProperty ;
+    rdfs:label "invoice Number" ;
+    rdfs:domain ora:PayablesInvoice ;
+    rdfs:range xsd:string .
+ora:invoiceDate a owl:DatatypeProperty ;
+    rdfs:label "invoice Date" ;
+    rdfs:domain ora:PayablesInvoice ;
+    rdfs:range xsd:string .
+ora:invoiceAmount a owl:DatatypeProperty ;
+    rdfs:label "invoice Amount" ;
+    rdfs:domain ora:PayablesInvoice ;
+    rdfs:range xsd:decimal .
+ora:approvalStatus a owl:DatatypeProperty ;
+    rdfs:label "approval Status" ;
+    rdfs:domain ora:PayablesInvoice ;
+    rdfs:range xsd:string .
+ora:billedBySupplier a owl:ObjectProperty ;
+    rdfs:label "billed By Supplier" ;
+    rdfs:domain ora:PayablesInvoice ;
+    rdfs:range ora:Supplier .
+ora:billedToParty a owl:ObjectProperty ;
+    rdfs:label "billed To Party" ;
+    rdfs:domain ora:ReceivablesInvoice ;
+    rdfs:range ora:Party .
+ora:periodName a owl:DatatypeProperty ;
+    rdfs:label "period Name" ;
+    rdfs:domain ora:JournalLine ;
+    rdfs:range xsd:string .
+ora:effectiveDate a owl:DatatypeProperty ;
+    rdfs:label "effective Date" ;
+    rdfs:domain ora:JournalLine ;
+    rdfs:range xsd:string .
+ora:enteredDr a owl:DatatypeProperty ;
+    rdfs:label "entered Dr" ;
+    rdfs:domain ora:JournalLine ;
+    rdfs:range xsd:decimal .
+ora:enteredCr a owl:DatatypeProperty ;
+    rdfs:label "entered Cr" ;
+    rdfs:domain ora:JournalLine ;
+    rdfs:range xsd:decimal .
+
+# --- SHACL shapes ---
+ora:PartyShape a sh:NodeShape ;
+    sh:targetClass ora:Party ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+ora:SupplierShape a sh:NodeShape ;
+    sh:targetClass ora:Supplier ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+ora:InventoryItemShape a sh:NodeShape ;
+    sh:targetClass ora:InventoryItem ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+ora:SalesOrderShape a sh:NodeShape ;
+    sh:targetClass ora:SalesOrder .
+ora:SalesOrderLineShape a sh:NodeShape ;
+    sh:targetClass ora:SalesOrderLine ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+ora:PayablesInvoiceShape a sh:NodeShape ;
+    sh:targetClass ora:PayablesInvoice .
+ora:ReceivablesInvoiceShape a sh:NodeShape ;
+    sh:targetClass ora:ReceivablesInvoice .
+ora:JournalLineShape a sh:NodeShape ;
+    sh:targetClass ora:JournalLine ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .

@@ -264,14 +264,13 @@ VALUE_LIST = ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')
 VALUE_LIST = ('203.0.113.0/24', '198.51.100.0/24')
 ```
 
-#### Step 4.2: Deploy Network Security (Parts 1–5)
+#### Step 4.2: Deploy Network Security (Parts 1–4)
 
 Run the script. It creates:
 - `HCLS_CORPORATE_ACCESS` — ingress network rule (CIDR allowlist)
 - `HCLS_SNOWFLAKE_INTERNAL` — egress rule for Snowflake services
 - `HCLS_RESTRICTED_ACCESS` — network policy combining the rules
 - `HCLS_SESSION_POLICY` — 30-min idle timeout, 15-min UI timeout
-- `HCLS_SPCS_EGRESS` — container egress isolation
 - Account parameter: `PREVENT_UNLOAD_TO_INLINE_URL = TRUE`
 
 #### Step 4.3: Test Network Policy (DO NOT SKIP)
@@ -308,7 +307,7 @@ SHOW NETWORK POLICIES;
 -- Expected: HCLS_RESTRICTED_ACCESS
 
 SHOW NETWORK RULES IN DATABASE DCA_DEMO;
--- Expected: HCLS_CORPORATE_ACCESS, HCLS_SNOWFLAKE_INTERNAL, HCLS_SPCS_EGRESS
+-- Expected: HCLS_CORPORATE_ACCESS, HCLS_SNOWFLAKE_INTERNAL
 
 SHOW SESSION POLICIES IN DATABASE DCA_DEMO;
 -- Expected: HCLS_SESSION_POLICY
@@ -677,8 +676,7 @@ Quick reference for all security objects deployed by this runbook.
 | Object | Type | Purpose |
 |---|---|---|
 | `HCLS_CORPORATE_ACCESS` | Network Rule (ingress) | Corporate CIDR allowlist — replace placeholders with customer IPs |
-| `HCLS_SNOWFLAKE_INTERNAL` | Network Rule (egress) | Required egress for Snowflake services and SPCS |
-| `HCLS_SPCS_EGRESS` | Network Rule (egress) | Container isolation — SPCS restricted to Snowflake internal only |
+| `HCLS_SNOWFLAKE_INTERNAL` | Network Rule (egress) | Required egress for Snowflake internal platform services |
 | `HCLS_RESTRICTED_ACCESS` | Network Policy | Combines rules — only authorized corporate networks allowed |
 
 ### Session Security

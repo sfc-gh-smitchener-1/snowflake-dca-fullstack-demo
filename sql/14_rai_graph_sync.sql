@@ -307,8 +307,7 @@ END;
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════
 
--- Note: SP_SYNC_TO_RAI is removed — no longer needed without RAI engine.
--- The SPCS service loads graph data directly from Snowflake tables.
+-- Note: inference runs entirely in Snowflake SQL — no external engine required.
 
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_RUN_INFERENCE() TO ROLE ONTOLOGY_ADMIN;
 GRANT USAGE ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_APPLY_RECOMMENDATIONS() TO ROLE ONTOLOGY_ADMIN;

@@ -5,13 +5,11 @@
 -- Configures data sharing for the Ontology Knowledge Graph:
 --   1. Secure views over graph tables (required for sharing)
 --   2. Snowflake Share with grants
---   3. SPCS service endpoint access for consumers
---   4. Data product catalog registration
+--   3. Data product catalog registration
 --
 -- PREREQUISITES:
 --   - 14_rai_graph_sync.sql must have been executed
 --   - ONTOLOGY_CONSUMER role must exist
---   - ONTOLOGY_GRAPH_SERVICE deployed via ontology/spcs/service-spec.yaml
 --
 -- RUN AS: ACCOUNTADMIN
 -- ============================================================================
@@ -83,7 +81,7 @@ WHERE status != 'DISMISSED';
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE SHARE ONTOLOGY_GRAPH_DATA_SHARE
-    COMMENT = 'Ontology Knowledge Graph — node/edge model with governance scores and RAI recommendations';
+    COMMENT = 'Ontology Knowledge Graph — node/edge model with governance scores and recommendations';
 
 GRANT USAGE ON DATABASE DCA_DEMO TO SHARE ONTOLOGY_GRAPH_DATA_SHARE;
 GRANT USAGE ON SCHEMA DCA_DEMO.GOVERNANCE TO SHARE ONTOLOGY_GRAPH_DATA_SHARE;
@@ -93,15 +91,7 @@ GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.V_ONTOLOGY_SCORES TO SHARE ONTOLOGY_GRA
 GRANT SELECT ON VIEW DCA_DEMO.GOVERNANCE.V_ONTOLOGY_RECOMMENDATIONS TO SHARE ONTOLOGY_GRAPH_DATA_SHARE;
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 3: SPCS SERVICE ENDPOINT ACCESS
--- ═══════════════════════════════════════════════════════════════════════════
--- Grant the ONTOLOGY_CONSUMER role access to the SPCS-hosted FastAPI service
--- so consumers can query the graph API endpoint.
-
-GRANT USAGE ON SERVICE DCA_DEMO.GOVERNANCE.ONTOLOGY_GRAPH_SERVICE TO ROLE ONTOLOGY_CONSUMER;
-
--- ═══════════════════════════════════════════════════════════════════════════
--- SECTION 4: DATA PRODUCT CATALOG REGISTRATION
+-- SECTION 3: DATA PRODUCT CATALOG REGISTRATION
 -- ═══════════════════════════════════════════════════════════════════════════
 
 INSERT INTO DCA_DEMO.GOVERNANCE.DATA_PRODUCT_CATALOG (
@@ -122,13 +112,13 @@ SELECT
     'GOVERNANCE',
     'ONTOLOGY_GRAPH_NODES',
     'Ontology Knowledge Graph',
-    'Cross-system knowledge graph linking metadata and business entities with RAI-powered governance scoring',
+    'Cross-system knowledge graph linking metadata and business entities with SQL-based governance scoring',
     'GOVERNANCE',
     '1.0.0',
     'ACTIVE',
     'ONTOLOGY_ADMIN',
     'SELECT n.display_name, n.node_type, n.source_system FROM DCA_DEMO.GOVERNANCE.V_ONTOLOGY_NODES n WHERE n.layer = ''METADATA'' LIMIT 20;',
-    PARSE_JSON('["ontology","knowledge-graph","rai","governance"]')
+    PARSE_JSON('["ontology","knowledge-graph","governance"]')
 WHERE NOT EXISTS (
     SELECT 1 FROM DCA_DEMO.GOVERNANCE.DATA_PRODUCT_CATALOG
     WHERE product_id = 'ontology_graph'

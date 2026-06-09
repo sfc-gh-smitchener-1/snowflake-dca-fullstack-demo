@@ -8,9 +8,8 @@
 -- resolution, governance scoring) and materializes results into recommendation
 -- and score tables.
 --
--- This script (16) covers ON-DEMAND GRAPH ALGORITHMS that the Snowflake-native
--- graph backend exposes via the SPCS API — and that any user can call directly
--- from a Snowsight Worksheet without the SPCS service running:
+-- This script (16) covers ON-DEMAND GRAPH ALGORITHMS implemented entirely in
+-- Snowflake SQL — any user can call them directly from a Snowsight Worksheet:
 --
 --     1. V_GRAPH_BIDIRECTIONAL_EDGES   -- undirected edge view (helper)
 --     2. V_GRAPH_DEGREE_CENTRALITY     -- top-N hubs view
@@ -20,8 +19,6 @@
 --     6. SP_GRAPH_SHORTEST_PATH        -- shortest path between two node_ids
 --     7. SP_GRAPH_CONNECTED_COMPONENTS -- weakly connected components
 --     8. SP_GRAPH_NEIGHBORHOOD         -- k-hop neighborhood expansion
---
--- See docs/GRAPH_BACKENDS.md for the Neo4j vs Snowflake-native compare/contrast.
 --
 -- PREREQUISITES:
 --   - 12_ontology_graph_tables.sql (tables exist)
@@ -188,7 +185,7 @@ COMMENT ON VIEW DCA_DEMO.GOVERNANCE.V_GRAPH_OWNERSHIP_GAPS IS
 -- VIEW 5: GOVERNANCE SCORES (LIVE)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Composite per-table governance score computed live from current edges
--- and tags. Matches the formula used by both backends.
+-- and tags.
 --
 -- Weights:   tag_coverage 30%, contract 30%, ownership 25%, quality 15%
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -246,7 +243,7 @@ COMMENT ON VIEW DCA_DEMO.GOVERNANCE.V_GRAPH_GOVERNANCE_SCORES IS
 --
 -- Implementation: BFS via recursive CTE with array-based cycle guard.
 -- Performance: sub-second for paths up to ~10 hops on graphs < 1M edges.
--- For 15+ hop traversal at scale, route to the Neo4j backend instead.
+-- Increase P_MAX_HOPS for deeper traversal (cost grows with depth and fan-out).
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE DCA_DEMO.GOVERNANCE.SP_GRAPH_SHORTEST_PATH(
@@ -327,8 +324,8 @@ COMMENT ON PROCEDURE DCA_DEMO.GOVERNANCE.SP_GRAPH_SHORTEST_PATH(VARCHAR, VARCHAR
 -- reachable node_id as the component label.
 --
 -- Result: TABLE of (component_id, component_size, sample_node_ids).
--- Performance: O(V*E) at worst. Suitable for demo graphs <50k nodes. For
--- larger graphs use the Neo4j backend's GDS wcc.stream algorithm.
+-- Performance: O(V*E) at worst. Suitable for demo graphs <50k nodes; for much
+-- larger graphs, materialize components incrementally rather than on-demand.
 -- ═══════════════════════════════════════════════════════════════════════════
 
 CREATE OR REPLACE PROCEDURE DCA_DEMO.GOVERNANCE.SP_GRAPH_CONNECTED_COMPONENTS(

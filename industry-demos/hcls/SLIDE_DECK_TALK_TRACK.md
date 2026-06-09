@@ -270,9 +270,8 @@ flowchart TB
             NODES["Clinical + Workforce + Payer + Metadata Nodes"]
             EDGES["Lineage + Governance + Correlation Edges"]
         end
-        subgraph ENGINES["GRAPH ENGINES — pick per request"]
-            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs<br/>default · no sidecar"]
-            NEO_ENG["<b>Neo4j sidecar on SPCS</b><br/>Cypher + GDS<br/>optional · deep traversal"]
+        subgraph ENGINES["GRAPH ENGINE — Snowflake-native"]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs + window functions<br/>always live · no sidecar"]
         end
         subgraph OUTPUTS["AUTOMATED OUTPUTS"]
             RECS["PHI Recommendations"]
@@ -283,7 +282,6 @@ flowchart TB
     end
     subgraph CONSUME["CONSUMPTION"]
         SIS["Streamlit Compliance Dashboard"]
-        API["SPCS Graph API<br/>?backend=snowflake|neo4j|both"]
         SHARE["Snowflake Data Share (De-identified)"]
     end
     SOURCES --> RAW
@@ -291,20 +289,15 @@ flowchart TB
     DATA --> EDGES
     NODES --> SF_ENG
     EDGES --> SF_ENG
-    NODES --> NEO_ENG
-    EDGES --> NEO_ENG
     SF_ENG --> OUTPUTS
-    NEO_ENG --> OUTPUTS
     OUTPUTS --> CONSUME
 
     classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
-    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
     class SF_ENG snowflake
-    class NEO_ENG graphdb
 ```
 
 **Talk Track.**
-> "This is the target state. Three source systems land in one Snowflake account — Business Critical edition. Data flows through RAW, CURATED, and SEMANTIC layers using Dynamic Tables, so there's no Airflow, no Spark, no external schedulers to secure. The Ontology Knowledge Graph sits across every layer — it knows your clinical entities, your workforce entities, your payer entities, *and* the Snowflake objects that store them. From the graph, the platform produces four automated outputs continuously: PHI recommendations, HIPAA compliance scores, patient entity clusters, and cross-system correlations. Those flow into Streamlit for compliance teams, into an SPCS API for clinical apps, and into Snowflake data shares for partners — all under a single BAA and a single audit trail."
+> "This is the target state. Three source systems land in one Snowflake account — Business Critical edition. Data flows through RAW, CURATED, and SEMANTIC layers using Dynamic Tables, so there's no Airflow, no Spark, no external schedulers to secure. The Ontology Knowledge Graph sits across every layer — it knows your clinical entities, your workforce entities, your payer entities, *and* the Snowflake objects that store them. From the graph, the platform produces four automated outputs continuously: PHI recommendations, HIPAA compliance scores, patient entity clusters, and cross-system correlations. Those flow into Streamlit for compliance teams and into Snowflake data shares for partners — all under a single BAA and a single audit trail."
 
 **Stage Directions.** Trace your finger along the arrows: sources → data → graph → outputs → consumption. The visual journey carries the narrative.
 
@@ -358,7 +351,7 @@ flowchart TB
 ## Slide 11 — The Ontology Knowledge Graph
 
 **Time.** 1:30
-**Layout.** Schematic of the graph — three-color nodes (clinical = blue, workforce = green, payer = gold, governance/metadata = red), with edges between them. Legend on the right. Bottom-right callout: "**Two query engines, one graph**" — small icon for Snowflake-native (recursive CTEs) next to an icon for Neo4j (Cypher), both pointing at the same nodes/edges tables.
+**Layout.** Schematic of the graph — three-color nodes (clinical = blue, workforce = green, payer = gold, governance/metadata = red), with edges between them. Legend on the right. Bottom-right callout: "**One graph, queried natively in Snowflake**" — a Snowflake-native (recursive CTEs) icon pointing at the nodes/edges tables.
 
 **Headline.**
 **The Knowledge Graph Is the Connective Tissue**
@@ -367,14 +360,14 @@ flowchart TB
 - **Nodes** — Patients, encounters, conditions, workers, departments, plans, claims, and the Snowflake tables / columns / tags that store them.
 - **Edges** — Clinical (DIAGNOSED_WITH, PRESCRIBED, TREATED_AT), workforce (ASSIGNED_TO, UNDERSTAFFED_DURING), payer (COVERED_BY, DENIED_FOR), governance (PHI_CONTAINS, BAA_COVERS, DE_IDENTIFIED_FROM).
 - **Inference** — Cross-system patient resolution, PHI lineage tracing, HIPAA scoring, correlation discovery.
-- **Two query backends, one graph of record** — Snowflake-native recursive CTEs by default (no sidecar, always live against the source tables, inherits replication and governance); optional Neo4j sidecar on SPCS for deep multi-hop traversal and GDS algorithms. Pick per request.
+- **One graph of record, queried natively** — Snowflake-native recursive CTEs and window functions run inside your warehouse (no sidecar, always live against the source tables, inherits replication and governance). Shortest path, connected components, centrality, care-pathway traversal, and PHI propagation all run in-database.
 
 **Talk Track.**
-> "The thing that makes everything else work is the Ontology Knowledge Graph. Three things to remember about it. First — *nodes*. The graph contains every meaningful entity in your three systems. Patients, encounters, diagnoses on the clinical side. Workers, departments, shifts on the workforce side. Plans, claims, prior auths on the payer side. And critically, the *Snowflake objects* — tables, columns, tags — that store all of them. So a single graph spans the clinical world and the technical world. Second — *edges*. Edges describe relationships: a patient is *DIAGNOSED_WITH* a condition, a worker is *ASSIGNED_TO* a department, an encounter is *INFLUENCED_BY* a staffing context. And governance edges: a column *CONTAINS* PHI, a role is *BAA_COVERED*, a dataset is *DE_IDENTIFIED_FROM* a source. Third — *inference*. Stored procedures and SPCS-hosted services walk the graph to produce the outputs we're about to demo: cross-system patient clusters, PHI propagation alerts, HIPAA compliance scores, and statistical correlations.
+> "The thing that makes everything else work is the Ontology Knowledge Graph. Three things to remember about it. First — *nodes*. The graph contains every meaningful entity in your three systems. Patients, encounters, diagnoses on the clinical side. Workers, departments, shifts on the workforce side. Plans, claims, prior auths on the payer side. And critically, the *Snowflake objects* — tables, columns, tags — that store all of them. So a single graph spans the clinical world and the technical world. Second — *edges*. Edges describe relationships: a patient is *DIAGNOSED_WITH* a condition, a worker is *ASSIGNED_TO* a department, an encounter is *INFLUENCED_BY* a staffing context. And governance edges: a column *CONTAINS* PHI, a role is *BAA_COVERED*, a dataset is *DE_IDENTIFIED_FROM* a source. Third — *inference*. Stored procedures walk the graph to produce the outputs we're about to demo: cross-system patient clusters, PHI propagation alerts, HIPAA compliance scores, and statistical correlations.
 >
-> One thing worth flagging before we dive in. The *graph of record* lives in two Snowflake tables — nodes and edges. Sitting on top of those tables are *two interchangeable query engines*. The default is pure Snowflake — recursive CTEs and window functions running inside your warehouse, no sidecar, no extra security perimeter, no extra license. It handles governance scoring, PHI propagation, ownership gaps, entity resolution, and traversals up to about ten hops. For deeper multi-hop pathway work — full patient journey traversal, PageRank centrality across the care network, community detection — we also ship an optional Neo4j sidecar on SPCS. Same nodes, same edges, faster traversal. You pick which engine answers each request with a query parameter. Most customers run Snowflake-native in production and stand up Neo4j for the visual exploration use cases. We have a full compare-and-contrast in the GRAPH_BACKENDS doc — happy to go deeper if it comes up. This is the layer that makes Snowflake more than a warehouse — it's a healthcare reasoning platform."
+> One thing worth flagging before we dive in. The *graph of record* lives in two Snowflake tables — nodes and edges. It's queried entirely with Snowflake-native recursive CTEs and window functions running inside your warehouse — no sidecar, no extra security perimeter, no extra license. That same engine handles governance scoring, PHI propagation, ownership gaps, entity resolution, shortest path, connected components, centrality, and full care-pathway traversal across years of encounters. It's always live against the source tables and inherits Snowflake's replication, sharing, and governance for free. This is the layer that makes Snowflake more than a warehouse — it's a healthcare reasoning platform."
 
-**Stage Directions.** Last conceptual slide before the live demo. Reset energy. "Okay — let me show you what this actually looks like." If the audience is technical and graph-curious, optionally pull in Appendix A8 ("Graph Backend Choice") before Slide 12.
+**Stage Directions.** Last conceptual slide before the live demo. Reset energy. "Okay — let me show you what this actually looks like."
 
 ---
 
@@ -964,10 +957,9 @@ ORDER BY avg_gap DESC;
 - A5. Cross-region failover RPO/RTO
 - A6. Sample 837/835 claim ingestion flow
 - A7. Streamlit page index
-- A8. Graph backend choice — Snowflake-native vs Neo4j sidecar
 
 **Talk Track.**
-> "Open for questions. I have backup slides on Charlson hierarchy rules, the correlation statistics methodology, the full HIPAA mapping, the role hierarchy, failover RPO and RTO, claim file ingestion, and the graph backend trade-off — let me know which would be useful."
+> "Open for questions. I have backup slides on Charlson hierarchy rules, the correlation statistics methodology, the full HIPAA mapping, the role hierarchy, failover RPO and RTO, and claim file ingestion — let me know which would be useful."
 
 **Stage Directions.** Have appendix slides ready as separate sections in the file. Do not number them within the main 30 — keep them as A1, A2, etc. Most decks don't need them — keep loaded for deep-dive audiences.
 
@@ -1073,46 +1065,39 @@ For a **45-minute slot**, keep all 30 slides plus 5–7 minutes of guided Q&A us
 
 ---
 
-# Appendix — Bonus Slide A8: Graph Backend Choice
+# Appendix — Bonus Slide A8: How the Snowflake-Native Graph Engine Works
 
-Pull this into the live deck only if the audience asks "why not just use Neo4j?" or "why not just use Snowflake?". Sits naturally between Slide 11 and Slide 12 (or as a standalone after Slide 30).
+Pull this into the live deck only if the audience asks "is Snowflake really a graph engine?" or "how does graph traversal work without a graph database?". Sits naturally between Slide 11 and Slide 12 (or as a standalone after Slide 30).
 
 **Time.** 2:00
-**Layout.** Two columns. Left = Snowflake-native (icon: Snowflake), right = Neo4j sidecar (icon: Neo4j). Below each column a short bullet list. Bottom row: a single `/inference/compare` screenshot showing the same query returning identical results from both engines with side-by-side timings.
+**Layout.** Single column centered on the `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` tables, with a recursive-CTE traversal animation fanning out hop by hop. Bottom row: a screenshot of a shortest-path query result returned directly from a Snowflake worksheet.
 
 **Headline.**
-**Same Graph, Two Engines — Pick the Right One per Workload**
+**One Graph of Record — Queried Natively in Snowflake**
 
-**On the slide (two columns).**
+**On the slide.**
 
-| Snowflake-native (default) | Neo4j sidecar (optional) |
-|----------------------------|--------------------------|
-| Recursive CTEs + window functions | Cypher + Graph Data Science library |
-| Runs inside the warehouse — no sidecar, no extra license | Runs as an SPCS container — extra ~1 vCPU / 2 GB |
-| Always live against `ONTOLOGY_GRAPH_NODES` / `_EDGES` | Periodic sync from the same Snowflake tables |
-| Inherits Horizon governance, replication, sharing, BC tier | Inherits SPCS network policies; data still resides in Snowflake |
-| **Best for:** governance scoring, PHI propagation, ownership gaps, entity resolution, 1–10 hop traversal, batch inference | **Best for:** sub-100 ms shortest path, deep multi-hop (10+ hops), PageRank / Louvain / community detection, visual exploration |
-| Effort to operate: zero (it's just SQL) | Effort to operate: one container, one secret, one health check |
-
-**Below the columns (one line).**
-> "Same nodes, same edges, two query engines behind one API. Pick per request with `?backend=snowflake|neo4j|both`. Run `/inference/compare` to see them side-by-side."
+| Snowflake-native graph engine |
+|-------------------------------|
+| Recursive CTEs + window functions — no sidecar, no extra license |
+| Always live against `ONTOLOGY_GRAPH_NODES` / `_EDGES` |
+| Inherits Horizon governance, replication, sharing, BC tier |
+| **Handles:** governance scoring, PHI propagation, ownership gaps, entity resolution, shortest path, connected components, centrality, care-pathway traversal, batch inference |
+| Effort to operate: zero (it's just SQL) |
 
 **Talk Track.**
-> "The honest answer to 'Snowflake or Neo4j?' is *both, and you decide per workload*. Here's the trade. On the left — Snowflake-native. Recursive CTEs on the nodes and edges tables. No new system to operate, nothing to license, nothing to patch. It inherits everything Snowflake already gives you — Horizon tags, replication, sharing, the Business Critical tier we just talked about. For governance scoring, PHI propagation, entity resolution, ownership gaps, and any traversal up to about ten hops, it's the right answer. That's most of what we just demoed.
+> "Is Snowflake really a graph engine? For the work this platform does, yes. The graph of record is two tables — nodes and edges. Recursive CTEs walk those edges hop by hop, and window functions rank and score along the way. That gives us shortest path, connected components, centrality, full patient-journey traversal across years of encounters, PHI propagation, entity resolution, and governance scoring — all in plain SQL inside your warehouse.
 >
-> On the right — Neo4j sidecar. Runs as a container on SPCS — still inside your Snowflake account, still inside your network perimeter, but with a real property-graph engine underneath. Cypher syntax, plus Graph Data Science algorithms: PageRank, Louvain, community detection, sub-100ms shortest path at any depth. You reach for it when you need *deep* traversal — the full patient care journey across years of encounters, social-network-style centrality, or rich interactive graph exploration in the Streamlit page.
->
-> The thing to take away: the *graph of record* always lives in Snowflake tables. Both engines read from the same source. There's no migration to choose. You can run the Snowflake-only deployment in prod, stand up Neo4j alongside for the exploration use case, and call `/inference/compare` to verify both engines return the same answer with measurably different latency. That's how customers should think about it — not as competing technologies but as complementary access patterns on a single graph."
+> The payoff is operational. There's no second system to operate, license, or patch, and no separate security perimeter. The engine is always live against the source tables, so there's never a sync lag, and it inherits everything Snowflake already gives you — Horizon tags, replication, sharing, the Business Critical tier we talked about. The graph isn't a bolt-on; it's just another query pattern on data you already govern."
 
 **Pause Point.**
-> "Where in your environment would you start with Snowflake-native, and where would you reach for Neo4j?"
+> "Where in your environment would graph traversal across clinical, workforce, and payer data unlock an answer you can't get from flat joins today?"
 
 **Objection Handling.**
-- *"Why not pick one?"* → "Customers who try usually regret it. Snowflake-native covers 80% of graph work without operating a sidecar. Neo4j covers the deep-traversal and algorithm cases SQL is genuinely bad at. The cost of running both is one container."
-- *"Is Snowflake really a graph engine?"* → "Not in the same sense as Neo4j — there's no native property graph index. But for the bounded traversal we do in governance work, recursive CTEs are *plenty* fast and inherit every other Snowflake guarantee. Watch the `compare` output."
-- *"Won't running both confuse the application?"* → "No — both backends implement the same `GraphBackend` Python protocol behind one FastAPI. The application asks for shortest-path or PII propagation; the facade dispatches. Switching backends is a query parameter, not a code change."
+- *"Is Snowflake really a graph engine?"* → "There's no native property-graph index, but for the bounded traversal governance and care-pathway work needs, recursive CTEs are plenty fast and inherit every other Snowflake guarantee. The graph of record never leaves your governed tables."
+- *"What about very deep traversal?"* → "Recursive CTEs handle multi-hop traversal with depth caps and cycle guards. For governance scoring, entity resolution, and care pathways, the depths involved are well within what SQL handles efficiently."
 
-**Stage Directions.** Optional pull-in slide. Have the `/inference/compare` JSON open in a side terminal in case the audience wants live proof. Reference `docs/GRAPH_BACKENDS.md` for the full decision matrix and benchmark table.
+**Stage Directions.** Optional pull-in slide. Have a shortest-path or PHI-propagation query open in a worksheet in case the audience wants live proof. Reference `docs/KNOWLEDGE_GRAPH.md` for the full graph model and query patterns.
 
 ---
 

@@ -44,7 +44,6 @@ flowchart LR
 | Configure PrivateLink (if customer requires) | Eliminate public internet exposure entirely | Security + Infrastructure | ☐ |
 | Set session policies (30-min idle timeout) | HIPAA §164.312(a)(2)(iii) automatic logoff | Security Engineer | ☐ |
 | Test: verify blocked access from unauthorized IPs | Login from allowed IP succeeds, other IPs fail with 390144 | SE | ☐ |
-| Deploy SPCS egress restrictions | Container network isolation — Snowflake internal only | Security Engineer | ☐ |
 
 ### 0.3 Cross-Region Replication
 
@@ -269,7 +268,7 @@ Use this framework during the workshop (Segment 5) to select the initial pilot:
 
 | Role | Phase 0 Responsibility | Phase 1 Responsibility | Phase 2 Responsibility | Phase 3 Responsibility |
 |------|----------------------|----------------------|----------------------|----------------------|
-| **Security Engineer** | Network policies, encryption, failover testing, PrivateLink | Validate masking policies, session enforcement | API security review, SPCS network isolation | External sharing security validation |
+| **Security Engineer** | Network policies, encryption, failover testing, PrivateLink | Validate masking policies, session enforcement | Graph governance review, in-database access controls | External sharing security validation |
 | **Chief Privacy Officer** | Approve security baseline | Define HIPAA thresholds, approve baseline | Approve auto-remediation rules | Accept compliance dashboard, sign-off on evidence |
 | **CMIO** | — | Validate clinical data structure | Validate care pathways and entity resolution | Validate research enablement workflow |
 | **VP Data & Analytics** | Executive sponsor for BC provisioning | Resource allocation, governance strategy | API integration decisions | GRC integration, external sharing strategy |

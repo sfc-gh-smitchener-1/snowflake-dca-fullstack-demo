@@ -198,12 +198,12 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 │ EHR │──────────→ │ RAW │──────────→ │CURATED  │────────→│ GRAPH NODES   │──────→│Streamlit │
 │(FHIR)│           │FHIR │            │  FHIR   │         │ GRAPH EDGES   │       │Dashboard │
 └─────┘            └─────┘            └─────────┘         ├───────────────┤       ├──────────┤
-┌─────┐            ┌─────┐            ┌─────────┐         │ DUAL ENGINE:  │       │Compliance│
-│Claims│──────────→│ RAW │──────────→ │CURATED  │────────→│  Snowflake-   │──────→│  Reports │
-│     │            │CLAIMS│           │ CLAIMS  │         │  native (def.)│       ├──────────┤
-└─────┘            └─────┘            └─────────┘         │  + Neo4j      │       │ SPCS API │
-┌─────┐            ┌─────┐            ┌─────────┐         │  (optional)   │──────→│ Clinical │
-│ HR  │──────────→ │ RAW │──────────→ │CURATED  │────────→│  PHI / Match  │       │  Apps    │
+┌─────┐            ┌─────┐            ┌─────────┐         │ SNOWFLAKE-    │       │Compliance│
+│Claims│──────────→│ RAW │──────────→ │CURATED  │────────→│  NATIVE       │──────→│  Reports │
+│     │            │CLAIMS│           │ CLAIMS  │         │  ENGINE:      │       ├──────────┤
+└─────┘            └─────┘            └─────────┘         │  recursive    │       │ Clinical │
+┌─────┐            ┌─────┐            ┌─────────┐         │  CTEs +       │──────→│  Apps    │
+│ HR  │──────────→ │ RAW │──────────→ │CURATED  │────────→│  PHI / Match  │       │          │
 │(WDay)│           │WKDAY│            │ WORKDAY │         │  Pathways     │       │          │
 └─────┘            └─────┘            └─────────┘         │  Scoring      │       └──────────┘
                                                           └───────────────┘
@@ -223,7 +223,7 @@ Sources              RAW                CURATED              KNOWLEDGE GRAPH    
 2. Inference runs as stored procedures — scheduled or on-demand
 3. Scores and recommendations are queryable tables — consumable by any BI tool
 4. Entity clusters enable cross-system patient matching without an MPI appliance
-5. **Dual query backends behind one API**: Snowflake-native (recursive CTEs, no sidecar, always live against the source tables — handles governance scoring, PHI propagation, entity resolution) plus an optional Neo4j sidecar on SPCS (Cypher + GDS algorithms — reach for it for sub-100ms multi-hop pathway traversal or visual exploration). Pick per request with `?backend=snowflake|neo4j|both`. See `docs/GRAPH_BACKENDS.md` for the decision matrix.
+5. **Snowflake-native graph engine**: recursive CTEs and window functions, no sidecar, always live against the source tables — handles governance scoring, PHI propagation, entity resolution, shortest path, connected components, centrality, and care-pathway traversal entirely in-database. See `docs/KNOWLEDGE_GRAPH.md` for the graph model and query patterns.
 
 ---
 

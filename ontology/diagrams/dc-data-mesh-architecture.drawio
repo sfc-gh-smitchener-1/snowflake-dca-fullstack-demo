@@ -1,0 +1,179 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="dc-data-mesh-architecture" name="Snowflake Data Cloud Architecture">
+    <mxGraphModel dx="2400" dy="1380" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2400" pageHeight="1380" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- =============================================================== -->
+        <!-- TITLE                                                            -->
+        <!-- =============================================================== -->
+        <mxCell id="title" value="Snowflake Data Cloud Architecture" style="text;html=1;align=center;verticalAlign=middle;fontSize=30;fontStyle=1;fontColor=#11314B;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="2360" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- COLUMN HEADERS                                                   -->
+        <!-- =============================================================== -->
+        <mxCell id="hdr-sources" value="Business Units / Systems" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#FFFFFF;strokeColor=#3F4D63;fillColor=#5C6E8C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="80" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-raw" value="Raw &amp;nbsp;&amp;middot;&amp;nbsp; schema BRONZE" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#FFFFFF;strokeColor=#532F58;fillColor=#7C4A82;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="360" y="80" width="400" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-curated" value="Curated &amp;nbsp;&amp;middot;&amp;nbsp; schema SILVER" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#FFFFFF;strokeColor=#1B7DA8;fillColor=#29B5E8;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="780" y="80" width="440" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-semantic" value="Semantic &amp;nbsp;&amp;middot;&amp;nbsp; schema GOLD" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#F8B14F;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="80" width="440" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="hdr-activation" value="Activation" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#FFFFFF;strokeColor=#0B6E45;fillColor=#11975F;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="80" width="680" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- SOURCES COLUMN                                                   -->
+        <!-- =============================================================== -->
+        <mxCell id="d1" value="&lt;b&gt;Domain 1&lt;/b&gt;&lt;br&gt;&lt;br&gt;Oracle&lt;br&gt;MES&lt;br&gt;PLM&lt;br&gt;IoT / Sensors" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=13;fontColor=#11314B;strokeColor=#5C6E8C;fillColor=#EDF0F4;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="130" width="320" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="d2" value="&lt;b&gt;Domain 2&lt;/b&gt;&lt;br&gt;&lt;br&gt;SAP / ERP&lt;br&gt;MES&lt;br&gt;PLM&lt;br&gt;IoT / Sensors" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=13;fontColor=#11314B;strokeColor=#5C6E8C;fillColor=#EDF0F4;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="390" width="320" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="d3" value="&lt;b&gt;Domain 3&lt;/b&gt;&lt;br&gt;&lt;br&gt;CRM&lt;br&gt;Project Mgt&lt;br&gt;ServiceNow&lt;br&gt;HR Systems" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=13;fontColor=#11314B;strokeColor=#5C6E8C;fillColor=#EDF0F4;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="650" width="320" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- RAW COLUMN                                                       -->
+        <!-- =============================================================== -->
+        <mxCell id="r-ingest" value="&lt;b&gt;Ingest patterns&lt;/b&gt;&lt;br&gt;&lt;br&gt;Openflow&lt;br&gt;Snowpipe&lt;br&gt;Snowpipe Streaming&lt;br&gt;External Tables&lt;br&gt;Iceberg ingest&lt;br&gt;COPY INTO&lt;br&gt;Replication &amp;middot; CDC" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#7C4A82;fillColor=#F1EAF3;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="360" y="130" width="400" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="r-objects" value="&lt;b&gt;Object types&lt;/b&gt;&lt;br&gt;&lt;br&gt;External + Internal Stages&lt;br&gt;Raw landing tables&lt;br&gt;VARIANT JSON columns&lt;br&gt;File Format objects" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#7C4A82;fillColor=#F1EAF3;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="360" y="390" width="400" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="r-conventions" value="&lt;b&gt;Conventions&lt;/b&gt;&lt;br&gt;&lt;br&gt;append-only &amp;middot; schema-on-read&lt;br&gt;idempotent retries &amp;middot; backpressure&lt;br&gt;source-system + ingest-time tagging&lt;br&gt;per-source retention policy" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#7C4A82;fillColor=#F1EAF3;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="360" y="590" width="400" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- CURATED COLUMN                                                   -->
+        <!-- =============================================================== -->
+        <mxCell id="c-identity" value="&lt;b&gt;Identity &amp;amp; MDM&lt;/b&gt;&lt;br&gt;canonical UID + IRI &amp;middot; alt-key bridges&lt;br&gt;bi-temporal valid_from / valid_to&lt;br&gt;survivorship rules" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#29B5E8;fillColor=#E5F4FB;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="130" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c-models" value="&lt;b&gt;Models&lt;/b&gt;&lt;br&gt;triple store (statement &amp;middot; individual)&lt;br&gt;node + edge Dynamic Tables&lt;br&gt;dimensional &amp;middot; SCD2&lt;br&gt;Hybrid Tables (Unistore hot reads)" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#29B5E8;fillColor=#E5F4FB;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="270" width="440" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="c-vocab" value="&lt;b&gt;Vocabulary &amp;amp; taxonomy&lt;/b&gt;&lt;br&gt;controlled vocab &amp;middot; UCUM units&lt;br&gt;code lists &amp;middot; enums&lt;br&gt;parallel taxonomies" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#29B5E8;fillColor=#E5F4FB;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="430" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c-quality" value="&lt;b&gt;Quality&lt;/b&gt;&lt;br&gt;SHACL → Data Metric Functions&lt;br&gt;dbt tests &amp;middot; data contracts&lt;br&gt;Horizon DQ scores" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#29B5E8;fillColor=#E5F4FB;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="570" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c-perf" value="&lt;b&gt;Performance&lt;/b&gt;&lt;br&gt;Search Optimization&lt;br&gt;clustering keys&lt;br&gt;Dynamic Table cascades" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#29B5E8;fillColor=#E5F4FB;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="710" width="440" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- SEMANTIC COLUMN                                                  -->
+        <!-- =============================================================== -->
+        <mxCell id="s-views" value="&lt;b&gt;Business interface&lt;/b&gt;&lt;br&gt;Semantic Views (native)&lt;br&gt;friendly v_* views&lt;br&gt;materialized aggregates" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#FDF1DD;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="130" width="440" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="s-analyst" value="&lt;b&gt;Cortex Analyst&lt;/b&gt;&lt;br&gt;semantic_model.yaml&lt;br&gt;NL → governed SQL" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#FDF1DD;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="270" width="440" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="s-search" value="&lt;b&gt;Cortex Search&lt;/b&gt;&lt;br&gt;hybrid lexical + vector&lt;br&gt;node embeddings (Arctic 768d)" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#FDF1DD;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="390" width="440" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="s-rag" value="&lt;b&gt;Graph RAG&lt;/b&gt;&lt;br&gt;class_profile descendant rollup&lt;br&gt;synonym overrides &amp;middot; Cortex Guard&lt;br&gt;recursive CTE traversal&lt;br&gt;p_graph_rag (2-tool agent)" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#FDF1DD;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="510" width="440" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="s-products" value="&lt;b&gt;Data products&lt;/b&gt;&lt;br&gt;Enterprise KPIs &amp;middot; AI/ML features&lt;br&gt;executive dashboards&lt;br&gt;blast-radius walkers" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#B07A2F;fillColor=#FDF1DD;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1240" y="690" width="440" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- ACTIVATION COLUMN                                                -->
+        <!-- =============================================================== -->
+        <mxCell id="a-internal" value="&lt;b&gt;Internal Democratization&lt;/b&gt;&lt;br&gt;&lt;br&gt;Internal Marketplace&lt;br&gt;Streamlit Apps &amp;middot; Notebooks&lt;br&gt;Cortex Agents" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#11975F;fillColor=#E5F4ED;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="130" width="680" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="a-agg" value="&lt;b&gt;Cross-Business Aggregation&lt;/b&gt;&lt;br&gt;&lt;br&gt;Unified program views&lt;br&gt;Enterprise supply chain&lt;br&gt;Combined financial metrics&lt;br&gt;Workforce analytics&lt;br&gt;Cross-program benchmarks" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#11975F;fillColor=#E5F4ED;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="350" width="680" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="a-external" value="&lt;b&gt;External Democratization&lt;/b&gt;&lt;br&gt;&lt;br&gt;Secure Data Shares&lt;br&gt;Snowflake Marketplace&lt;br&gt;Data Clean Rooms&lt;br&gt;Partner Data" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;fontSize=12;fontColor=#11314B;strokeColor=#11975F;fillColor=#E5F4ED;strokeWidth=2;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="630" width="680" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- INGEST ARROWS (Sources → Raw)                                    -->
+        <!-- =============================================================== -->
+        <mxCell id="arr-d1-raw" value="Openflow / ELT" style="endArrow=classic;html=1;rounded=0;fontSize=11;fontStyle=2;strokeColor=#5C6E8C;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="d1" target="r-ingest">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-d2-raw" value="Openflow / ELT" style="endArrow=classic;html=1;rounded=0;fontSize=11;fontStyle=2;strokeColor=#5C6E8C;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="d2" target="r-objects">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-d3-raw" value="Openflow / ELT" style="endArrow=classic;html=1;rounded=0;fontSize=11;fontStyle=2;strokeColor=#5C6E8C;strokeWidth=2;edgeStyle=orthogonalEdgeStyle;" edge="1" parent="1" source="d3" target="r-conventions">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- LAYER-TO-LAYER ARROWS                                            -->
+        <!-- =============================================================== -->
+        <mxCell id="arr-raw-cur" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#7C4A82;strokeWidth=3;" edge="1" parent="1" source="r-objects" target="c-models">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-cur-sem" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#29B5E8;strokeWidth=3;" edge="1" parent="1" source="c-models" target="s-views">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-cur-sem-2" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#29B5E8;strokeWidth=3;" edge="1" parent="1" source="c-vocab" target="s-search">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-cur-sem-3" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#29B5E8;strokeWidth=3;" edge="1" parent="1" source="c-perf" target="s-rag">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-sem-act" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#F8B14F;strokeWidth=3;" edge="1" parent="1" source="s-analyst" target="a-internal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-sem-act-2" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#F8B14F;strokeWidth=3;" edge="1" parent="1" source="s-rag" target="a-agg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arr-sem-act-3" value="" style="endArrow=classic;html=1;rounded=0;strokeColor=#F8B14F;strokeWidth=3;" edge="1" parent="1" source="s-products" target="a-external">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- CROSS-CUTTING BANDS                                              -->
+        <!-- =============================================================== -->
+        <mxCell id="cortex-band" value="&lt;b&gt;Cortex &amp;mdash; runtime AI services (cross-layer)&lt;/b&gt;&amp;nbsp; &amp;nbsp; Cortex Analyst &amp;middot; Cortex Search &amp;middot; Cortex Complete &amp;middot; Cortex Embed &amp;middot; Cortex Guard &amp;middot; Cortex Classify &amp;middot; Cortex Fine-Tune &amp;middot; Cortex Agents &amp;middot; Cortex Code" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#FFFFFF;strokeColor=#0D5A82;fillColor=#1B7DA8;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="900" width="2360" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ontology-band" value="&lt;b&gt;Ontology &amp;mdash; the contract layer&lt;/b&gt;&amp;nbsp; &amp;nbsp; RDF &amp;middot; OWL &amp;middot; SHACL &amp;middot; Turtle &amp;middot; JSON-LD&amp;nbsp; &amp;nbsp; &amp;nbsp; TBox: class &amp;middot; property &amp;middot; shape &amp;middot; constraint &amp;middot; value_domain&amp;nbsp; &amp;nbsp; &amp;nbsp; ABox: individual &amp;middot; statement (with source + confidence)&amp;nbsp; &amp;nbsp; &amp;nbsp; industry layers: GS1 &amp;middot; FIBO &amp;middot; FHIR &amp;middot; SNOMED &amp;middot; CIM" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#FFFFFF;strokeColor=#6D3F75;fillColor=#9B5BA3;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="970" width="2360" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="taxonomy-band" value="&lt;b&gt;Taxonomy &amp;mdash; parallel hierarchical classifications&lt;/b&gt;&amp;nbsp; &amp;nbsp; GS1 GPC (Segment → Family → Class → Brick) &amp;middot; retailer trees (Walmart &amp;middot; Kroger &amp;middot; Amazon &amp;middot; Target) &amp;middot; regulatory codes (FDA UNII &amp;middot; USDA &amp;middot; EFSA &amp;middot; NAICS &amp;middot; HS) &amp;middot; internal master + marketing categories &amp;middot; recursive CTE traversal &amp;middot; synonym table for composite terms" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#FFFFFF;strokeColor=#A66422;fillColor=#E69138;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1040" width="2360" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- HORIZON STRIP                                                    -->
+        <!-- =============================================================== -->
+        <mxCell id="horizon-strip" value="&lt;b&gt;Snowflake Horizon &amp;mdash; governance &amp;amp; observability plane&lt;/b&gt;&lt;br&gt;BigID Discovery &amp;middot; PII / PHI / PCI Classification &amp;middot; Data Privacy &amp;amp; Risk &amp;middot; Compliance Reporting&amp;nbsp; &amp;nbsp; |&amp;nbsp; &amp;nbsp; FedRAMP &amp;middot; IL5 &amp;middot; CJIS &amp;middot; IRAP&amp;nbsp; &amp;nbsp; |&amp;nbsp; &amp;nbsp; Row Access Policies &amp;middot; Dynamic Data Masking &amp;middot; Cortex Guard&lt;br&gt;Object Tagging &amp;middot; Data Metric Functions &amp;middot; Data Lineage &amp;middot; ACCESS_HISTORY &amp;middot; QUERY_HISTORY &amp;middot; Role-Based Access Controls &amp;middot; Policy-Based Security &amp;middot; Data Classification" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#FFFFFF;strokeColor=#222222;fillColor=#444444;strokeWidth=2;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1130" width="2360" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- =============================================================== -->
+        <!-- FOOTER: KEY PATTERN CALLOUT                                      -->
+        <!-- =============================================================== -->
+        <mxCell id="footer-key" value="&lt;b&gt;Key Pattern: True Data Mesh Autonomy &amp;mdash; each BU owns its entire Snowflake account, not just storage&lt;/b&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;|&amp;nbsp;&amp;nbsp;&amp;nbsp;Simplified governance (Horizon unified across the org)&amp;nbsp;&amp;middot;&amp;nbsp;Cost transparency (per-account billing)&amp;nbsp;&amp;middot;&amp;nbsp;Operational simplicity (one platform, not many engines)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fontSize=12;fontStyle=2;fontColor=#11314B;strokeColor=#11314B;fillColor=#FFFFFF;dashed=1;strokeWidth=1;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1260" width="2360" height="60" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

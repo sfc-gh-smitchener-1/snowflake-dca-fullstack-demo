@@ -1,0 +1,73 @@
+erDiagram
+    Namespace        ||--o{ OntologyClass    : "declares"
+    Namespace        ||--o{ OntologyProperty : "declares"
+    OntologyClass    ||--o{ OntologyClass    : "subClassOf"
+    OntologyClass    ||--o{ OntologyProperty : "has property"
+    OntologyProperty ||--o{ OntologyProperty : "subPropertyOf"
+    OntologyProperty }o--|| ValueDomain      : "constrains values to"
+    OntologyClass    ||--o{ Individual       : "instantiates"
+    Individual       ||--o{ Triple           : "is subject of"
+    OntologyProperty ||--o{ Triple           : "is predicate of"
+    Individual       ||--o{ Triple           : "is object of (object property)"
+    ValueDomain      ||--o{ Triple           : "is object of (datatype property)"
+    Shape            }o--|| OntologyClass    : "targets"
+    Shape            ||--o{ Constraint       : "imposes"
+
+    Namespace {
+        string namespace_iri PK
+        string prefix
+        string description
+    }
+    OntologyClass {
+        string class_iri PK
+        string namespace_iri FK
+        string label
+        string definition
+        string sub_class_of FK
+    }
+    OntologyProperty {
+        string property_iri PK
+        string namespace_iri FK
+        string label
+        string kind "object or datatype"
+        string domain_class_iri FK
+        string range_class_iri "for object"
+        string range_datatype "for datatype"
+        int min_count "axiom"
+        int max_count "axiom"
+    }
+    ValueDomain {
+        string value_domain_iri PK
+        string kind "enumeration / unit / regex / range"
+        string unit_code "UCUM if unit"
+    }
+    Individual {
+        string individual_uid PK
+        string canonical_iri
+        string class_iri FK
+        timestamp valid_from
+        timestamp valid_to
+    }
+    Triple {
+        string statement_id PK
+        string subject_uid FK
+        string predicate_iri FK
+        string object_uid "if object property"
+        string object_literal "if datatype property"
+        string object_datatype
+        string source_system
+        float confidence
+        timestamp valid_from
+        timestamp valid_to
+    }
+    Shape {
+        string shape_iri PK
+        string target_class_iri FK
+        string label
+    }
+    Constraint {
+        string constraint_id PK
+        string shape_iri FK
+        string kind "minCount / maxCount / datatype / pattern / sparql / sql"
+        string body
+    }

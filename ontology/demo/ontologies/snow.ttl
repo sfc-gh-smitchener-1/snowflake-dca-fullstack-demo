@@ -1,0 +1,184 @@
+# SERVICENOW source-system ontology (OWL/SHACL)
+# Generated from mappings/servicenow.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix snow: <http://example.com/ont/snow/> .
+
+<http://example.com/ont/snow/> a owl:Ontology ; rdfs:label "SERVICENOW source-system ontology" .
+
+# --- Classes ---
+snow:User a owl:Class ;
+    rdfs:label "User" ;
+    rdfs:subClassOf schema:Person .
+snow:Incident a owl:Class ;
+    rdfs:label "Incident" ;
+    rdfs:subClassOf schema:Thing .
+snow:ChangeRequest a owl:Class ;
+    rdfs:label "Change Request" ;
+    rdfs:subClassOf schema:Thing .
+snow:Problem a owl:Class ;
+    rdfs:label "Problem" ;
+    rdfs:subClassOf schema:Thing .
+snow:ConfigurationItem a owl:Class ;
+    rdfs:label "Configuration Item" ;
+    rdfs:subClassOf schema:Thing .
+snow:CatalogRequest a owl:Class ;
+    rdfs:label "Catalog Request" ;
+    rdfs:subClassOf schema:Thing .
+snow:KnowledgeArticle a owl:Class ;
+    rdfs:label "Knowledge Article" ;
+    rdfs:subClassOf schema:Thing .
+
+# --- Properties ---
+snow:userName a owl:DatatypeProperty ;
+    rdfs:label "user Name" ;
+    rdfs:domain snow:User ;
+    rdfs:range xsd:string .
+snow:title a owl:DatatypeProperty ;
+    rdfs:label "title" ;
+    rdfs:domain snow:User ;
+    rdfs:range xsd:string .
+snow:active a owl:DatatypeProperty ;
+    rdfs:label "active" ;
+    rdfs:domain snow:User ;
+    rdfs:range xsd:boolean .
+snow:vip a owl:DatatypeProperty ;
+    rdfs:label "vip" ;
+    rdfs:domain snow:User ;
+    rdfs:range xsd:boolean .
+snow:number a owl:DatatypeProperty ;
+    rdfs:label "number" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:string .
+snow:state a owl:DatatypeProperty ;
+    rdfs:label "state" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:string .
+snow:priority a owl:DatatypeProperty ;
+    rdfs:label "priority" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:integer .
+snow:impact a owl:DatatypeProperty ;
+    rdfs:label "impact" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:integer .
+snow:urgency a owl:DatatypeProperty ;
+    rdfs:label "urgency" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:integer .
+snow:category a owl:DatatypeProperty ;
+    rdfs:label "category" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:string .
+snow:openedAt a owl:DatatypeProperty ;
+    rdfs:label "opened At" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range xsd:string .
+snow:caller a owl:ObjectProperty ;
+    rdfs:label "caller" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range snow:User .
+snow:assignedTo a owl:ObjectProperty ;
+    rdfs:label "assigned To" ;
+    rdfs:domain snow:Incident ;
+    rdfs:range snow:User .
+snow:changeType a owl:DatatypeProperty ;
+    rdfs:label "change Type" ;
+    rdfs:domain snow:ChangeRequest ;
+    rdfs:range xsd:string .
+snow:risk a owl:DatatypeProperty ;
+    rdfs:label "risk" ;
+    rdfs:domain snow:ChangeRequest ;
+    rdfs:range xsd:string .
+snow:startDate a owl:DatatypeProperty ;
+    rdfs:label "start Date" ;
+    rdfs:domain snow:ChangeRequest ;
+    rdfs:range xsd:string .
+snow:requestedBy a owl:ObjectProperty ;
+    rdfs:label "requested By" ;
+    rdfs:domain snow:ChangeRequest ;
+    rdfs:range snow:User .
+snow:knownError a owl:DatatypeProperty ;
+    rdfs:label "known Error" ;
+    rdfs:domain snow:Problem ;
+    rdfs:range xsd:boolean .
+snow:ciClass a owl:DatatypeProperty ;
+    rdfs:label "ci Class" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:string .
+snow:assetTag a owl:DatatypeProperty ;
+    rdfs:label "asset Tag" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:string .
+snow:serialNumber a owl:DatatypeProperty ;
+    rdfs:label "serial Number" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:string .
+snow:ipAddress a owl:DatatypeProperty ;
+    rdfs:label "ip Address" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:string .
+snow:installStatus a owl:DatatypeProperty ;
+    rdfs:label "install Status" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:integer .
+snow:cost a owl:DatatypeProperty ;
+    rdfs:label "cost" ;
+    rdfs:domain snow:ConfigurationItem ;
+    rdfs:range xsd:decimal .
+snow:stage a owl:DatatypeProperty ;
+    rdfs:label "stage" ;
+    rdfs:domain snow:CatalogRequest ;
+    rdfs:range xsd:string .
+snow:price a owl:DatatypeProperty ;
+    rdfs:label "price" ;
+    rdfs:domain snow:CatalogRequest ;
+    rdfs:range xsd:decimal .
+snow:requestedFor a owl:ObjectProperty ;
+    rdfs:label "requested For" ;
+    rdfs:domain snow:CatalogRequest ;
+    rdfs:range snow:User .
+snow:workflowState a owl:DatatypeProperty ;
+    rdfs:label "workflow State" ;
+    rdfs:domain snow:KnowledgeArticle ;
+    rdfs:range xsd:string .
+snow:viewCount a owl:DatatypeProperty ;
+    rdfs:label "view Count" ;
+    rdfs:domain snow:KnowledgeArticle ;
+    rdfs:range xsd:integer .
+snow:rating a owl:DatatypeProperty ;
+    rdfs:label "rating" ;
+    rdfs:domain snow:KnowledgeArticle ;
+    rdfs:range xsd:decimal .
+snow:author a owl:ObjectProperty ;
+    rdfs:label "author" ;
+    rdfs:domain snow:KnowledgeArticle ;
+    rdfs:range snow:User .
+
+# --- SHACL shapes ---
+snow:UserShape a sh:NodeShape ;
+    sh:targetClass snow:User ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:IncidentShape a sh:NodeShape ;
+    sh:targetClass snow:Incident ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:ChangeRequestShape a sh:NodeShape ;
+    sh:targetClass snow:ChangeRequest ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:ProblemShape a sh:NodeShape ;
+    sh:targetClass snow:Problem ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:ConfigurationItemShape a sh:NodeShape ;
+    sh:targetClass snow:ConfigurationItem ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:CatalogRequestShape a sh:NodeShape ;
+    sh:targetClass snow:CatalogRequest ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+snow:KnowledgeArticleShape a sh:NodeShape ;
+    sh:targetClass snow:KnowledgeArticle ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .

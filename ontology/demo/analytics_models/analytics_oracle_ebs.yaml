@@ -1,0 +1,291 @@
+name: oracle_ontology
+description: >-
+  Cortex Analyst semantic model for the ORACLE ontology, generated
+  from mappings/oracle.py. One logical table per ontology class, backed by
+  the GOLD.V_ORA_* views.
+tables:
+  - name: ora_party
+    description: ORACLE Party
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_PARTY
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: address_locality
+        expr: address_locality
+        data_type: text
+      - name: address_region
+        expr: address_region
+        data_type: text
+      - name: category_code
+        expr: category_code
+        data_type: text
+      - name: duns_number
+        expr: duns_number
+        data_type: text
+      - name: party_type
+        expr: party_type
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+  - name: ora_supplier
+    description: ORACLE Supplier
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_SUPPLIER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: enabled_flag
+        expr: enabled_flag
+        data_type: text
+      - name: payment_method
+        expr: payment_method
+        data_type: text
+      - name: vendor_number
+        expr: vendor_number
+        data_type: text
+      - name: vendor_type
+        expr: vendor_type
+        data_type: text
+  - name: ora_inventory_item
+    description: ORACLE InventoryItem
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_INVENTORYITEM
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: item_number
+        expr: item_number
+        data_type: text
+      - name: item_type
+        expr: item_type
+        data_type: text
+      - name: primary_uom
+        expr: primary_uom
+        data_type: text
+    facts:
+      - name: list_price
+        expr: list_price
+        data_type: number
+      - name: unit_weight
+        expr: unit_weight
+        data_type: number
+  - name: ora_sales_order
+    description: ORACLE SalesOrder
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_SALESORDER
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: booked_flag
+        expr: booked_flag
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: flow_status
+        expr: flow_status
+        data_type: text
+      - name: order_number
+        expr: order_number
+        data_type: text
+      - name: ordered_date
+        expr: ordered_date
+        data_type: text
+      - name: sold_to_party_uid
+        expr: sold_to_party_uid
+        data_type: text
+  - name: ora_sales_order_line
+    description: ORACLE SalesOrderLine
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_SALESORDERLINE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: flow_status
+        expr: flow_status
+        data_type: text
+      - name: uom
+        expr: uom
+        data_type: text
+      - name: part_of_order_uid
+        expr: part_of_order_uid
+        data_type: text
+    facts:
+      - name: ordered_quantity
+        expr: ordered_quantity
+        data_type: number
+      - name: unit_selling_price
+        expr: unit_selling_price
+        data_type: number
+  - name: ora_payables_invoice
+    description: ORACLE PayablesInvoice
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_PAYABLESINVOICE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: approval_status
+        expr: approval_status
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: invoice_date
+        expr: invoice_date
+        data_type: text
+      - name: invoice_number
+        expr: invoice_number
+        data_type: text
+      - name: billed_by_supplier_uid
+        expr: billed_by_supplier_uid
+        data_type: text
+    facts:
+      - name: invoice_amount
+        expr: invoice_amount
+        data_type: number
+  - name: ora_receivables_invoice
+    description: ORACLE ReceivablesInvoice
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_RECEIVABLESINVOICE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: invoice_date
+        expr: invoice_date
+        data_type: text
+      - name: invoice_number
+        expr: invoice_number
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: billed_to_party_uid
+        expr: billed_to_party_uid
+        data_type: text
+  - name: ora_journal_line
+    description: ORACLE JournalLine
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_ORA_JOURNALLINE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: currency
+        expr: currency
+        data_type: text
+      - name: effective_date
+        expr: effective_date
+        data_type: text
+      - name: period_name
+        expr: period_name
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+    facts:
+      - name: entered_cr
+        expr: entered_cr
+        data_type: number
+      - name: entered_dr
+        expr: entered_dr
+        data_type: number

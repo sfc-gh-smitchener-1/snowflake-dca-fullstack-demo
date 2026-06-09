@@ -1,0 +1,174 @@
+# WORKDAY source-system ontology (OWL/SHACL)
+# Generated from mappings/workday.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix wd: <http://example.com/ont/wd/> .
+
+<http://example.com/ont/wd/> a owl:Ontology ; rdfs:label "WORKDAY source-system ontology" .
+
+# --- Classes ---
+wd:Worker a owl:Class ;
+    rdfs:label "Worker" ;
+    rdfs:subClassOf schema:Person .
+wd:Organization a owl:Class ;
+    rdfs:label "Organization" ;
+    rdfs:subClassOf schema:Organization .
+wd:JobProfile a owl:Class ;
+    rdfs:label "Job Profile" ;
+    rdfs:subClassOf schema:Thing .
+wd:Compensation a owl:Class ;
+    rdfs:label "Compensation" ;
+    rdfs:subClassOf schema:Thing .
+wd:TimeOff a owl:Class ;
+    rdfs:label "Time Off" ;
+    rdfs:subClassOf schema:Thing .
+wd:BenefitElection a owl:Class ;
+    rdfs:label "Benefit Election" ;
+    rdfs:subClassOf schema:Thing .
+
+# --- Properties ---
+wd:firstName a owl:DatatypeProperty ;
+    rdfs:label "first Name" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:lastName a owl:DatatypeProperty ;
+    rdfs:label "last Name" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:employeeId a owl:DatatypeProperty ;
+    rdfs:label "employee Id" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:gender a owl:DatatypeProperty ;
+    rdfs:label "gender" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:jobFamily a owl:DatatypeProperty ;
+    rdfs:label "job Family" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:jobLevel a owl:DatatypeProperty ;
+    rdfs:label "job Level" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:workerType a owl:DatatypeProperty ;
+    rdfs:label "worker Type" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:activeStatus a owl:DatatypeProperty ;
+    rdfs:label "active Status" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:hireDate a owl:DatatypeProperty ;
+    rdfs:label "hire Date" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:date .
+wd:annualSalary a owl:DatatypeProperty ;
+    rdfs:label "annual Salary" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:decimal .
+wd:costCenter a owl:DatatypeProperty ;
+    rdfs:label "cost Center" ;
+    rdfs:domain wd:Worker ;
+    rdfs:range xsd:string .
+wd:organizationCode a owl:DatatypeProperty ;
+    rdfs:label "organization Code" ;
+    rdfs:domain wd:Organization ;
+    rdfs:range xsd:string .
+wd:organizationType a owl:DatatypeProperty ;
+    rdfs:label "organization Type" ;
+    rdfs:domain wd:Organization ;
+    rdfs:range xsd:string .
+wd:organizationSubtype a owl:DatatypeProperty ;
+    rdfs:label "organization Subtype" ;
+    rdfs:domain wd:Organization ;
+    rdfs:range xsd:string .
+wd:jobCode a owl:DatatypeProperty ;
+    rdfs:label "job Code" ;
+    rdfs:domain wd:JobProfile ;
+    rdfs:range xsd:string .
+wd:managementLevel a owl:DatatypeProperty ;
+    rdfs:label "management Level" ;
+    rdfs:domain wd:JobProfile ;
+    rdfs:range xsd:string .
+wd:basePayAmount a owl:DatatypeProperty ;
+    rdfs:label "base Pay Amount" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range xsd:decimal .
+wd:totalCompensation a owl:DatatypeProperty ;
+    rdfs:label "total Compensation" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range xsd:decimal .
+wd:compensationGrade a owl:DatatypeProperty ;
+    rdfs:label "compensation Grade" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range xsd:string .
+wd:compaRatio a owl:DatatypeProperty ;
+    rdfs:label "compa Ratio" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range xsd:decimal .
+wd:effectiveDate a owl:DatatypeProperty ;
+    rdfs:label "effective Date" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range xsd:date .
+wd:forWorker a owl:ObjectProperty ;
+    rdfs:label "for Worker" ;
+    rdfs:domain wd:Compensation ;
+    rdfs:range wd:Worker .
+wd:startDate a owl:DatatypeProperty ;
+    rdfs:label "start Date" ;
+    rdfs:domain wd:TimeOff ;
+    rdfs:range xsd:date .
+wd:endDate a owl:DatatypeProperty ;
+    rdfs:label "end Date" ;
+    rdfs:domain wd:TimeOff ;
+    rdfs:range xsd:date .
+wd:totalDays a owl:DatatypeProperty ;
+    rdfs:label "total Days" ;
+    rdfs:domain wd:TimeOff ;
+    rdfs:range xsd:decimal .
+wd:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain wd:TimeOff ;
+    rdfs:range xsd:string .
+wd:benefitPlanType a owl:DatatypeProperty ;
+    rdfs:label "benefit Plan Type" ;
+    rdfs:domain wd:BenefitElection ;
+    rdfs:range xsd:string .
+wd:coverageLevel a owl:DatatypeProperty ;
+    rdfs:label "coverage Level" ;
+    rdfs:domain wd:BenefitElection ;
+    rdfs:range xsd:string .
+wd:employeeCost a owl:DatatypeProperty ;
+    rdfs:label "employee Cost" ;
+    rdfs:domain wd:BenefitElection ;
+    rdfs:range xsd:decimal .
+wd:employerCost a owl:DatatypeProperty ;
+    rdfs:label "employer Cost" ;
+    rdfs:domain wd:BenefitElection ;
+    rdfs:range xsd:decimal .
+
+# --- SHACL shapes ---
+wd:WorkerShape a sh:NodeShape ;
+    sh:targetClass wd:Worker ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+wd:OrganizationShape a sh:NodeShape ;
+    sh:targetClass wd:Organization ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+wd:JobProfileShape a sh:NodeShape ;
+    sh:targetClass wd:JobProfile ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+wd:CompensationShape a sh:NodeShape ;
+    sh:targetClass wd:Compensation ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+wd:TimeOffShape a sh:NodeShape ;
+    sh:targetClass wd:TimeOff ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+wd:BenefitElectionShape a sh:NodeShape ;
+    sh:targetClass wd:BenefitElection ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .

@@ -266,20 +266,16 @@ WHERE status = 'OPEN'
 ORDER BY severity;
 ```
 
-#### Show SPCS API and Dual-Backend Story (Optional)
+#### Show On-Demand Graph Algorithms (Optional)
 
 ```sql
--- The graph is also available as a REST API
--- GET https://<service-endpoint>/nodes?layer=METADATA&node_type=TABLE
--- GET https://<service-endpoint>/governance-scores?min_score=0.0
---
--- Two interchangeable engines answer every query — Snowflake-native (recursive CTEs)
--- and/or Neo4j (Cypher). Pick per request with ?backend=snowflake|neo4j|both.
--- GET https://<service-endpoint>/inference/pii-propagation?backend=snowflake
--- GET https://<service-endpoint>/inference/compare?endpoint=pii-propagation
+-- The same graph powers on-demand algorithms callable from any Worksheet
+CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_SHORTEST_PATH('<from_node_id>', '<to_node_id>', 10);
+SELECT * FROM DCA_DEMO.GOVERNANCE.V_GRAPH_DEGREE_CENTRALITY ORDER BY centrality_rank LIMIT 20;
+SELECT * FROM DCA_DEMO.GOVERNANCE.V_GRAPH_PII_PROPAGATION;
 ```
 
-> "The same graph is exposed as a REST API via SPCS — other applications, notebooks, and Cortex Agents can query it programmatically. Two query engines sit behind the API: Snowflake-native recursive CTEs for governance scoring, PII propagation, and entity resolution; and a Neo4j sidecar for deep traversal and graph algorithms. Pick per request — or run both side-by-side with `/inference/compare` to see the trade-off live. See `docs/GRAPH_BACKENDS.md` for the decision matrix."
+> "Shortest path, centrality, connected components, and k-hop neighborhood are all implemented as recursive-CTE views and stored procedures — graph algorithms running natively in Snowflake, callable from any Worksheet, with no separate engine to operate. The same node/edge tables are also exposed through a Snowflake Share. See `docs/KNOWLEDGE_GRAPH.md` for the full schema and algorithm reference."
 
 ### Closing (1 minute)
 
@@ -289,9 +285,9 @@ ORDER BY severity;
 > 3. **Semantic Views** enable natural language analytics through Cortex
 > 4. **Horizon Governance** enforces security at the data layer
 > 5. **Data Marketplace** enables self-service data consumption
-> 6. **Knowledge Graph** detects governance gaps automatically — Snowflake-native recursive CTEs by default, with an optional Neo4j sidecar for deep traversal
+> 6. **Knowledge Graph** detects governance gaps automatically — Snowflake-native recursive CTEs and SQL graph algorithms
 >
-> Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. The same pattern applies to the graph: same nodes, same edges, two query engines you can mix and match. All of it runs entirely on Snowflake — and stays inside your security perimeter."
+> Both transformation engines coexist in harmony — consumers see the same curated output regardless of which engine produced it. The knowledge graph follows the same principle: one node/edge graph of record, queried in-database with recursive CTEs. All of it runs entirely on Snowflake — and stays inside your security perimeter."
 
 ## Common Questions
 

@@ -1,0 +1,179 @@
+# FHIR source-system ontology (OWL/SHACL)
+# Generated from mappings/fhir.py — regenerate with tools/generate_tbox.py
+
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix schema: <http://schema.org/> .
+@prefix fhir: <http://example.com/ont/fhir/> .
+
+<http://example.com/ont/fhir/> a owl:Ontology ; rdfs:label "FHIR source-system ontology" .
+
+# --- Classes ---
+fhir:Patient a owl:Class ;
+    rdfs:label "Patient" ;
+    rdfs:subClassOf schema:Person .
+fhir:Practitioner a owl:Class ;
+    rdfs:label "Practitioner" ;
+    rdfs:subClassOf schema:Person .
+fhir:Organization a owl:Class ;
+    rdfs:label "Organization" ;
+    rdfs:subClassOf schema:Organization .
+fhir:Encounter a owl:Class ;
+    rdfs:label "Encounter" ;
+    rdfs:subClassOf schema:Thing .
+fhir:Condition a owl:Class ;
+    rdfs:label "Condition" ;
+    rdfs:subClassOf schema:Thing .
+fhir:Observation a owl:Class ;
+    rdfs:label "Observation" ;
+    rdfs:subClassOf schema:Thing .
+fhir:MedicationRequest a owl:Class ;
+    rdfs:label "Medication Request" ;
+    rdfs:subClassOf schema:Thing .
+fhir:Procedure a owl:Class ;
+    rdfs:label "Procedure" ;
+    rdfs:subClassOf schema:Thing .
+fhir:Claim a owl:Class ;
+    rdfs:label "Claim" ;
+    rdfs:subClassOf schema:Thing .
+
+# --- Properties ---
+fhir:mrn a owl:DatatypeProperty ;
+    rdfs:label "mrn" ;
+    rdfs:domain fhir:Patient ;
+    rdfs:range xsd:string .
+fhir:gender a owl:DatatypeProperty ;
+    rdfs:label "gender" ;
+    rdfs:domain fhir:Patient ;
+    rdfs:range xsd:string .
+fhir:birthDate a owl:DatatypeProperty ;
+    rdfs:label "birth Date" ;
+    rdfs:domain fhir:Patient ;
+    rdfs:range xsd:date .
+fhir:npi a owl:DatatypeProperty ;
+    rdfs:label "npi" ;
+    rdfs:domain fhir:Practitioner ;
+    rdfs:range xsd:string .
+fhir:specialty a owl:DatatypeProperty ;
+    rdfs:label "specialty" ;
+    rdfs:domain fhir:Practitioner ;
+    rdfs:range xsd:string .
+fhir:organizationType a owl:DatatypeProperty ;
+    rdfs:label "organization Type" ;
+    rdfs:domain fhir:Organization ;
+    rdfs:range xsd:string .
+fhir:status a owl:DatatypeProperty ;
+    rdfs:label "status" ;
+    rdfs:domain fhir:Encounter ;
+    rdfs:range xsd:string .
+fhir:encounterClass a owl:DatatypeProperty ;
+    rdfs:label "encounter Class" ;
+    rdfs:domain fhir:Encounter ;
+    rdfs:range xsd:string .
+fhir:subject a owl:ObjectProperty ;
+    rdfs:label "subject" ;
+    rdfs:domain fhir:Encounter ;
+    rdfs:range fhir:Patient .
+fhir:icd10Code a owl:DatatypeProperty ;
+    rdfs:label "icd10 Code" ;
+    rdfs:domain fhir:Condition ;
+    rdfs:range xsd:string .
+fhir:clinicalStatus a owl:DatatypeProperty ;
+    rdfs:label "clinical Status" ;
+    rdfs:domain fhir:Condition ;
+    rdfs:range xsd:string .
+fhir:severity a owl:DatatypeProperty ;
+    rdfs:label "severity" ;
+    rdfs:domain fhir:Condition ;
+    rdfs:range xsd:string .
+fhir:onsetDate a owl:DatatypeProperty ;
+    rdfs:label "onset Date" ;
+    rdfs:domain fhir:Condition ;
+    rdfs:range xsd:date .
+fhir:partOfEncounter a owl:ObjectProperty ;
+    rdfs:label "part Of Encounter" ;
+    rdfs:domain fhir:Condition ;
+    rdfs:range fhir:Encounter .
+fhir:loincCode a owl:DatatypeProperty ;
+    rdfs:label "loinc Code" ;
+    rdfs:domain fhir:Observation ;
+    rdfs:range xsd:string .
+fhir:value a owl:DatatypeProperty ;
+    rdfs:label "value" ;
+    rdfs:domain fhir:Observation ;
+    rdfs:range xsd:decimal .
+fhir:unit a owl:DatatypeProperty ;
+    rdfs:label "unit" ;
+    rdfs:domain fhir:Observation ;
+    rdfs:range xsd:string .
+fhir:rxNormCode a owl:DatatypeProperty ;
+    rdfs:label "rx Norm Code" ;
+    rdfs:domain fhir:MedicationRequest ;
+    rdfs:range xsd:string .
+fhir:intent a owl:DatatypeProperty ;
+    rdfs:label "intent" ;
+    rdfs:domain fhir:MedicationRequest ;
+    rdfs:range xsd:string .
+fhir:requester a owl:ObjectProperty ;
+    rdfs:label "requester" ;
+    rdfs:domain fhir:MedicationRequest ;
+    rdfs:range fhir:Practitioner .
+fhir:snomedCode a owl:DatatypeProperty ;
+    rdfs:label "snomed Code" ;
+    rdfs:domain fhir:Procedure ;
+    rdfs:range xsd:string .
+fhir:performedDate a owl:DatatypeProperty ;
+    rdfs:label "performed Date" ;
+    rdfs:domain fhir:Procedure ;
+    rdfs:range xsd:string .
+fhir:claimType a owl:DatatypeProperty ;
+    rdfs:label "claim Type" ;
+    rdfs:domain fhir:Claim ;
+    rdfs:range xsd:string .
+fhir:use a owl:DatatypeProperty ;
+    rdfs:label "use" ;
+    rdfs:domain fhir:Claim ;
+    rdfs:range xsd:string .
+fhir:totalValue a owl:DatatypeProperty ;
+    rdfs:label "total Value" ;
+    rdfs:domain fhir:Claim ;
+    rdfs:range xsd:decimal .
+fhir:createdDate a owl:DatatypeProperty ;
+    rdfs:label "created Date" ;
+    rdfs:domain fhir:Claim ;
+    rdfs:range xsd:date .
+fhir:provider a owl:ObjectProperty ;
+    rdfs:label "provider" ;
+    rdfs:domain fhir:Claim ;
+    rdfs:range fhir:Organization .
+
+# --- SHACL shapes ---
+fhir:PatientShape a sh:NodeShape ;
+    sh:targetClass fhir:Patient ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:PractitionerShape a sh:NodeShape ;
+    sh:targetClass fhir:Practitioner ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:OrganizationShape a sh:NodeShape ;
+    sh:targetClass fhir:Organization ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:EncounterShape a sh:NodeShape ;
+    sh:targetClass fhir:Encounter ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:ConditionShape a sh:NodeShape ;
+    sh:targetClass fhir:Condition ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:ObservationShape a sh:NodeShape ;
+    sh:targetClass fhir:Observation ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:MedicationRequestShape a sh:NodeShape ;
+    sh:targetClass fhir:MedicationRequest ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:ProcedureShape a sh:NodeShape ;
+    sh:targetClass fhir:Procedure ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ] .
+fhir:ClaimShape a sh:NodeShape ;
+    sh:targetClass fhir:Claim .

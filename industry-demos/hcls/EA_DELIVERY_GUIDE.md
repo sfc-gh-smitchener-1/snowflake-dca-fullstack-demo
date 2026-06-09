@@ -379,7 +379,7 @@ Choose based on audience engagement during the demo:
 For when the audience asks "how does this actually work?" — deliver these in 3 sentences or fewer.
 
 **"How does the governance intelligence work?"**
-Stored procedures running on your Snowflake compute analyze metadata, lineage, and tag propagation. For advanced inference patterns, we run a Native App on SPCS as a background service. All results materialize into standard Snowflake tables — fully queryable, fully governed.
+Stored procedures running on your Snowflake compute analyze metadata, lineage, and tag propagation. The Ontology Knowledge Graph is queried natively with recursive CTEs — no sidecar or container service. All results materialize into standard Snowflake tables — fully queryable, fully governed.
 
 **"How is this secured?"**
 Business Critical edition. AES-256 encryption at rest with annual key rotation. TLS 1.2+ in transit. Network policies restricting access to your corporate CIDR. Cross-region failover with 10-minute RPO. HITRUST CSF certified. Your data never leaves Snowflake's security perimeter.

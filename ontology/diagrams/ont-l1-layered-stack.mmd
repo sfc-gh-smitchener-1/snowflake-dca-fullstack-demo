@@ -1,0 +1,30 @@
+flowchart TB
+    classDef flow   fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef cross  fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+    classDef edge   fill:#5C6E8C,stroke:#3F4D63,color:#FFFFFF
+
+    L0["L0 — Sources & Standards<br/>SAP · Salesforce · custom apps · IoT · GS1 · ISO · Schema.org"]:::edge
+    L1["L1 — Ingest (Raw)<br/>Snowpipe · Snowpipe Streaming · External Tables · Iceberg ingest"]:::flow
+    L2["L2 — Identifiers<br/>canonical UID minting · alt-key bridges · bi-temporal versioning<br/>(Hybrid Tables for hot-path lookup)"]:::flow
+    L3["L3 — Vocabulary<br/>controlled_vocabulary · units (UCUM) · code lists<br/>(referenced by every Silver table; published to consumers)"]:::flow
+    L4["L4 — Taxonomy<br/>taxonomy_node + classification (held in parallel)<br/>traversed via Recursive CTEs"]:::flow
+    L5["L5 — Ontology<br/>RDF/OWL/SHACL documented in git<br/>enforced as dbt tests + DATA_METRIC_FUNCTIONs"]:::flow
+    L6["L6 — Semantic Layer (runtime)<br/>Cortex Analyst · Cortex Search · Recursive CTEs · Semantic Views"]:::flow
+    L7["L7 — Activation<br/>Reverse ETL · Streamlit · Data Sharing · Iceberg · MCP / JSON-LD"]:::flow
+
+    OBS["L8 — Observe<br/>Horizon Catalog · ACCESS_HISTORY · query lineage ·<br/>Cortex telemetry · dbt artifacts"]:::cross
+    GOV["L9 — Govern<br/>Object Tagging · Masking & Row Access Policies ·<br/>tag-based DMFs · Horizon access rules"]:::cross
+    SEC["L10 — Secure & Resilient<br/>Network policies · Private Link · Tri-Secret Secure ·<br/>Failover Groups · Time Travel · Fail-safe"]:::cross
+
+    L0 --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7
+
+    OBS -. "lineage + telemetry across L1–L7" .-> L1
+    OBS -.-> L4
+    OBS -.-> L7
+
+    GOV -. "policies on every governed object" .-> L2
+    GOV -.-> L3
+    GOV -.-> L6
+
+    SEC -. "ingress/egress + DR for the whole stack" .-> L0
+    SEC -.-> L7

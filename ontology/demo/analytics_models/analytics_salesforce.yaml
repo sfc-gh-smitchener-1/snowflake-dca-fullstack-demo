@@ -1,0 +1,317 @@
+name: salesforce_ontology
+description: >-
+  Cortex Analyst semantic model for the SALESFORCE ontology, generated
+  from mappings/salesforce.py. One logical table per ontology class, backed by
+  the GOLD.V_SFDC_* views.
+tables:
+  - name: sfdc_account
+    description: SALESFORCE Account
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_ACCOUNT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: account_type
+        expr: account_type
+        data_type: text
+      - name: address_locality
+        expr: address_locality
+        data_type: text
+      - name: address_region
+        expr: address_region
+        data_type: text
+      - name: customer_segment
+        expr: customer_segment
+        data_type: text
+      - name: industry
+        expr: industry
+        data_type: text
+      - name: rating
+        expr: rating
+        data_type: text
+      - name: telephone
+        expr: telephone
+        data_type: text
+      - name: url
+        expr: url
+        data_type: text
+    facts:
+      - name: annual_revenue
+        expr: annual_revenue
+        data_type: number
+      - name: number_of_employees
+        expr: number_of_employees
+        data_type: number
+  - name: sfdc_contact
+    description: SALESFORCE Contact
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_CONTACT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: department
+        expr: department
+        data_type: text
+      - name: email
+        expr: email
+        data_type: text
+      - name: first_name
+        expr: first_name
+        data_type: text
+      - name: last_name
+        expr: last_name
+        data_type: text
+      - name: lead_source
+        expr: lead_source
+        data_type: text
+      - name: telephone
+        expr: telephone
+        data_type: text
+      - name: title
+        expr: title
+        data_type: text
+      - name: belongs_to_account_uid
+        expr: belongs_to_account_uid
+        data_type: text
+  - name: sfdc_opportunity
+    description: SALESFORCE Opportunity
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_OPPORTUNITY
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: close_date
+        expr: close_date
+        data_type: text
+      - name: forecast_category
+        expr: forecast_category
+        data_type: text
+      - name: opportunity_type
+        expr: opportunity_type
+        data_type: text
+      - name: stage_name
+        expr: stage_name
+        data_type: text
+      - name: related_account_uid
+        expr: related_account_uid
+        data_type: text
+    facts:
+      - name: amount
+        expr: amount
+        data_type: number
+      - name: probability
+        expr: probability
+        data_type: number
+  - name: sfdc_case
+    description: SALESFORCE Case
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_CASE
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: case_number
+        expr: case_number
+        data_type: text
+      - name: case_type
+        expr: case_type
+        data_type: text
+      - name: origin
+        expr: origin
+        data_type: text
+      - name: priority
+        expr: priority
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: related_account_uid
+        expr: related_account_uid
+        data_type: text
+      - name: related_contact_uid
+        expr: related_contact_uid
+        data_type: text
+  - name: sfdc_lead
+    description: SALESFORCE Lead
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_LEAD
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: email
+        expr: email
+        data_type: text
+      - name: first_name
+        expr: first_name
+        data_type: text
+      - name: industry
+        expr: industry
+        data_type: text
+      - name: last_name
+        expr: last_name
+        data_type: text
+      - name: lead_source
+        expr: lead_source
+        data_type: text
+      - name: rating
+        expr: rating
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+  - name: sfdc_product
+    description: SALESFORCE Product
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_PRODUCT
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: family
+        expr: family
+        data_type: text
+      - name: product_code
+        expr: product_code
+        data_type: text
+      - name: sku
+        expr: sku
+        data_type: text
+      - name: unit_of_measure
+        expr: unit_of_measure
+        data_type: text
+  - name: sfdc_campaign
+    description: SALESFORCE Campaign
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_CAMPAIGN
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: campaign_type
+        expr: campaign_type
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+    facts:
+      - name: budgeted_cost
+        expr: budgeted_cost
+        data_type: number
+      - name: expected_revenue
+        expr: expected_revenue
+        data_type: number
+  - name: sfdc_task
+    description: SALESFORCE Task
+    base_table:
+      database: ONT_DEMO
+      schema: GOLD
+      table: V_SFDC_TASK
+    primary_key:
+      columns:
+        - uid
+    dimensions:
+      - name: uid
+        expr: uid
+        data_type: text
+      - name: label
+        expr: label
+        data_type: text
+      - name: name
+        expr: name
+        data_type: text
+      - name: activity_date
+        expr: activity_date
+        data_type: text
+      - name: priority
+        expr: priority
+        data_type: text
+      - name: status
+        expr: status
+        data_type: text
+      - name: related_account_uid
+        expr: related_account_uid
+        data_type: text
+      - name: related_contact_uid
+        expr: related_contact_uid
+        data_type: text

@@ -1,0 +1,8 @@
+name: ontology_console
+channels:
+  - snowflake
+dependencies:
+  - streamlit
+  - pandas
+  - numpy
+  - plotly

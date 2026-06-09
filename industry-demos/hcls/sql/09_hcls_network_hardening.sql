@@ -42,13 +42,13 @@ CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_CORPORATE_ACCESS
     MODE = INGRESS
     COMMENT = 'Corporate network access — replace CIDRs with actual customer ranges before deploying';
 
--- Network Rule for Snowflake internal services (required for SPCS, tasks,
+-- Network Rule for Snowflake internal services (required for tasks,
 -- Dynamic Tables, replication, and other platform services).
 CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_SNOWFLAKE_INTERNAL
     TYPE = HOST_PORT
     VALUE_LIST = ('*.snowflakecomputing.com:443', '*.amazonaws.com:443')
     MODE = EGRESS
-    COMMENT = 'Required egress for Snowflake internal services and SPCS';
+    COMMENT = 'Required egress for Snowflake internal platform services';
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
@@ -134,28 +134,7 @@ SHOW PARAMETERS LIKE '%KEY%' IN ACCOUNT;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 5 — SPCS / NATIVE APP NETWORK ISOLATION
--- ═══════════════════════════════════════════════════════════════════════════
--- Restricts SPCS compute pool egress to Snowflake internal only.
--- This ensures containers (including the inference Native App) cannot
--- exfiltrate data to external endpoints.
-
-CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_SPCS_EGRESS
-    TYPE = HOST_PORT
-    VALUE_LIST = ('*.snowflakecomputing.com:443')
-    MODE = EGRESS
-    COMMENT = 'SPCS egress restricted to Snowflake internal — prevents data exfiltration from containers';
-
--- Apply to compute pool when SPCS is deployed.
--- The inference Native App runs on this compute pool — restricting egress
--- ensures all clinical data stays within Snowflake's security perimeter.
---
--- ALTER COMPUTE POOL RAI_COMPUTE_POOL SET
---     ALLOWED_NETWORK_RULE_LIST = ('SEM_DEV.HCLS_ANALYTICS.HCLS_SPCS_EGRESS');
-
-
--- ═══════════════════════════════════════════════════════════════════════════
--- PART 6 — PRIVATELINK CONFIGURATION (Documentation / Template)
+-- PART 5 — PRIVATELINK CONFIGURATION (Documentation / Template)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- PrivateLink eliminates public internet exposure entirely. All traffic
 -- between the customer's VPC and Snowflake traverses AWS PrivateLink
@@ -199,7 +178,7 @@ CREATE OR REPLACE NETWORK RULE SEM_DEV.HCLS_ANALYTICS.HCLS_SPCS_EGRESS
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 7 — VALIDATION QUERIES
+-- PART 6 — VALIDATION QUERIES
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Run these to verify what's been deployed and what's active.
 
@@ -228,7 +207,7 @@ SELECT
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PART 8 — MONITORING QUERIES (Ongoing Operations)
+-- PART 7 — MONITORING QUERIES (Ongoing Operations)
 -- ═══════════════════════════════════════════════════════════════════════════
 -- Run these regularly (or configure as Snowflake Alerts) to detect
 -- suspicious access patterns.
@@ -298,16 +277,14 @@ LIMIT 20;
 --   - HCLS_SNOWFLAKE_INTERNAL network rule (egress for platform services)
 --   - HCLS_RESTRICTED_ACCESS network policy (combines rules)
 --   - HCLS_SESSION_POLICY (30-min idle, 15-min UI timeout)
---   - HCLS_SPCS_EGRESS network rule (container isolation)
 --   - PREVENT_UNLOAD_TO_INLINE_URL = TRUE (anti-exfiltration)
 --
 -- What requires SE action:
 --   1. Replace placeholder CIDRs in HCLS_CORPORATE_ACCESS with customer IPs
 --   2. Test network policy on a single user before account-wide deployment
 --   3. Apply session policy account-wide after testing
---   4. Configure PrivateLink if customer requires (Part 6 template)
---   5. Apply SPCS egress rule to compute pool after SPCS deployment
---   6. Set up ongoing monitoring alerts (Part 8 queries)
+--   4. Configure PrivateLink if customer requires (Part 5 template)
+--   5. Set up ongoing monitoring alerts (Part 7 queries)
 --
 -- Production hardening checklist:
 --   [ ] CIDRs replaced with actual customer ranges
@@ -315,7 +292,6 @@ LIMIT 20;
 --   [ ] Network policy applied account-wide
 --   [ ] Session policy applied account-wide
 --   [ ] PrivateLink configured (if required)
---   [ ] SPCS egress restricted
 --   [ ] MFA enforced for all users
 --   [ ] Monitoring alerts configured
 --   [ ] SSO/SCIM integration active

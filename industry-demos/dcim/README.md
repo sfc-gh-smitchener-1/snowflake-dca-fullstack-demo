@@ -8,7 +8,7 @@ This demo extends the core DCA platform into a full four-system DCIM analytics p
 
 1. **Equipment risk correlates with certification gaps** — Switches lacking certified technician coverage within SLA distance show 3.2x higher MTTR and 2.7x more repeat incidents.
 2. **SCD Type 6 enables full state reconstruction** — Tracking current, historical, and original states in the raw layer allows precise "what changed and when" analysis for root-cause investigations and compliance audits.
-3. **Graph pathfinding optimizes technician dispatch** — RAI-powered nearest-qualified-technician routing reduces mean dispatch time by 40% versus round-robin assignment by considering certifications, shift status, and physical proximity.
+3. **Graph pathfinding optimizes technician dispatch** — Snowflake-native nearest-qualified-technician routing reduces mean dispatch time by 40% versus round-robin assignment by considering certifications, shift status, and physical proximity.
 
 ### Snowflake-Native Capabilities Demonstrated
 
@@ -59,7 +59,7 @@ flowchart LR
     end
 
     subgraph GRAPH["Ontology Knowledge Graph"]
-        RAI[RAI SPCS<br/>Graph Engine]
+        RAI["Snowflake-Native<br/>Graph (Recursive CTEs)"]
     end
 
     subgraph ANALYTICS["DCA_DEMO.GOVERNANCE"]
@@ -246,7 +246,6 @@ All synthetic IDs use deterministic `uuid5` with domain-specific seeds:
 
 - Snowflake account with ACCOUNTADMIN access
 - Python 3.9+ with `faker`, `snowflake-connector-python`
-- RAI SPCS service running (for graph features)
 
 ### Quick Start
 

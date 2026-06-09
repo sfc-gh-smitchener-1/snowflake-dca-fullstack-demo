@@ -1,0 +1,67 @@
+flowchart LR
+    classDef src      fill:#3B4F7A,stroke:#2C3E5E,color:#FFFFFF
+    classDef snow     fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef act      fill:#F2A93B,stroke:#B07724,color:#1A1A1A
+    classDef consume  fill:#5C9F69,stroke:#3F6E48,color:#FFFFFF
+    classDef cross    fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+
+    subgraph SRC ["SOURCE SYSTEMS (Systems of Record)"]
+        direction TB
+        ERP["ERP / Master Data<br/>(SAP, Oracle, Dynamics)"]
+        CRM["CRM / PIM / PLM<br/>(Salesforce, Salsify, Windchill)"]
+        OPS["Operational Apps<br/>(custom, SaaS, IoT)"]
+        EXT["External Standards Bodies<br/>(GS1, ISO, Schema.org, NAICS)"]
+    end
+
+    subgraph ONT ["SNOWFLAKE — Ontology Substrate"]
+        direction TB
+        L1ID["L1 Identifiers<br/>canonical keys + bridges"]
+        L2VOC["L2 Vocabulary<br/>units, code lists, enumerations"]
+        L3TAX["L3 Taxonomy<br/>hierarchies (held in parallel)"]
+        L4ONT["L4 Ontology<br/>classes · properties · axioms<br/>(OWL/SHACL → dbt + DMF)"]
+        L5SEM["L5 Semantic Layer<br/>Cortex Analyst · Cortex Search<br/>recursive CTEs · semantic views"]
+        L1ID --> L2VOC --> L3TAX --> L4ONT --> L5SEM
+    end
+
+    subgraph ACT ["ACTIVATION"]
+        RETL["Reverse ETL<br/>(Hightouch · Census)"]
+        APPS["Streamlit · embedded apps"]
+        SHARE["Snowflake Data Sharing<br/>+ Iceberg / Polaris"]
+        AEO["Agent / AEO surface<br/>(JSON-LD · MCP)"]
+    end
+
+    subgraph CONS ["CONSUMERS"]
+        HUMAN["Business users<br/>(NL questions)"]
+        AGENT["AI agents<br/>(LLM tool callers)"]
+        DOWN["Downstream systems<br/>(re-sync conformed values)"]
+        PARTNER["Partners / 3rd parties<br/>(data share, JSON-LD)"]
+    end
+
+    subgraph CROSS ["GOVERN · OBSERVE · SECURE (cross-cuts)"]
+        HORIZON["Horizon Catalog · lineage · access policies · DMFs"]
+    end
+
+    ERP --> L1ID
+    CRM --> L1ID
+    OPS --> L1ID
+    EXT -. "standards intake" .-> L2VOC
+    EXT -. "standards intake" .-> L3TAX
+
+    L5SEM --> RETL
+    L5SEM --> APPS
+    L5SEM --> SHARE
+    L5SEM --> AEO
+
+    APPS --> HUMAN
+    AEO --> AGENT
+    RETL --> DOWN
+    SHARE --> PARTNER
+
+    HORIZON -. "cross-cutting" .-> ONT
+    HORIZON -. "cross-cutting" .-> ACT
+
+    class ERP,CRM,OPS,EXT src
+    class L1ID,L2VOC,L3TAX,L4ONT,L5SEM snow
+    class RETL,APPS,SHARE,AEO act
+    class HUMAN,AGENT,DOWN,PARTNER consume
+    class HORIZON cross

@@ -1,0 +1,143 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix schema: <http://schema.org/> .
+@prefix ex:     <http://example.com/ont/> .
+
+# ============================================================================
+# Snowflake Ontology Reference — demo TBox (Turtle)
+# ----------------------------------------------------------------------------
+# This file is the canonical, human-readable form of the demo ontology.
+# The same shape is loaded into ONT_DEMO.SILVER.{namespace,class,property,
+# value_domain,shape,constraint} by 02_load_synthetic_data.sql.
+# ============================================================================
+
+ex: a owl:Ontology ;
+    rdfs:label "Demo enterprise ontology" ;
+    rdfs:comment "Minimal example: Customer, Account, Product, Order, Address" ;
+    owl:imports <http://schema.org/> .
+
+# ----------------------------------------------------------------------------
+# Classes
+# ----------------------------------------------------------------------------
+ex:Customer a owl:Class ;
+    rdfs:label "Customer" ;
+    rdfs:subClassOf schema:Organization ;
+    rdfs:comment "A party that has at least one Account." .
+
+ex:Account a owl:Class ;
+    rdfs:label "Account" ;
+    rdfs:comment "A contracted relationship between a Customer and the enterprise." .
+
+ex:Product a owl:Class ;
+    rdfs:label "Product" ;
+    rdfs:comment "A sellable good." .
+
+ex:Beverage a owl:Class ;
+    rdfs:label "Beverage" ;
+    rdfs:subClassOf ex:Product ;
+    rdfs:comment "A drinkable product." .
+
+ex:Order a owl:Class ;
+    rdfs:label "Order" ;
+    rdfs:comment "A transaction record placed by a Customer for one or more Products." .
+
+# ----------------------------------------------------------------------------
+# Object properties
+# ----------------------------------------------------------------------------
+ex:holdsAccount a owl:ObjectProperty ;
+    rdfs:label "holdsAccount" ;
+    rdfs:domain ex:Customer ;
+    rdfs:range  ex:Account .
+
+ex:placedOrder a owl:ObjectProperty ;
+    rdfs:label "placedOrder" ;
+    rdfs:domain ex:Customer ;
+    rdfs:range  ex:Order .
+
+ex:orderedProduct a owl:ObjectProperty ;
+    rdfs:label "orderedProduct" ;
+    rdfs:domain ex:Order ;
+    rdfs:range  ex:Product .
+
+# ----------------------------------------------------------------------------
+# Datatype properties
+# ----------------------------------------------------------------------------
+ex:accountStatus a owl:DatatypeProperty ;
+    rdfs:label  "accountStatus" ;
+    rdfs:domain ex:Account ;
+    rdfs:range  xsd:string .
+
+ex:orderStatus a owl:DatatypeProperty ;
+    rdfs:label  "orderStatus" ;
+    rdfs:domain ex:Order ;
+    rdfs:range  xsd:string .
+
+ex:priceUSD a owl:DatatypeProperty ;
+    rdfs:label  "priceUSD" ;
+    rdfs:domain ex:Product ;
+    rdfs:range  xsd:decimal .
+
+# ============================================================================
+# SHACL shapes
+# ----------------------------------------------------------------------------
+# Each shape compiles 1:1 to a Snowflake DATA_METRIC_FUNCTION (see
+# 04_dbt_tests_and_dmfs.sql) and/or a dbt schema test.
+# ============================================================================
+
+ex:CustomerShape a sh:NodeShape ;
+    sh:targetClass ex:Customer ;
+    sh:property [
+        sh:path schema:name ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path ex:holdsAccount ;
+        sh:minCount 1 ;
+        sh:class ex:Account ;
+    ] .
+
+ex:AccountShape a sh:NodeShape ;
+    sh:targetClass ex:Account ;
+    sh:property [
+        sh:path ex:accountStatus ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( "ACTIVE" "SUSPENDED" "CLOSED" ) ;
+    ] .
+
+ex:OrderShape a sh:NodeShape ;
+    sh:targetClass ex:Order ;
+    sh:property [
+        sh:path ex:orderStatus ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:in ( "PLACED" "PAID" "SHIPPED" "DELIVERED" "CANCELED" ) ;
+    ] ;
+    sh:property [
+        sh:path ex:orderedProduct ;
+        sh:minCount 1 ;
+        sh:class ex:Product ;
+    ] .
+
+ex:ProductShape a sh:NodeShape ;
+    sh:targetClass ex:Product ;
+    sh:property [
+        sh:path ex:priceUSD ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:decimal ;
+        sh:minInclusive 0 ;
+    ] .
+
+ex:PostalAddressShape a sh:NodeShape ;
+    sh:targetClass schema:PostalAddress ;
+    sh:property [
+        sh:path schema:addressRegion ;
+        sh:maxCount 1 ;
+        sh:datatype xsd:string ;
+        sh:pattern "^[A-Z]{2}$" ;
+    ] .

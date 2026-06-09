@@ -1,6 +1,6 @@
 # Fintech Cross-Border Payments — Focused Demo
 
-> **From Rule-Based Compliance to Knowledge Graph-Powered Financial Crime Detection** — Applying DCA patterns with a **dual-backend** graph engine (Snowflake-native recursive CTEs by default, optional Neo4j sidecar on SPCS for deep traversal) to solve AML, fraud ring detection, sanctions screening, and agent governance challenges for a global money transfer platform.
+> **From Rule-Based Compliance to Knowledge Graph-Powered Financial Crime Detection** — Applying DCA patterns with a **Snowflake-native** graph engine (recursive CTEs + label propagation) to solve AML, fraud ring detection, sanctions screening, and agent governance challenges for a global money transfer platform.
 
 ## Company Context
 
@@ -44,12 +44,12 @@ The Knowledge Graph extends the core DCA data with fintech-specific nodes:
 
 ## Knowledge Graph — Fintech Extension
 
-The fintech demo runs on the same dual-backend graph engine as the rest of the platform. The graph of record lives in `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` and is queried through two interchangeable engines:
+The fintech demo runs on the same Snowflake-native graph engine as the rest of the platform. The graph of record lives in `ONTOLOGY_GRAPH_NODES` / `ONTOLOGY_GRAPH_EDGES` and is queried entirely in SQL:
 
-- **Snowflake-native (default).** Recursive CTEs + label propagation for fraud-ring detection, network-position scoring, and corridor aggregation. No sidecar, always live against the source tables. This is what `sql/03_fintech_rai_inference.sql` uses.
-- **Neo4j (optional sidecar on SPCS).** Cypher + Graph Data Science for deep multi-hop sanctions traversal (beneficial-ownership chains 4+ hops) and sub-100 ms shortest-path queries from a customer to a watchlist entity for real-time payment authorization.
+- **Recursive CTEs + label propagation** for fraud-ring detection, network-position scoring, and corridor aggregation. No sidecar — always live against the source tables. This is what `sql/03_fintech_rai_inference.sql` uses.
+- **Graph traversal** for multi-hop sanctions screening (beneficial-ownership chains) and shortest-path queries from a customer to a watchlist entity for real-time payment authorization, implemented via the on-demand algorithms in `sql/16_graph_algorithms.sql`.
 
-Pick per request with `?backend=snowflake|neo4j|both` on any SPCS endpoint. See [GRAPH_BACKENDS.md](../../docs/GRAPH_BACKENDS.md) for the compare/contrast and decision matrix.
+Everything runs inside the warehouse, inheriting replication, sharing, and governance. See [KNOWLEDGE_GRAPH.md](../../docs/KNOWLEDGE_GRAPH.md) for the graph model and algorithms.
 
 Edge types for financial crime detection:
 
@@ -142,22 +142,12 @@ cd demos/fintech/tools && python generate_fintech_data.py --output ../data
 # 2. Create intentional compliance gaps (for demo)
 @demos/fintech/sql/02_fintech_compliance_gaps.sql
 
-# 3. Run fintech-specific graph inference (pure Snowflake SQL — runs as part of the dual-backend story)
+# 3. Run fintech-specific graph inference (pure Snowflake SQL)
 @demos/fintech/sql/03_fintech_rai_inference.sql
 
 # 4. (Optional) On-demand graph algorithms callable from any Worksheet
 #    (shortest path, centrality, connected components, neighborhood, PII propagation, governance scores)
 @sql/16_graph_algorithms.sql
-```
-
-For the SPCS service that fronts both engines:
-
-```bash
-# Default deployment — Snowflake-native + Neo4j sidecar
-./industry-demos/hcls/tools/deploy_spcs.sh --org <ORG> --account <ACCOUNT>
-
-# Lighter footprint — Snowflake-native only, no Neo4j container
-./industry-demos/hcls/tools/deploy_spcs.sh --org <ORG> --account <ACCOUNT> --backend snowflake
 ```
 
 ## File Structure

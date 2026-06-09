@@ -24,7 +24,7 @@ The architecture prioritizes:
 | 2 | **Dynamic Tables over scheduled ETL** | Declarative transforms; automatic dependency resolution | 14 curated DTs with tiered lags |
 | 3 | **Tag everything at birth** | Governance is cheaper when applied early | Column tags on RAW tables at DDL time |
 | 4 | **Cross-system IDs are deterministic** | Reproducible joins without lookup tables | uuid5 with domain-specific namespaces |
-| 5 | **Graph is a projection, not a copy** | Graph nodes reference Snowflake tables; no data duplication | RAI reads from CURATED views |
+| 5 | **Graph is a projection, not a copy** | Graph nodes reference Snowflake tables; no data duplication | Recursive CTEs traverse CURATED views |
 | 6 | **Procedures encapsulate business logic** | Complex scoring/dispatch logic is testable and auditable | SP_DCIM_* stored procedures |
 | 7 | **Semantic views for self-service** | Business users ask questions in English, not SQL | 3 semantic views over analytics tables |
 | 8 | **Orchestration is idempotent** | Any phase can be re-run without side effects | Master orchestrator with phase flags |
@@ -69,7 +69,7 @@ Layer analytics that require joining across system boundaries.
 flowchart TD
     CURATED[CURATED_DEV] --> RISK[SP_DCIM_RISK_SCORING<br/>error_rate×0.4 + cert_gap×0.3 + sla_tier×0.3]
     CURATED --> MTTR[SP_DCIM_MTTR_ANALYSIS<br/>Risk-weighted resolution metrics]
-    CURATED --> GRAPH[RAI Knowledge Graph<br/>Nodes + Edges]
+    CURATED --> GRAPH[Ontology Knowledge Graph<br/>Nodes + Edges]
 
     GRAPH --> DISPATCH[SP_DCIM_NEAREST_QUALIFIED_TECH<br/>Certified + On-shift + Proximate]
     RISK --> ANALYTICS[GOVERNANCE.DCIM_RISK_SCORES]
@@ -201,7 +201,7 @@ ACCOUNTADMIN
 | Workday | Report-as-a-Service | Every 15 min | Airbyte connector → external stage |
 | Telemetry | Streaming | Continuous | Snowpipe Streaming SDK |
 | Siemens Desigo CC | MindSphere API export | Every 1–60 min | Bulk CSV → external stage |
-| RAI Graph | Pull from Snowflake | On-demand | SPCS service reads CURATED views |
+| Knowledge Graph | In-Snowflake projection | On-demand | Recursive CTEs over CURATED views |
 
 ---
 
@@ -210,7 +210,6 @@ ACCOUNTADMIN
 | Failure | Detection | Recovery |
 |---------|-----------|----------|
 | Source lag > 2x target | Dynamic Table REFRESH_STATUS | Alert → investigate source connector |
-| Graph service down | SPCS health check | Dispatch falls back to rule-based (no graph) |
 | Risk score stale | Orchestrator heartbeat | SP_DCIM_QUICK_REFRESH re-runs scoring |
 | Siemens entity resolution stale | CANDIDATE_SAME_AS edge count drift | Re-run 04b Siemens graph populate |
 | Certification data gap | Validation script (Phase 6) | Re-trigger Workday sync |

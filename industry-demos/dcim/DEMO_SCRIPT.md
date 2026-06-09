@@ -8,7 +8,6 @@
 
 - All deploy phases (1–6) completed successfully
 - Streamlit Command Center running
-- RAI SPCS service healthy
 - At least one active incident in the system
 
 ---
@@ -419,7 +418,7 @@ ORDER BY SOURCE_SYSTEM, avg_score DESC;
 |-----------|----------|
 | "We already have ServiceNow dashboards" | "ServiceNow shows you *what* is broken. It can't tell you *who* is qualified and available — that requires Workday data it doesn't have." |
 | "Why not build this in ServiceNow?" | "ServiceNow isn't designed for sub-minute telemetry ingestion or graph-based dispatch optimization. Snowflake handles the analytical workload while ServiceNow remains the system of record." |
-| "What about the RAI dependency?" | "RAI is optional. The risk scoring, MTTR analysis, and SCD6 time travel all work without it. RAI adds the graph-based dispatch optimization as an enhancement." |
+| "Do we need a separate graph database?" | "No. The Ontology Knowledge Graph runs entirely in Snowflake — recursive SQL over the ONTOLOGY_GRAPH_NODES / ONTOLOGY_GRAPH_EDGES tables powers dependency traversal and dispatch. There's no external graph engine or service to deploy or operate." |
 | "How long to implement?" | "Phase 1 (governed data lake) is deployable with existing Fivetran/Airbyte connectors. The analytical layer builds incrementally on top." |
 | "What about data freshness SLAs?" | "Dynamic Tables provide declarative freshness — you set target lag, Snowflake guarantees it. No cron jobs, no 'did the ETL run?' questions." |
 | "How do you handle the Siemens acquisition data?" | "We load Siemens data as-is into Snowflake — no schema migration, no ETL rewrite. The Knowledge Graph resolves overlapping rack IDs through entity resolution edges, and governance scoring flags ungoverned facilities for prioritized integration." |

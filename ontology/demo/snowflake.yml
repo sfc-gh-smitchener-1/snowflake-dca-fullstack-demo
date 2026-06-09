@@ -1,0 +1,19 @@
+definition_version: 2
+entities:
+  ontology_console:
+    type: streamlit
+    identifier:
+      name: ONTOLOGY_CONSOLE
+      schema: CONFIG
+      database: ONT_DEMO
+    title: Ontology Console
+    main_file: streamlit_app.py
+    pages_dir: ""
+    query_warehouse: ONT_DEMO_AGENT_WH
+    stage: ONT_DEMO.CONFIG.STREAMLIT_STAGE
+    artifacts:
+      - streamlit_app.py
+      - environment.yml
+    grants:
+      - role: ONT_DEMO_CONSUMER_ROLE
+        privilege: USAGE

@@ -1,0 +1,59 @@
+flowchart LR
+    classDef bronze fill:#7C4A82,stroke:#532F58,color:#FFFFFF
+    classDef silver fill:#29B5E8,stroke:#1B7DA8,color:#FFFFFF
+    classDef gold   fill:#F2A93B,stroke:#B07724,color:#1A1A1A
+    classDef tool   fill:#5C9F69,stroke:#3F6E48,color:#FFFFFF
+
+    subgraph BRONZE ["BRONZE — raw landings"]
+        B1["External Tables /<br/>Snowpipe / Iceberg"]:::bronze
+    end
+
+    subgraph SILVER ["SILVER — canonical (triple-form + property-graph)"]
+        direction TB
+        NS["namespace"]:::silver
+        CLS["class<br/>cluster: (namespace_iri)"]:::silver
+        PROP["property<br/>cluster: (namespace_iri, property_iri)"]:::silver
+        IND["individual<br/>cluster: (class_iri, valid_to)<br/>Hybrid Table for hot lookup"]:::silver
+        STMT["statement (the triple store)<br/>cluster: (predicate_iri, subject_uid)<br/>search_optimization on (subject_uid, object_uid)"]:::silver
+        NODE["node (property-graph projection)<br/>one row per individual<br/>typed columns per known property"]:::silver
+        EDGE["edge (property-graph projection)<br/>(src_uid, predicate_iri, dst_uid, weight)<br/>cluster: (predicate_iri, src_uid)"]:::silver
+        SHP["shape + constraint"]:::silver
+
+        NS --> CLS
+        NS --> PROP
+        CLS --> IND
+        IND --> STMT
+        PROP --> STMT
+        STMT -. "dynamic table refresh" .-> NODE
+        STMT -. "dynamic table refresh" .-> EDGE
+        CLS --> SHP
+    end
+
+    subgraph GOLD ["GOLD — business-facing"]
+        SV["Semantic Views<br/>(query-friendly joins)"]:::gold
+        CSV["Cortex Analyst<br/>semantic_model.yaml"]:::gold
+        SEARCH["Cortex Search service<br/>over labels + literals"]:::gold
+    end
+
+    subgraph TOOLS ["TOOLING (off-platform, optional)"]
+        OWL["OWL / Turtle in git<br/>(documentation)"]:::tool
+        SHACL["SHACL shapes in git<br/>→ dbt tests + DMFs"]:::tool
+        SNOWPARK["Snowpark + NetworkX /<br/>GraphFrames (escape hatch)"]:::tool
+    end
+
+    B1 --> NS
+    B1 --> IND
+    B1 --> STMT
+
+    OWL --> CLS
+    OWL --> PROP
+    SHACL --> SHP
+
+    NODE --> SV
+    EDGE --> SV
+    SV --> CSV
+    IND --> SEARCH
+    STMT --> SEARCH
+
+    NODE -. "load subgraph on demand" .-> SNOWPARK
+    EDGE -.-> SNOWPARK

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Structured 15-minute demonstration of the dual-backend Knowledge Graph solving cross-border payment compliance challenges: fraud ring detection, real-time sanctions screening, AML scoring, payment corridor analysis, and agent compliance monitoring. The graph of record lives in Snowflake tables and is queried through two interchangeable engines — Snowflake-native recursive CTEs by default, with an optional Neo4j sidecar on SPCS for deep traversal.
+Structured 15-minute demonstration of the Snowflake-native Knowledge Graph solving cross-border payment compliance challenges: fraud ring detection, real-time sanctions screening, AML scoring, payment corridor analysis, and agent compliance monitoring. The graph of record lives in Snowflake tables and is queried entirely in SQL — recursive CTEs and label propagation, including the deep beneficial-ownership traversal cases.
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ Structured 15-minute demonstration of the dual-backend Knowledge Graph solving c
 ### Opening (1 min)
 
 **Talk Track:**
-> "Cross-border payments face a fundamental compliance challenge: rule-based AML produces 95% false positives, sanctions screening runs overnight while threats are real-time, and organized fraud rings are invisible when you evaluate customers one at a time. Today I'll show you how a Knowledge Graph — running natively in Snowflake, with an optional Neo4j sidecar for deep traversal — transforms financial crime detection from isolated rules to network intelligence."
+> "Cross-border payments face a fundamental compliance challenge: rule-based AML produces 95% false positives, sanctions screening runs overnight while threats are real-time, and organized fraud rings are invisible when you evaluate customers one at a time. Today I'll show you how a Knowledge Graph — running natively in Snowflake, entirely in SQL — transforms financial crime detection from isolated rules to network intelligence."
 
 ### Part 1: The Payment Knowledge Graph (3 min)
 
@@ -83,19 +83,12 @@ WHERE r.recommendation_type IN ('SANCTIONS_MATCH', 'WATCHLIST_PROXIMITY')
 ORDER BY r.severity;
 ```
 
-```bash
-# Real-time payment-authorization path — pick the engine per request
-# Snowflake-native (default) — recursive CTE inside the warehouse, no sidecar
-curl "https://<spcs-endpoint>/edges/path/{customer_id}/{watchlist_id}?backend=snowflake"
-
-# Neo4j sidecar — sub-100 ms shortest path, useful for deep beneficial-ownership chains
-curl "https://<spcs-endpoint>/edges/path/{customer_id}/{watchlist_id}?backend=neo4j"
-
-# Side-by-side: same answer, different timing
-curl "https://<spcs-endpoint>/inference/compare?endpoint=path&from={customer_id}&to={watchlist_id}"
+```sql
+-- Real-time payment-authorization path — recursive CTE inside the warehouse
+CALL DCA_DEMO.GOVERNANCE.SP_GRAPH_SHORTEST_PATH('{customer_id}', '{watchlist_id}', 5);
 ```
 
-> "Instead of overnight batch name-matching, the graph traces paths from every customer through their beneficiaries and business relationships to watchlist entities. This customer isn't directly sanctioned — but their beneficiary's business partner is on the OFAC SDN list. Two hops. The batch system would miss this entirely. And critically — there are two engines sitting behind the same API. Snowflake-native recursive CTEs handle the 1-3 hop case at warehouse-query speed with no sidecar. The Neo4j sidecar steps in for the deep beneficial-ownership chains — Entity A owns 51% of Entity B which controls Entity C on the SDN list — where you need sub-100 ms across many hops. Switch engines with a query parameter; prove they agree with `/inference/compare`."
+> "Instead of overnight batch name-matching, the graph traces paths from every customer through their beneficiaries and business relationships to watchlist entities. This customer isn't directly sanctioned — but their beneficiary's business partner is on the OFAC SDN list. Two hops. The batch system would miss this entirely. A single recursive CTE handles the 1-3 hop case at warehouse-query speed and walks the deep beneficial-ownership chains too — Entity A owns 51% of Entity B which controls Entity C on the SDN list — all in SQL, with no separate graph service to operate."
 
 ### Part 4: AML Compliance Scores (2 min)
 
@@ -133,7 +126,7 @@ Navigate to Streamlit Page 6: Knowledge Graph
 > 4. **Corridor risk** is continuously scored — not quarterly reports
 > 5. **Agent compliance** is automated — not 2-year audit cycles
 >
-> Same nodes, same edges, two query engines you can mix and match. Snowflake-native recursive CTEs by default — no sidecar, no extra license, inherits replication, sharing, and the Business Critical tier. Optional Neo4j sidecar on SPCS for the deep traversal cases. Pick per request. All of it stays inside your Snowflake security perimeter — no external tools."
+> Same nodes, same edges, one Snowflake-native query engine. Recursive CTEs and label propagation — no sidecar, no extra license, inherits replication, sharing, and the Business Critical tier. All of it stays inside your Snowflake security perimeter — no external tools."
 
 ## Common Questions
 
@@ -141,10 +134,10 @@ Navigate to Streamlit Page 6: Knowledge Graph
 > "The Knowledge Graph doesn't replace your transaction monitoring system — it enriches it. Graph scores and cluster memberships feed into your existing alert workflow as additional context, reducing false positives without replacing the infrastructure."
 
 **Q: What about real-time transaction screening?**
-> "The SPCS API endpoint allows real-time queries: before approving a transaction, query `/edges/path/{customer}/{watchlist}?backend=snowflake|neo4j` to check sanctions proximity. The Snowflake-native engine runs the recursive CTE in the warehouse for the typical 1-3 hop case; the Neo4j sidecar handles deep beneficial-ownership chains in sub-100 ms when that's the access pattern. Same API either way."
+> "Before approving a transaction, call `SP_GRAPH_SHORTEST_PATH(customer, watchlist, max_hops)` to check sanctions proximity. The recursive CTE runs in the warehouse for the typical 1-3 hop case and walks deeper beneficial-ownership chains when that's the access pattern — same procedure either way, no separate service to call."
 
-**Q: Why two engines? Why not pick one?**
-> "Because they're good at different things. Snowflake-native covers ~80% of graph work — fraud rings, AML scoring, corridor and agent scoring — without operating a sidecar, without an extra license, and inside your existing Snowflake security perimeter. Neo4j covers the deep-traversal cases SQL is genuinely slower at. The graph of record always lives in Snowflake tables; both engines read from the same source. Use `/inference/compare` to verify they agree, then pick per workload. See `docs/GRAPH_BACKENDS.md` for the decision matrix and benchmarks."
+**Q: Why run the graph in Snowflake instead of a dedicated graph database?**
+> "Snowflake-native recursive CTEs cover the graph work this demo needs — fraud rings, AML scoring, corridor and agent scoring, and sanctions traversal including deep beneficial-ownership chains — without operating a sidecar, without an extra license, and inside your existing Snowflake security perimeter. The graph of record lives in Snowflake tables, and every query reads straight from the source, so there's nothing to sync or secure separately."
 
 **Q: How do we satisfy examiner evidence requirements?**
 > "Every score, every recommendation, every cluster assignment is stored with full audit trail. The graph provides the 'why' behind every detection — not just the alert."

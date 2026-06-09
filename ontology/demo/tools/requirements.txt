@@ -1,0 +1,4 @@
+# Ontology data adapter dependencies.
+# The adapter drives the repo's main generator (../../../../tools/data_generator.py),
+# so it needs the same Faker dependency.
+faker>=18.0.0

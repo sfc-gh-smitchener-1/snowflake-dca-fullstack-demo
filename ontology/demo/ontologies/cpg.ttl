@@ -1,0 +1,258 @@
+@prefix rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:   <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:    <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:    <http://www.w3.org/2001/XMLSchema#> .
+@prefix sh:     <http://www.w3.org/ns/shacl#> .
+@prefix schema: <http://schema.org/> .
+@prefix gs1:    <http://gs1.org/voc/> .
+@prefix ex:     <http://example.com/ont/> .
+@prefix cpg:    <http://example.com/ont/cpg/> .
+
+# ============================================================================
+# CPG industry layer — generic Consumer Packaged Goods extension
+# ----------------------------------------------------------------------------
+# This file extends the demo TBox (demo.ttl) with classes, properties, and
+# SHACL shapes that match the analysis required for a global food/beverage
+# CPG: 10K+ SKUs, multiple brands per manufacturer, multi-tier distribution
+# (manufacturer plants → wholesalers → retailers → stores), GS1-aligned
+# identifiers (GTIN), parallel taxonomies (GPC bricks + retailer browse trees).
+#
+# The same shape is loaded into ONT_DEMO.SILVER.{namespace, ontology_class,
+# property, value_domain, shape, constraint} by `02b_load_cpg_synthetic.sql`.
+#
+# Design notes
+# ------------
+# 1. Inherits from Schema.org + GS1 Web Vocabulary; we extend, not invent.
+# 2. Identifier policy mirrors GS1: the canonical KEY is GTIN-13; alt-keys
+#    (manufacturer SKU, retailer SKU) live in cpg:AltIdentifier statements.
+# 3. Multi-tier distribution is modelled as object properties between
+#    Organizations and Locations. We do not model individual shipments;
+#    that's a Bronze/operational concern, not an ontology concern.
+# 4. SHACL covers the cardinal CPG-data-quality questions the customer
+#    actually asks: "does every product have a GTIN?", "is every product
+#    classified into at least one GPC brick?", "every claim mapped to a
+#    controlled vocabulary?".
+# ============================================================================
+
+cpg: a owl:Ontology ;
+    rdfs:label "Generic CPG industry ontology" ;
+    rdfs:comment "Schema.org + GS1-aligned extension for consumer packaged goods" ;
+    owl:imports <http://example.com/ont/> .
+
+# ----------------------------------------------------------------------------
+# Organizations
+# ----------------------------------------------------------------------------
+
+cpg:Manufacturer a owl:Class ;
+    rdfs:label "Manufacturer" ;
+    rdfs:subClassOf schema:Organization ;
+    rdfs:comment "An organization that makes products. Owns one or more Brands." .
+
+cpg:Retailer a owl:Class ;
+    rdfs:label "Retailer" ;
+    rdfs:subClassOf schema:Organization ;
+    rdfs:comment "An organization that sells products to end consumers." .
+
+cpg:Wholesaler a owl:Class ;
+    rdfs:label "Wholesaler" ;
+    rdfs:subClassOf schema:Organization ;
+    rdfs:comment "An organization that sells products to retailers (B2B)." .
+
+cpg:Brand a owl:Class ;
+    rdfs:label "Brand" ;
+    rdfs:subClassOf schema:Brand ;
+    rdfs:comment "A consumer-facing identity owned by a Manufacturer." .
+
+# ----------------------------------------------------------------------------
+# Products
+# ----------------------------------------------------------------------------
+
+cpg:Product a owl:Class ;
+    rdfs:label "CPG Product" ;
+    rdfs:subClassOf ex:Product ;
+    rdfs:comment "A consumable / household / personal-care SKU." .
+
+cpg:Beverage a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Beverage" .
+
+cpg:Snack a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Snack" .
+
+cpg:DairyItem a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Dairy item" .
+
+cpg:Condiment a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Condiment" .
+
+cpg:FrozenItem a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Frozen item" .
+
+cpg:PantryItem a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Pantry item" .
+
+cpg:PersonalCare a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Personal care item" .
+
+cpg:HouseholdItem a owl:Class ;
+    rdfs:subClassOf cpg:Product ;
+    rdfs:label "Household item" .
+
+# ----------------------------------------------------------------------------
+# Categories (taxonomy nodes — instances live in silver.taxonomy_node)
+# ----------------------------------------------------------------------------
+
+cpg:CategoryNode a owl:Class ;
+    rdfs:label "Category node" ;
+    rdfs:comment "A node in a product taxonomy (GPC, internal, retailer browse, …)." .
+
+cpg:GpcSegment   a owl:Class ; rdfs:subClassOf cpg:CategoryNode ; rdfs:label "GPC segment" .
+cpg:GpcFamily    a owl:Class ; rdfs:subClassOf cpg:CategoryNode ; rdfs:label "GPC family" .
+cpg:GpcBrick     a owl:Class ; rdfs:subClassOf cpg:CategoryNode ; rdfs:label "GPC brick" .
+
+# ----------------------------------------------------------------------------
+# Locations (sub-types of schema:Place)
+# ----------------------------------------------------------------------------
+
+cpg:Location a owl:Class ;
+    rdfs:label "Location" ;
+    rdfs:subClassOf schema:Place .
+
+cpg:RetailStore         a owl:Class ; rdfs:subClassOf cpg:Location ; rdfs:label "Retail store" .
+cpg:DistributionCenter  a owl:Class ; rdfs:subClassOf cpg:Location ; rdfs:label "Distribution center" .
+cpg:ManufacturingPlant  a owl:Class ; rdfs:subClassOf cpg:Location ; rdfs:label "Manufacturing plant" .
+cpg:WholesaleWarehouse  a owl:Class ; rdfs:subClassOf cpg:Location ; rdfs:label "Wholesale warehouse" .
+
+# ----------------------------------------------------------------------------
+# Auxiliary classes
+# ----------------------------------------------------------------------------
+
+cpg:Allergen a owl:Class ;
+    rdfs:label "Allergen" ;
+    rdfs:comment "A FALCPA / EU Annex II major allergen." .
+
+cpg:Claim a owl:Class ;
+    rdfs:label "Claim" ;
+    rdfs:comment "A regulated or marketing claim (e.g., gluten-free, kosher)." .
+
+# ----------------------------------------------------------------------------
+# Object properties
+# ----------------------------------------------------------------------------
+
+cpg:madeBy           a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:Manufacturer ;
+                                            rdfs:label "made by" .
+
+cpg:operatedByOrg    a owl:ObjectProperty ; rdfs:domain cpg:Brand   ; rdfs:range cpg:Manufacturer ;
+                                            rdfs:label "operated by" .
+
+cpg:belongsToBrand   a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:Brand ;
+                                            rdfs:label "belongs to brand" .
+
+cpg:belongsToCategory a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:CategoryNode ;
+                                             rdfs:label "belongs to category" .
+
+cpg:declaresAllergen a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:Allergen ;
+                                            rdfs:label "declares allergen" .
+
+cpg:hasClaim         a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:Claim ;
+                                            rdfs:label "has claim" .
+
+cpg:soldAt           a owl:ObjectProperty ; rdfs:domain cpg:Product ; rdfs:range cpg:Retailer ;
+                                            rdfs:label "sold at retailer" ;
+                                            rdfs:comment "Many-to-many; Product authorised for sale at Retailer." .
+
+cpg:operatedByRetailer a owl:ObjectProperty ; rdfs:domain cpg:Location ; rdfs:range cpg:Retailer ;
+                                              rdfs:label "operated by retailer" .
+
+cpg:operatedByMfr    a owl:ObjectProperty ; rdfs:domain cpg:Location ; rdfs:range cpg:Manufacturer ;
+                                            rdfs:label "operated by manufacturer" .
+
+cpg:operatedByWholesaler a owl:ObjectProperty ; rdfs:domain cpg:Location ; rdfs:range cpg:Wholesaler ;
+                                                rdfs:label "operated by wholesaler" .
+
+cpg:locatedAt        a owl:ObjectProperty ; rdfs:domain cpg:Location ; rdfs:range schema:PostalAddress ;
+                                            rdfs:label "located at" .
+
+cpg:parentCategory   a owl:ObjectProperty ; rdfs:domain cpg:CategoryNode ; rdfs:range cpg:CategoryNode ;
+                                            rdfs:label "parent category" ;
+                                            rdfs:subPropertyOf rdfs:subClassOf .
+
+# ----------------------------------------------------------------------------
+# Datatype properties
+# ----------------------------------------------------------------------------
+
+cpg:gtin13            a owl:DatatypeProperty ; rdfs:domain cpg:Product ; rdfs:range xsd:string ;
+                                               rdfs:label "GTIN-13" .
+
+cpg:netContentG       a owl:DatatypeProperty ; rdfs:domain cpg:Product ; rdfs:range xsd:decimal ;
+                                               rdfs:label "Net content (g)" .
+
+cpg:countryOfOrigin   a owl:DatatypeProperty ; rdfs:domain cpg:Product ; rdfs:range xsd:string ;
+                                               rdfs:label "Country of origin (ISO 3166-1 alpha-2)" .
+
+cpg:gpcBrickCode      a owl:DatatypeProperty ; rdfs:domain cpg:GpcBrick ; rdfs:range xsd:string ;
+                                               rdfs:label "GPC brick code (8-digit)" .
+
+# ============================================================================
+# SHACL shapes — the CPG data-quality contract
+# ============================================================================
+
+cpg:ProductShape a sh:NodeShape ;
+    sh:targetClass cpg:Product ;
+    sh:property [
+        sh:path schema:name   ; sh:minCount 1 ; sh:datatype xsd:string ;
+    ] ;
+    sh:property [
+        sh:path cpg:gtin13    ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:pattern "^[0-9]{13}$" ;
+    ] ;
+    sh:property [
+        sh:path cpg:madeBy            ; sh:minCount 1 ; sh:maxCount 1 ; sh:class cpg:Manufacturer ;
+    ] ;
+    sh:property [
+        sh:path cpg:belongsToBrand    ; sh:minCount 1 ; sh:maxCount 1 ; sh:class cpg:Brand ;
+    ] ;
+    sh:property [
+        sh:path cpg:belongsToCategory ; sh:minCount 1 ;                 sh:class cpg:CategoryNode ;
+    ] ;
+    sh:property [
+        sh:path ex:priceUSD ; sh:minCount 1 ; sh:maxCount 1 ;
+        sh:datatype xsd:decimal ; sh:minInclusive 0 ;
+    ] ;
+    sh:property [
+        sh:path cpg:countryOfOrigin ; sh:maxCount 1 ;
+        sh:datatype xsd:string ; sh:pattern "^[A-Z]{2}$" ;
+    ] .
+
+cpg:BrandShape a sh:NodeShape ;
+    sh:targetClass cpg:Brand ;
+    sh:property [ sh:path schema:name        ; sh:minCount 1 ; sh:datatype xsd:string ; ] ;
+    sh:property [ sh:path cpg:operatedByOrg  ; sh:minCount 1 ; sh:maxCount 1 ; sh:class cpg:Manufacturer ; ] .
+
+cpg:RetailerShape a sh:NodeShape ;
+    sh:targetClass cpg:Retailer ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ; sh:datatype xsd:string ; ] .
+
+cpg:WholesalerShape a sh:NodeShape ;
+    sh:targetClass cpg:Wholesaler ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ; sh:datatype xsd:string ; ] .
+
+cpg:LocationShape a sh:NodeShape ;
+    sh:targetClass cpg:Location ;
+    sh:property [ sh:path schema:name      ; sh:minCount 1 ; sh:datatype xsd:string ; ] ;
+    sh:property [ sh:path cpg:locatedAt    ; sh:minCount 1 ; sh:maxCount 1 ; sh:class schema:PostalAddress ; ] .
+
+cpg:ManufacturerShape a sh:NodeShape ;
+    sh:targetClass cpg:Manufacturer ;
+    sh:property [ sh:path schema:name ; sh:minCount 1 ; sh:datatype xsd:string ; ] .
+
+cpg:GpcBrickShape a sh:NodeShape ;
+    sh:targetClass cpg:GpcBrick ;
+    sh:property [ sh:path cpg:gpcBrickCode ; sh:minCount 1 ; sh:maxCount 1 ;
+                  sh:datatype xsd:string ; sh:pattern "^[0-9]{8}$" ; ] .

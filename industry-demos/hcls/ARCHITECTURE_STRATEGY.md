@@ -49,9 +49,8 @@ flowchart TB
             NODES["ONTOLOGY_GRAPH_NODES<br/>(Clinical + Metadata)"]
             EDGES["ONTOLOGY_GRAPH_EDGES<br/>(Lineage + Governance)"]
         end
-        subgraph ENGINES["GRAPH ENGINES — dispatch via ?backend="]
-            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs + label propagation<br/>default · no sidecar · always live"]
-            NEO_ENG["<b>Neo4j sidecar on SPCS</b><br/>Cypher + Graph Data Science<br/>optional · deep traversal · GDS algorithms"]
+        subgraph ENGINES["GRAPH ENGINE — Snowflake-native"]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs + label propagation<br/>always live · governed in-platform"]
         end
         subgraph OUTPUTS["AUTOMATED OUTPUTS"]
             RECS["PHI Recommendations"]
@@ -61,8 +60,7 @@ flowchart TB
         end
         subgraph VIZ["CONSUMPTION"]
             STREAMLIT["Streamlit<br/>Compliance Dashboard"]
-            API["SPCS API<br/>Clinical Apps"]
-            COMPARE["/inference/compare<br/>side-by-side timings"]
+            REPORTS["Analytical Reports<br/>Clinical Apps"]
         end
     end
     SOURCES --> RAW
@@ -70,16 +68,11 @@ flowchart TB
     DATA --> EDGES
     NODES --> SF_ENG
     EDGES --> SF_ENG
-    NODES --> NEO_ENG
-    EDGES --> NEO_ENG
     SF_ENG --> OUTPUTS
-    NEO_ENG --> OUTPUTS
     OUTPUTS --> VIZ
 
     classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
-    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
     class SF_ENG snowflake
-    class NEO_ENG graphdb
 ```
 
 ### Stage 3: Federated HCLS Platform (Research + External Sharing)
@@ -90,8 +83,7 @@ flowchart TB
         CLINICAL["Clinical Data<br/>(PHI classified, scored)"]
         subgraph KG["Knowledge Graph (Continuous inference)"]
             NODES["Nodes + Edges<br/>(graph of record in Snowflake)"]
-            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs · default"]
-            NEO_ENG["<b>Neo4j sidecar</b><br/>Cypher + GDS · optional"]
+            SF_ENG["<b>Snowflake-native</b><br/>recursive CTEs + window functions"]
         end
     end
     subgraph RESEARCH["RESEARCH ENABLEMENT"]
@@ -104,25 +96,20 @@ flowchart TB
         PARTNERS["External Partners<br/>(BAA-covered)"]
     end
     subgraph APPS["CLINICAL APPLICATIONS"]
-        SPCS["SPCS Graph API<br/>?backend=snowflake|neo4j|both"]
         CDS["Clinical Decision Support"]
         POP["Population Health"]
     end
     NODES --> SF_ENG
-    NODES --> NEO_ENG
     SF_ENG -->|"DE_IDENTIFIED_FROM<br/>edges"| DEID
     SF_ENG -->|"BAA_COVERS<br/>edges"| SHARE
-    NEO_ENG -->|"deep traversal<br/>(beneficial-ownership, pathways)"| SPCS
-    SF_ENG --> SPCS
+    SF_ENG -->|"care pathways,<br/>entity resolution"| APPS
     GOVERNED --> RESEARCH
     GOVERNED --> EXTERNAL
     GOVERNED --> APPS
     SHARE --> PARTNERS
 
     classDef snowflake fill:#29B5E8,stroke:#11567F,color:#fff,stroke-width:2px
-    classDef graphdb fill:#7950F2,stroke:#5F3DC4,color:#fff,stroke-width:2px
     class SF_ENG snowflake
-    class NEO_ENG graphdb
 ```
 
 ## HIPAA Compliance Mapping
