@@ -43,9 +43,11 @@ on:
         default: "14"
         type: string
 
-  # Scheduled cleanup — runs daily at 6 AM Central
-  schedule:
-    - cron: "0 11 * * *"  # 11:00 UTC = 6:00 AM CT
+  # Scheduled cleanup disabled — re-enable once Snowflake secrets are configured
+  # in repo Settings → Secrets → Actions (SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER_CLONE,
+  # SNOWFLAKE_USER_VALIDATOR, SNOWFLAKE_PRIVATE_KEY).
+  # schedule:
+  #   - cron: "0 11 * * *"  # 11:00 UTC = 6:00 AM CT
 
 env:
   SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
@@ -168,7 +170,15 @@ jobs:
       - name: Install dependencies
         run: pip install snowflake-connector-python
 
+      - name: Check secrets are configured
+        run: |
+          if [[ -z "${{ secrets.SNOWFLAKE_ACCOUNT }}" ]]; then
+            echo "::warning::SNOWFLAKE_ACCOUNT secret is not set — skipping cleanup (no Snowflake environment configured for this repo)"
+            echo "SKIP_SNOWFLAKE=true" >> $GITHUB_ENV
+          fi
+
       - name: Run clone cleanup
+        if: env.SKIP_SNOWFLAKE != 'true'
         env:
           SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER_CLONE }}
           SNOWFLAKE_ROLE: UR_CLONE_PROVISIONER
