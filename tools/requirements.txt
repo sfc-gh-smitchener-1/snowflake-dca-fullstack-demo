@@ -4,6 +4,10 @@
 # Data Generation
 faker>=18.0.0
 pyarrow>=14.0.0
+lxml>=4.9.0
+
+# S3 Upload
+boto3>=1.34.0
 
 # Optional: Snowflake connectivity for direct loading
 # snowflake-connector-python>=3.0.0

@@ -2998,6 +2998,92 @@ def save_to_json(data: Dict[str, List[Dict]], output_dir: str, system_name: str)
             json.dump(records, f, indent=2, default=str)
 
 
+def save_to_parquet(data: Dict[str, List[Dict]], output_dir: str, system_name: str):
+    """Save data to Parquet files using pyarrow."""
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ImportError:
+        print("ERROR: pyarrow not installed. Run: pip install pyarrow")
+        sys.exit(1)
+
+    system_dir = os.path.join(output_dir, system_name.lower())
+    os.makedirs(system_dir, exist_ok=True)
+
+    for table_name, records in data.items():
+        if not records:
+            continue
+
+        filepath = os.path.join(system_dir, f"{table_name}.parquet")
+        print(f"Writing {filepath}...")
+
+        # Flatten nested structures to JSON strings so every column is scalar
+        flat_records = []
+        for r in records:
+            flat = {}
+            for k, v in r.items():
+                if isinstance(v, (dict, list)):
+                    flat[k] = json.dumps(v, default=str)
+                elif isinstance(v, (datetime, date)):
+                    flat[k] = str(v)
+                else:
+                    flat[k] = v
+            flat_records.append(flat)
+
+        table = pa.Table.from_pylist(flat_records)
+        pq.write_table(table, filepath, compression='snappy')
+
+
+def save_to_xml(data: Dict[str, List[Dict]], output_dir: str, system_name: str):
+    """Save data to XML files (one file per table, one <record> element per row)."""
+    import xml.etree.ElementTree as ET
+
+    system_dir = os.path.join(output_dir, system_name.lower())
+    os.makedirs(system_dir, exist_ok=True)
+
+    def _safe_tag(name: str) -> str:
+        """Ensure element tag is a valid XML name (replace spaces/special chars)."""
+        return name.replace(' ', '_').replace('/', '_').replace('.', '_')
+
+    def _to_text(value) -> str:
+        if value is None:
+            return ''
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, default=str)
+        if isinstance(value, bool):
+            return 'true' if value else 'false'
+        return str(value)
+
+    for table_name, records in data.items():
+        if not records:
+            continue
+
+        filepath = os.path.join(system_dir, f"{table_name}.xml")
+        print(f"Writing {filepath}...")
+
+        root = ET.Element(_safe_tag(table_name))
+        root.set('system', system_name)
+        root.set('table', table_name)
+        root.set('generated_at', datetime.utcnow().isoformat() + 'Z')
+        root.set('record_count', str(len(records)))
+
+        for record in records:
+            rec_el = ET.SubElement(root, 'record')
+            for field_name, value in record.items():
+                field_el = ET.SubElement(rec_el, _safe_tag(field_name))
+                field_el.text = _to_text(value)
+
+        # Pretty-print (Python 3.9+); fall back to plain dump for older Python
+        try:
+            ET.indent(root, space='  ')
+        except AttributeError:
+            pass
+
+        tree = ET.ElementTree(root)
+        with open(filepath, 'wb') as f:
+            tree.write(f, encoding='utf-8', xml_declaration=True)
+
+
 # ============================================================================
 # CLI ENTRY POINT
 # ============================================================================
@@ -3130,8 +3216,8 @@ Examples:
                        help="Data domain to generate (system-specific)")
     parser.add_argument("--output", "-o", default="./data",
                        help="Output directory")
-    parser.add_argument("--format", "-f", choices=["csv", "json"], default="csv",
-                       help="Output format")
+    parser.add_argument("--format", "-f", choices=["csv", "json", "parquet", "xml"], default="csv",
+                       help="Output format (csv, json, parquet, or xml)")
     parser.add_argument("--seed", type=int, default=42,
                        help="Random seed")
     parser.add_argument("--quick", action="store_true",
@@ -3185,8 +3271,12 @@ Examples:
     
     if args.format == "csv":
         save_to_csv(data, args.output, generator.SYSTEM_NAME)
-    else:
+    elif args.format == "json":
         save_to_json(data, args.output, generator.SYSTEM_NAME)
+    elif args.format == "parquet":
+        save_to_parquet(data, args.output, generator.SYSTEM_NAME)
+    elif args.format == "xml":
+        save_to_xml(data, args.output, generator.SYSTEM_NAME)
     
     print()
     print("Done!")

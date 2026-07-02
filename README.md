@@ -83,6 +83,7 @@ Building a data platform is a journey. See [SDLC_ARCHITECTURE.md](docs/SDLC_ARCH
 | **Data Contracts** | Schema, quality, SLA, and governance agreements between producers and consumers |
 | **Multi-Account Support** | Cross-region, cross-cloud data sharing with contract validation |
 | **Team Autonomy** | Each team manages their data their way, publishing to production via contracts |
+| **S3 External Tables (Raw Layer)** | Non-Iceberg S3 files (Parquet, CSV, XML, JSON) surfaced as Snowflake external tables; full lineage from Semantic Views to S3 objects — see [`sql/03b_s3_external_raw_layer.sql`](sql/03b_s3_external_raw_layer.sql) |
 | **Medallion Architecture** | RAW → CURATED → SEMANTIC with SCD Type 2 history |
 | **Dynamic Tables** | Automated transformation with TARGET_LAG SLAs (SAP, Salesforce, Oracle, FHIR, Workday) |
 | **dbt (ServiceNow)** | Code-first, tested, documented transformation pipeline with full DAG lineage |
@@ -195,6 +196,7 @@ flowchart LR
 - Git repository access (GitHub, GitLab, etc.)
 - Python 3.9+ (for local data generation)
 - dbt-snowflake 1.7+ (for ServiceNow dbt pipeline)
+- Terraform >= 1.5 + AWS credentials (for S3 external tables raw layer)
 
 ### Deployment
 
@@ -202,7 +204,7 @@ flowchart LR
 -- Run each script in sequence
 @sql/01_setup.sql              -- Roles, warehouses, databases, tags
 @sql/02_git_integration.sql    -- Git repository connection
-@sql/03_raw_layer.sql          -- Dynamic RAW layer infrastructure
+@sql/03_raw_layer.sql          -- Dynamic RAW layer infrastructure (internal stage)
 @sql/04_load_data.sql          -- Load source system data (auto-infer schema)
 @sql/05_curated_layer.sql      -- Dynamic Tables
 @sql/06_semantic_layer.sql     -- Native Semantic Views
@@ -217,6 +219,55 @@ flowchart LR
 @sql/15_ontology_sharing.sql   -- Share graph data + data product catalog
 @sql/16_graph_algorithms.sql   -- On-demand graph algorithms (views + procs)
 ```
+
+### S3 External Tables Raw Layer (optional)
+
+Demonstrates full lineage from Semantic Views to non-Iceberg S3 files across 4 formats. Runs alongside the internal-stage path above — the curated and semantic layers require no changes.
+
+```bash
+# 1. Provision S3 bucket and Snowflake IAM role
+cd terraform
+terraform init
+terraform apply -var='bucket_name=dca-raw-demo-<your-aws-account-id>'
+
+# 2. Generate data in all 4 formats
+cd ../tools
+pip install -r requirements.txt
+
+python data_generator.py --system sap         --domain all --format parquet --output ../data
+python data_generator.py --system salesforce  --domain all --format csv     --output ../data
+python data_generator.py --system oracle      --domain all --format csv     --output ../data
+python data_generator.py --system fhir        --domain all --format xml     --output ../data
+python data_generator.py --system workday     --domain all --format json    --output ../data
+python data_generator.py --system servicenow  --domain all --format csv     --output ../data
+
+# DCIM industry generators (produces csv, xml, parquet, json for DC infrastructure)
+cd ../industry-demos/dcim
+python tools/generate_servicenow_data.py --output ../../data
+python tools/generate_siemens_data.py    --output ../../data
+python tools/generate_telemetry_data.py  --output ../../data
+python tools/generate_workday_dcim_data.py --output ../../data
+
+# 3. Upload all generated files to S3
+cd ../../tools
+python upload_to_s3.py --bucket dca-raw-demo-<your-aws-account-id> --data-dir ../data
+
+# 4. Create Snowflake external tables
+#    (see full bootstrap instructions inside the SQL file header)
+snowsql -f ../sql/03b_s3_external_raw_layer.sql
+```
+
+After the storage integration trust policy is locked (`DESCRIBE INTEGRATION S3_RAW_INTEGRATION` → update `terraform/variables.tf` → `terraform apply`), create all 68 external tables:
+
+```sql
+CALL RAW_DEV.STAGING.CREATE_ALL_S3_EXTERNAL_TABLES();
+
+-- Verify S3 lineage columns are populated
+SELECT _S3_FILE_PATH, _FILE_LAST_MODIFIED FROM RAW_DEV.SAP.KNA1 LIMIT 3;
+SELECT _S3_FILE_PATH, _FILE_LAST_MODIFIED FROM RAW_DEV.FHIR.PATIENT LIMIT 3;
+```
+
+See [`sql/03b_s3_external_raw_layer.sql`](sql/03b_s3_external_raw_layer.sql) for the complete deployment guide and lineage verification queries.
 
 ### dbt Pipeline (ServiceNow)
 
@@ -279,6 +330,16 @@ python data_generator.py --system servicenow --domain itsm --output ../data
 python data_generator.py --system sap --domain all --quick --output ../data
 ```
 
+The `--format` flag accepts `csv` (default), `json`, `parquet`, and `xml` — used by the S3 external tables raw layer to produce authentic mixed-format source data:
+
+```bash
+# Parquet output (SAP, DCIM Telemetry)
+python data_generator.py --system sap --domain all --format parquet --output ../data
+
+# XML output (FHIR R4, Siemens BMS)
+python data_generator.py --system fhir --domain all --format xml --output ../data
+```
+
 See [DATA_GENERATION.md](docs/DATA_GENERATION.md) for full documentation.
 
 ## Repository Structure
@@ -292,6 +353,7 @@ graph LR
     ROOT --> SQL["sql/"]
     ROOT --> ST["streamlit/"]
     ROOT --> TOOLS["tools/"]
+    ROOT --> TF["terraform/"]
     ROOT --> DATA["data/ (gitignored)"]
     ROOT --> PYTHON["python/"]
     ROOT --> ONT["ontology/ (feature)"]
@@ -317,11 +379,17 @@ graph LR
 
     SQL --> S01["01_setup.sql"]
     SQL --> S02["02_git_integration.sql"]
-    SQL --> S03["03-10 ... scripts"]
+    SQL --> S03["03_raw_layer.sql (internal stage)"]
+    SQL --> S03B["03b_s3_external_raw_layer.sql (S3 external tables)"]
+    SQL --> S04["04-16 ... scripts"]
     SQL --> S99["99_cleanup.sql"]
 
     ST --> APP["app.py"]
     TOOLS --> GEN["data_generator.py"]
+    TOOLS --> UPS["upload_to_s3.py"]
+    TF --> TFMAIN["main.tf (S3 bucket + IAM role)"]
+    TF --> TFVARS["variables.tf"]
+    TF --> TFOUT["outputs.tf"]
 
     DATA --> SAP["sap_s4hana/"]
     DATA --> SF["salesforce/"]
