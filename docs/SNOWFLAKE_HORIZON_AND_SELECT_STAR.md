@@ -2,7 +2,111 @@
 
 ## Overview
 
-Snowflake Horizon is Snowflake's built-in governance layer — a unified set of compliance, security, privacy, and observability capabilities baked natively into the Snowflake platform. Select Star is a third-party data intelligence platform available as a Snowflake Native App that extends Horizon's reach across multi-system data estates. Together, they address the full spectrum of data governance from raw policy enforcement inside Snowflake to cross-platform discovery and usage intelligence.
+Snowflake Horizon is Snowflake's built-in governance layer — a unified set of compliance, security, privacy, and observability capabilities baked natively into the Snowflake platform. In December 2025, Snowflake acquired Select Star and is integrating its capabilities directly into Horizon as **Horizon Context** — extending Horizon's reach beyond Snowflake-native assets into a cross-platform catalog spanning external databases, BI tools, and pipelines. Together they address the full spectrum of data governance from raw policy enforcement inside Snowflake to cross-platform discovery and usage intelligence.
+
+---
+
+## Part 0: The Select Star Acquisition — What Field Teams Need to Know
+
+### The Acquisition (Dec 2025)
+
+Snowflake publicly announced and onboarded the Select Star team in late Nov–early Dec 2025. Internally, the acquisition was framed as the way to move Horizon beyond Snowflake-native assets into a cross-platform catalog spanning external databases, BI tools, and lineage. The strategic goal: improve AI context, governance, discoverability, and trust across the broader enterprise data estate.
+
+Key leadership:
+- **Shinji Kim** (Select Star CEO/founder) → Product Management, reporting to Prasanna Krishnan
+- **Przemek Kuczynski** (Select Star Head of Engineering) → Engineering, reporting to Shekhar Iyer
+
+### Why Snowflake Acquired Select Star
+
+The acquisition rationale was specific and capability-driven:
+- Expand Horizon Catalog's view of enterprise data **beyond Snowflake-native objects**
+- Bring in proven integrations across databases, BI tools, and pipelines (PostgreSQL, SQL Server, Tableau, Power BI, dbt — all day-one PrPr)
+- Add automated metadata context, column-level lineage, popularity, and richer business-facing catalog UX
+- Strengthen Snowflake Intelligence / Cortex by giving AI better context about what data means, which assets are trusted, and how data flows across systems
+
+**What Snowflake is NOT doing:** keeping Select Star as a separate product. The destination is full absorption into Horizon Catalog / Horizon Context. Standalone Select Star accounts were discontinued; existing customers are being migrated with export support.
+
+### Internal Project Name: HorizonStar / Broadening Star
+
+The end-state vision: a Horizon Catalog that can ingest external metadata from databases and BI tools, make it searchable/browsable/lineage-aware inside Snowflake, and feed richer governed context into AI, semantic views, and Cortex experiences.
+
+Field messaging positioned this as "**Horizon Context**": a governed context layer combining Select Star integration, semantic modeling, search, lineage, popularity, and AI-assisted metadata enrichment.
+
+---
+
+### Timeline (Field-Ready Summary)
+
+| Milestone | Date | Status |
+|-----------|------|--------|
+| Acquisition announced | Nov–Dec 2025 | ✅ Complete |
+| PrPr launch | Summit 2026 (May/Jun) | ✅ 20 customers, 24 internal accounts |
+| PuPr target | Fall 2026 (est. Sept) | 🔄 Active in PLT |
+| GA | FY27 (est. Nov/Dec 2026) | 📅 Directional |
+
+### PrPr Connector Scope (what's available now)
+
+| Connector | PrPr Available | Notes |
+|-----------|---------------|-------|
+| PostgreSQL | ✅ | Day-one PrPr |
+| Microsoft SQL Server | ✅ | Day-one PrPr |
+| Tableau Cloud | ✅ | Day-one PrPr |
+| Power BI Premium | ✅ | Day-one PrPr |
+| dbt Cloud | ✅ | Day-one PrPr |
+| Looker | ❌ | PuPr backlog (fall 2026) |
+| Databricks / BigQuery | ❌ | Summer/fall 2026 wave |
+| Sigma, Metabase | ❌ | PuPr backlog |
+
+### PrPr Known Limitations (important for field conversations)
+
+- No customer-facing SQL DDL for connectors yet — UI-only setup
+- Metadata is **read-only** in PrPr — no writeback to tags/descriptions
+- No granular RBAC below connector level in PrPr (connector-level access only)
+- No org-level connectors — account-level only
+- Search indexing lag: 3–5 hours depending on export/indexing cycles
+- No Business Glossary integration in PrPr
+- No semantic views directly created from metadata connectors in PrPr
+
+### PuPr / GA Additions
+
+PuPr (fall 2026) adds:
+- Metadata and lineage persisted in FDB as serving layer (more Snowflake-native)
+- Granular RBAC to database level
+- Metadata writeback (descriptions, tags, custom attributes)
+- Snowflake-native SQL DDL for connector create/alter/drop
+- Tags, contacts, account usage views for external metadata
+- 5+ additional connectors
+- Stricter network policy enforcement (SSRF hardening)
+
+GA adds:
+- Full connector CRUD via SQL
+- Business Glossary + semantic view integration
+- Auto-generated popularity scores and AI documentation at scale
+- Org-level catalog (deferred from PrPr/PuPr — primitives not ready)
+
+---
+
+### Core Architecture (HorizonStar Design)
+
+The foundational architectural approach: keep much of the Select Star backend running in Snowflake-managed apps-cluster infrastructure (Kubernetes) while progressively pulling customer-facing control, RBAC, SQL access, and serving surfaces into Snowflake/GS/Snowsight.
+
+```
+Customer (Snowsight connector setup wizard)
+  └─→ GS (persists connector state/credentials via DPO-backed storage)
+        └─→ Select Star service (crawls external metadata on Snowflake K8s apps cluster)
+              └─→ Copy/ingestion service (moves metadata to Snowflake-controlled FDB store)
+                    └─→ Snowscope / Universal Search (serves catalog, lineage, popularity)
+```
+
+Platform choices:
+- **No new public services** — GS/service-to-service calls over internal addressing
+- **SnowIdentity + mTLS + ZNS** for internal service auth/discovery
+- **FUSE** for app secrets
+- **DPO-backed GS storage** for customer connector credentials
+- **Proxy BDE model** — splits lightweight RBAC-bearing entities from heavier metadata storage
+
+This demo simulates the Snowflake-controlled metadata store (the FDB layer) using `CURATED_DEV.HORIZON_CONTEXT` tables.
+
+---
 
 ---
 
@@ -356,11 +460,32 @@ The Select Star Native App service account typically needs:
 
 ## Summary
 
-Snowflake Horizon is the **governance engine** — it enforces policy, tracks lineage, classifies data, and maintains compliance posture entirely within the Snowflake platform. Select Star is the **intelligence and discovery layer** — it extends lineage beyond Snowflake, surfaces usage patterns, enriches metadata with AI, and makes governed assets findable and actionable for the entire organization.
+Snowflake Horizon is the **governance engine** — it enforces policy, tracks lineage, classifies data, and maintains compliance posture entirely within the Snowflake platform. **Horizon Context** (powered by the Select Star acquisition) is the **cross-platform intelligence layer** — it extends lineage beyond Snowflake into external databases, BI tools, and pipelines; surfaces usage patterns and popularity scores; enriches metadata with Cortex AI; and makes the entire enterprise data estate discoverable in one unified catalog.
 
-Used together:
-- Horizon provides the enforcement backbone (tags, masks, RLS, audit, lineage).
-- Select Star provides the intelligence layer (cross-system lineage, popularity, AI descriptions, BI integration).
-- Each amplifies the other: better tags mean better Select Star categorization; better usage intelligence means smarter Horizon policy prioritization.
+### Net Assessment (from acquisition design docs)
 
-For enterprise Snowflake deployments — especially in regulated industries — this combination represents the current best practice for full-stack data governance.
+> *Snowflake bought Select Star to solve Horizon's weakest area: external metadata and cross-platform lineage.*
+>
+> **PrPr** was a pragmatic MVP that prioritized getting real external connectors, search, browse, lineage, and RBAC into customer hands by Summit 2026, even if the architecture still leaned heavily on the legacy Select Star backend.
+>
+> **PuPr** is where the product becomes meaningfully more Snowflake-native: better FDB persistence, richer governance, more connectors, metadata writeback, and more polished UX.
+>
+> **GA** is intended to finish the transition from "integrated legacy capability" to "first-class Horizon platform capability," but the exact GA month should be treated as directional rather than committed.
+
+### Demo Implementation
+
+This repository includes a full Horizon Context demo simulation:
+
+| File | Purpose |
+|------|---------|
+| `sql/17_select_star_horizon_context.sql` | Schema, tables, seed data, views, stored procedures |
+| `streamlit/app.py` → `render_horizon_context_page()` | 5-tab demo UI: Connector Hub, Universal Catalog, Cross-Platform Lineage, Usage Intelligence, AI Governance |
+
+The demo simulates:
+- 5 active connectors (PostgreSQL, SQL Server, Tableau, Power BI, dbt)
+- 50+ external catalog objects
+- 27 cross-platform lineage edges spanning 4 end-to-end paths
+- AI governance recommendations (Cortex COMPLETE integration)
+- Usage intelligence with popularity scoring and orphan detection
+
+For enterprise Snowflake deployments — especially in regulated industries — Horizon + Horizon Context represents the current best practice for full-stack data governance: Horizon provides the enforcement backbone; Horizon Context provides the cross-platform intelligence layer.

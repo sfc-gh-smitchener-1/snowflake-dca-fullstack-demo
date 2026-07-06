@@ -15,6 +15,7 @@
 
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from snowflake.snowpark.context import get_active_session
 
 # ============================================================================
@@ -511,8 +512,8 @@ def render_sidebar():
         # Navigation
         page = st.radio(
             "Navigation",
-            ["🏠 Dashboard", "🔍 Source Explorer", "🤖 Cortex Analyst", 
-             "🔮 Governance", "📋 Contracts", "ℹ️ About"],
+            ["🏠 Dashboard", "🔍 Source Explorer", "🤖 Cortex Analyst",
+             "🔮 Governance", "🌟 Horizon Context", "📋 Contracts", "ℹ️ About"],
             label_visibility="collapsed"
         )
         
@@ -1867,6 +1868,948 @@ def render_about_page():
     """)
 
 # ============================================================================
+# HORIZON CONTEXT (SELECT STAR) — DATA FUNCTIONS
+# ============================================================================
+
+_HC = 'CURATED_DEV.HORIZON_CONTEXT'
+
+@st.cache_data(ttl=30)
+def get_connector_status():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT CONNECTOR_ID, SOURCE_SYSTEM, SOURCE_TYPE, CONNECTION_NAME,
+                   STATUS, CRAWL_FREQUENCY, LAST_CRAWL_AT, NEXT_CRAWL_AT,
+                   OBJECTS_TOTAL, TABLES_DISCOVERED, COLUMNS_DISCOVERED,
+                   DASHBOARDS_DISCOVERED, MODELS_DISCOVERED,
+                   CONNECTOR_ICON, CONNECTOR_COLOR,
+                   IS_PRPR_AVAILABLE, ROADMAP_NOTE, ERROR_MESSAGE
+            FROM {_HC}.EXT_CONNECTORS
+            ORDER BY IS_PRPR_AVAILABLE DESC, STATUS, SOURCE_SYSTEM
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_unified_catalog(search_query='', obj_type=None, source=None, sensitivity=None):
+    session = get_session()
+    try:
+        where_clauses = ["1=1"]
+        if search_query:
+            q = search_query.replace("'", "''")
+            where_clauses.append(
+                f"(UPPER(QUALIFIED_NAME) LIKE UPPER('%{q}%') "
+                f"OR UPPER(DESCRIPTION) LIKE UPPER('%{q}%') "
+                f"OR UPPER(TABLE_NAME) LIKE UPPER('%{q}%'))"
+            )
+        if obj_type and obj_type != 'All':
+            where_clauses.append(f"OBJECT_TYPE = '{obj_type}'")
+        if source and source != 'All':
+            src = source.replace("'", "''")
+            where_clauses.append(f"SOURCE_SYSTEM = '{src}'")
+        if sensitivity and sensitivity != 'All':
+            sen = sensitivity.replace("'", "''")
+            where_clauses.append(f"SENSITIVITY_CLASS = '{sen}'")
+
+        where_sql = ' AND '.join(where_clauses)
+        return session.sql(f"""
+            SELECT CONNECTOR_ICON, SOURCE_SYSTEM, SOURCE_LAYER, OBJECT_TYPE,
+                   QUALIFIED_NAME, TABLE_NAME, COLUMN_NAME,
+                   DESCRIPTION, SENSITIVITY_CLASS, IS_PII, PII_TYPE,
+                   POPULARITY_SCORE, QUERY_COUNT_30D, USER_COUNT_30D,
+                   DOWNSTREAM_BI_COUNT, OWNER_EMAIL, OWNER_TEAM,
+                   HAS_GOVERNANCE_GAP, IS_ORPHANED, GOVERNANCE_GAP_SCORE,
+                   CONNECTOR_COLOR, OBJECT_ID
+            FROM {_HC}.V_UNIFIED_CATALOG
+            WHERE {where_sql}
+            ORDER BY POPULARITY_SCORE DESC NULLS LAST
+            LIMIT 200
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_lineage_full():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT LINEAGE_ID, LINEAGE_PATH_ID, HOP_NUMBER,
+                   SOURCE_OBJECT_ID, SOURCE_QUALIFIED_NAME, SOURCE_PLATFORM,
+                   SOURCE_LAYER, SOURCE_TABLE, SOURCE_ICON, SOURCE_COLOR,
+                   TARGET_OBJECT_ID, TARGET_QUALIFIED_NAME, TARGET_PLATFORM,
+                   TARGET_LAYER, TARGET_TABLE, TARGET_ICON, TARGET_COLOR,
+                   LINEAGE_TYPE, TRANSFORMATION_DESC, CONFIDENCE_SCORE
+            FROM {_HC}.V_CROSS_PLATFORM_LINEAGE
+            ORDER BY LINEAGE_PATH_ID, HOP_NUMBER
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_usage_intelligence():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT OBJECT_ID, QUALIFIED_NAME, SOURCE_SYSTEM, SOURCE_LAYER,
+                   OBJECT_TYPE, POPULARITY_SCORE, QUERY_COUNT_30D, USER_COUNT_30D,
+                   DOWNSTREAM_BI_COUNT, IS_ORPHANED, OWNER_EMAIL, OWNER_TEAM,
+                   CONNECTOR_ICON, CONNECTOR_COLOR,
+                   TOTAL_QUERIES_14D, PEAK_DAILY_QUERIES, AVG_DAILY_QUERIES,
+                   TOTAL_BI_VIEWS_14D, AVG_FRESHNESS_HOURS, POPULARITY_TIER
+            FROM {_HC}.V_USAGE_INTELLIGENCE
+            ORDER BY POPULARITY_SCORE DESC NULLS LAST
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def get_usage_trends():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT us.STAT_DATE, us.OBJECT_ID, us.QUERY_COUNT, us.DISTINCT_USERS,
+                   us.BI_VIEWS, obj.TABLE_NAME, obj.SOURCE_SYSTEM, c.CONNECTOR_COLOR
+            FROM {_HC}.EXT_USAGE_STATS us
+            JOIN {_HC}.EXT_CATALOG_OBJECTS obj ON us.OBJECT_ID = obj.OBJECT_ID
+            JOIN {_HC}.EXT_CONNECTORS c ON obj.CONNECTOR_ID = c.CONNECTOR_ID
+            WHERE us.STAT_DATE >= DATEADD(day, -14, CURRENT_DATE())
+            ORDER BY us.STAT_DATE DESC, us.QUERY_COUNT DESC
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_governance_recommendations():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT r.REC_ID, r.OBJECT_ID, r.RECOMMENDATION_TYPE, r.PRIORITY,
+                   r.REASON, r.SUGGESTED_VALUE, r.AI_CONFIDENCE, r.STATUS,
+                   r.CREATED_AT, o.QUALIFIED_NAME, o.SOURCE_SYSTEM, o.OBJECT_TYPE,
+                   o.POPULARITY_SCORE, o.IS_PII, c.CONNECTOR_ICON
+            FROM {_HC}.EXT_GOVERNANCE_RECOMMENDATIONS r
+            JOIN {_HC}.EXT_CATALOG_OBJECTS o ON r.OBJECT_ID = o.OBJECT_ID
+            JOIN {_HC}.EXT_CONNECTORS c ON o.CONNECTOR_ID = c.CONNECTOR_ID
+            WHERE r.STATUS = 'OPEN'
+            ORDER BY
+                CASE r.PRIORITY WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
+                o.POPULARITY_SCORE DESC
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+@st.cache_data(ttl=60)
+def get_governance_gaps():
+    session = get_session()
+    try:
+        return session.sql(f"""
+            SELECT OBJECT_ID, OBJECT_TYPE, QUALIFIED_NAME, SOURCE_SYSTEM, SOURCE_LAYER,
+                   SENSITIVITY_CLASS, IS_PII, PII_TYPE, POPULARITY_SCORE, QUERY_COUNT_30D,
+                   OWNER_EMAIL, IS_ORPHANED, CONNECTOR_ICON,
+                   MISSING_DESCRIPTION, MISSING_OWNER, MISSING_SENSITIVITY, UNDECLARED_PII,
+                   GOVERNANCE_RISK_SCORE, OPEN_RECOMMENDATIONS
+            FROM {_HC}.V_GOVERNANCE_GAPS
+            ORDER BY GOVERNANCE_RISK_SCORE DESC
+            LIMIT 50
+        """).to_pandas()
+    except Exception:
+        return pd.DataFrame()
+
+def hc_simulate_crawl(connector_id):
+    session = get_session()
+    try:
+        result = session.sql(
+            f"CALL {_HC}.SP_SIMULATE_CONNECTOR_CRAWL('{connector_id}')"
+        ).to_pandas()
+        get_connector_status.clear()
+        return result.iloc[0, 0] if not result.empty else 'Crawl complete.'
+    except Exception as e:
+        return f'Error: {str(e)}'
+
+def hc_apply_recommendation(rec_id, applied_by='DATA_STEWARD'):
+    session = get_session()
+    try:
+        result = session.sql(
+            f"CALL {_HC}.SP_APPLY_RECOMMENDATION('{rec_id}', '{applied_by}')"
+        ).to_pandas()
+        get_governance_recommendations.clear()
+        get_governance_gaps.clear()
+        return result.iloc[0, 0] if not result.empty else 'Applied.'
+    except Exception as e:
+        return f'Error: {str(e)}'
+
+def hc_enrich_with_cortex(object_id, table_name, col_name, source_system, obj_type):
+    session = get_session()
+    try:
+        if col_name and str(col_name).strip():
+            prompt = (
+                f"Generate a concise 1-2 sentence data catalog description for the column "
+                f"'{col_name}' in table '{table_name}' from {source_system}. "
+                f"Focus on business meaning, typical values, and analytics use cases. Plain text only."
+            )
+        else:
+            prompt = (
+                f"Generate a concise 1-2 sentence data catalog description for the "
+                f"{'BI dashboard' if obj_type in ('DASHBOARD','REPORT') else 'database table'} "
+                f"'{table_name}' from {source_system}. "
+                f"Focus on business purpose and what it contains. Plain text only."
+            )
+        prompt_esc = prompt.replace("'", "''")
+        result = session.sql(
+            f"SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large2', '{prompt_esc}') AS DESC"
+        ).to_pandas()
+        description = result['DESC'].iloc[0].strip() if not result.empty else None
+        if description:
+            desc_esc = description.replace("'", "''")
+            session.sql(f"""
+                UPDATE {_HC}.EXT_CATALOG_OBJECTS
+                SET DESCRIPTION = '{desc_esc}',
+                    DESCRIPTION_SOURCE = 'AI_GENERATED',
+                    HAS_GOVERNANCE_GAP = FALSE,
+                    LAST_CRAWLED_AT = CURRENT_TIMESTAMP()
+                WHERE OBJECT_ID = '{object_id}'
+            """).collect()
+            get_unified_catalog.clear()
+            get_governance_gaps.clear()
+        return description
+    except Exception as e:
+        return f'Cortex error: {str(e)}'
+
+# ============================================================================
+# HORIZON CONTEXT — LINEAGE GRAPH BUILDER
+# ============================================================================
+
+def _build_lineage_figure(lineage_df=None, focal_id=None):
+    """Build the cross-platform lineage plotly figure."""
+
+    NODE_MAP = {
+        'pg-customers':        (0,   4.0, 'customers',           'PostgreSQL',          '#336791', '🐘'),
+        'pg-transactions':     (0,   3.0, 'transactions',         'PostgreSQL',          '#336791', '🐘'),
+        'sql-journals':        (0,   2.0, 'journal_entries',      'SQL Server',          '#CC2927', '🪟'),
+        'sql-headcount':       (0,   1.2, 'headcount',            'SQL Server',          '#CC2927', '🪟'),
+        'pg-employees':        (0,   0.4, 'employees',            'PostgreSQL',          '#336791', '🐘'),
+        'dbt-stg-cust':        (1.5, 4.0, 'stg_customers',        'dbt Cloud',           '#FF694A', '🔧'),
+        'dbt-dim-cust':        (1.5, 3.5, 'dim_customer',         'dbt Cloud',           '#FF694A', '🔧'),
+        'dbt-stg-txn':         (1.5, 3.0, 'stg_transactions',     'dbt Cloud',           '#FF694A', '🔧'),
+        'dbt-fct-rev':         (1.5, 2.5, 'fct_revenue',          'dbt Cloud',           '#FF694A', '🔧'),
+        'dbt-dim-emp':         (1.5, 0.8, 'dim_employee',         'dbt Cloud',           '#FF694A', '🔧'),
+        'sf-raw-account':      (3,   4.0, 'SALESFORCE.ACCOUNT',   'Snowflake RAW',       '#1DB4D1', '❄️'),
+        'sf-raw-vbak':         (3,   3.0, 'SAP.VBAK',             'Snowflake RAW',       '#1DB4D1', '❄️'),
+        'sf-raw-gl':           (3,   2.0, 'ORACLE.GL_JE_HEADERS', 'Snowflake RAW',       '#1DB4D1', '❄️'),
+        'sf-raw-workers':      (3,   0.8, 'WORKDAY.WORKERS',      'Snowflake RAW',       '#1DB4D1', '❄️'),
+        'sf-curated-dim-cust': (4.5, 4.0, 'DIM_CUSTOMER',         'Snowflake CURATED',   '#29B5E8', '❄️'),
+        'sf-curated-fact-rev': (4.5, 3.0, 'FACT_REVENUE',         'Snowflake CURATED',   '#29B5E8', '❄️'),
+        'sf-curated-fact-je':  (4.5, 2.0, 'FACT_JOURNAL_ENTRIES', 'Snowflake CURATED',   '#29B5E8', '❄️'),
+        'sf-curated-dim-emp':  (4.5, 0.8, 'DIM_EMPLOYEE',         'Snowflake CURATED',   '#29B5E8', '❄️'),
+        'sf-sem-revenue':      (6,   3.0, 'REVENUE_SUMMARY',      'Snowflake SEMANTIC',  '#11567F', '❄️'),
+        'sf-sem-workforce':    (6,   0.8, 'WORKFORCE_SUMMARY',    'Snowflake SEMANTIC',  '#11567F', '❄️'),
+        'tab-cust360':         (7.5, 4.5, 'Customer 360',         'Tableau',             '#E97627', '📊'),
+        'pbi-customer':        (7.5, 4.0, 'Customer Report',      'Power BI',            '#B3920E', '📈'),
+        'tab-rev-dash':        (7.5, 3.5, 'Revenue Dashboard',    'Tableau',             '#E97627', '📊'),
+        'tab-board':           (7.5, 3.0, 'Board KPIs',           'Tableau',             '#E97627', '📊'),
+        'pbi-sales':           (7.5, 2.5, 'Sales Analytics',      'Power BI',            '#B3920E', '📈'),
+        'pbi-finance':         (7.5, 2.0, 'Finance Monthly',      'Power BI',            '#B3920E', '📈'),
+        'tab-finance':         (7.5, 1.5, 'Finance Close',        'Tableau',             '#E97627', '📊'),
+        'tab-hr':              (7.5, 0.8, 'HR Analytics',         'Tableau',             '#E97627', '📊'),
+        'pbi-hr':              (7.5, 0.2, 'HR Headcount',         'Power BI',            '#B3920E', '📈'),
+    }
+
+    EDGE_LIST = [
+        ('pg-customers',   'dbt-stg-cust',        'INGESTED'),
+        ('dbt-stg-cust',   'sf-raw-account',       'TRANSFORMED'),
+        ('dbt-dim-cust',   'sf-curated-dim-cust',  'TRANSFORMED'),
+        ('sf-raw-account', 'sf-curated-dim-cust',  'TRANSFORMED'),
+        ('sf-curated-dim-cust', 'tab-cust360',     'CONSUMED'),
+        ('sf-curated-dim-cust', 'pbi-customer',    'CONSUMED'),
+        ('pg-transactions','dbt-stg-txn',          'INGESTED'),
+        ('dbt-stg-txn',    'sf-raw-vbak',          'TRANSFORMED'),
+        ('dbt-fct-rev',    'sf-curated-fact-rev',  'TRANSFORMED'),
+        ('sf-raw-vbak',    'sf-curated-fact-rev',  'TRANSFORMED'),
+        ('sf-curated-fact-rev', 'sf-sem-revenue',  'PUBLISHED'),
+        ('sf-sem-revenue', 'tab-rev-dash',          'CONSUMED'),
+        ('sf-sem-revenue', 'tab-board',             'CONSUMED'),
+        ('sf-curated-fact-rev', 'pbi-finance',      'CONSUMED'),
+        ('sf-curated-fact-rev', 'pbi-sales',        'CONSUMED'),
+        ('sql-journals',   'sf-raw-gl',             'INGESTED'),
+        ('sf-raw-gl',      'sf-curated-fact-je',   'TRANSFORMED'),
+        ('sf-curated-fact-je', 'pbi-finance',       'CONSUMED'),
+        ('sf-curated-fact-je', 'tab-finance',       'CONSUMED'),
+        ('sql-headcount',  'sf-raw-workers',        'INGESTED'),
+        ('pg-employees',   'sf-raw-workers',        'INGESTED'),
+        ('dbt-dim-emp',    'sf-curated-dim-emp',   'TRANSFORMED'),
+        ('sf-raw-workers', 'sf-curated-dim-emp',   'TRANSFORMED'),
+        ('sf-curated-dim-emp', 'sf-sem-workforce', 'PUBLISHED'),
+        ('sf-sem-workforce','tab-hr',               'CONSUMED'),
+        ('sf-curated-dim-emp', 'pbi-hr',            'CONSUMED'),
+    ]
+
+    LINEAGE_COLORS = {
+        'INGESTED':    '#E97627',
+        'TRANSFORMED': '#29B5E8',
+        'PUBLISHED':   '#11567F',
+        'CONSUMED':    '#18794E',
+    }
+
+    fig = go.Figure()
+
+    # Swim lane backgrounds
+    LANES = [
+        ('External Sources',   -0.4, 0.85, '#FEF3F2'),
+        ('dbt Pipeline',        1.1, 0.85, '#FFF8F5'),
+        ('Snowflake RAW',       2.6, 0.85, '#F0FFFE'),
+        ('Snowflake CURATED',   4.1, 0.85, '#EFF9FF'),
+        ('Snowflake SEMANTIC',  5.6, 0.85, '#F0F4FF'),
+        ('BI Consumers',        7.1, 1.0,  '#FFFBF0'),
+    ]
+    for label, x0, w, bg in LANES:
+        fig.add_shape(type='rect', x0=x0, x1=x0+w, y0=-0.3, y1=5.1,
+                      fillcolor=bg, line=dict(width=1, color='#E2E8F0'), layer='below')
+        fig.add_annotation(x=x0+w/2, y=5.2, text=f'<b>{label}</b>',
+                           showarrow=False, font=dict(size=9, color='#64748B'), align='center')
+
+    # Determine focal path nodes
+    focal_nodes = set()
+    if focal_id:
+        for src, tgt, _ in EDGE_LIST:
+            if src == focal_id or tgt == focal_id:
+                focal_nodes.update([src, tgt])
+        focal_nodes.add(focal_id)
+
+    # Draw edges
+    for src_id, tgt_id, edge_type in EDGE_LIST:
+        if src_id not in NODE_MAP or tgt_id not in NODE_MAP:
+            continue
+        sx, sy = NODE_MAP[src_id][0], NODE_MAP[src_id][1]
+        tx, ty = NODE_MAP[tgt_id][0], NODE_MAP[tgt_id][1]
+        is_highlighted = focal_id and (src_id in focal_nodes and tgt_id in focal_nodes)
+        opacity = 1.0 if (not focal_id or is_highlighted) else 0.15
+        line_color = LINEAGE_COLORS.get(edge_type, '#94A3B8')
+        line_width = 3 if is_highlighted else 1.5
+
+        # Bezier midpoints
+        mx = (sx + tx) / 2
+        fig.add_trace(go.Scatter(
+            x=[sx + 0.06, mx, tx - 0.06],
+            y=[sy, (sy + ty) / 2, ty],
+            mode='lines',
+            line=dict(color=line_color, width=line_width, shape='spline'),
+            opacity=opacity,
+            hoverinfo='text',
+            hovertext=f'{edge_type}: {NODE_MAP[src_id][2]} → {NODE_MAP[tgt_id][2]}',
+            showlegend=False,
+        ))
+
+    # Draw nodes
+    for nid, (nx, ny, label, system, color, icon) in NODE_MAP.items():
+        is_focal = focal_id and nid == focal_id
+        is_path = focal_id and nid in focal_nodes
+        opacity = 1.0 if (not focal_id or is_path) else 0.25
+        size = 22 if is_focal else 16 if is_path else 14
+
+        short = label[:18] + '…' if len(label) > 18 else label
+        fig.add_trace(go.Scatter(
+            x=[nx], y=[ny],
+            mode='markers+text',
+            marker=dict(size=size, color=color, symbol='circle',
+                        line=dict(width=3 if is_focal else 1,
+                                  color='white' if is_focal else color)),
+            text=[f'<b>{icon}</b>'],
+            textposition='middle center',
+            textfont=dict(size=9),
+            opacity=opacity,
+            hoverinfo='text',
+            hovertext=f'<b>{label}</b><br>{system}',
+            showlegend=False,
+            name=nid,
+        ))
+        fig.add_annotation(x=nx, y=ny - 0.28, text=short, showarrow=False,
+                           font=dict(size=8, color='#334155'), align='center',
+                           opacity=opacity)
+
+    # Legend
+    for etype, ecolor in LINEAGE_COLORS.items():
+        fig.add_trace(go.Scatter(
+            x=[None], y=[None], mode='lines',
+            line=dict(color=ecolor, width=3),
+            name=etype.capitalize(), showlegend=True,
+        ))
+
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0,
+                    font=dict(size=10)),
+        hovermode='closest',
+        height=580,
+        margin=dict(l=5, r=5, t=80, b=5),
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        xaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-0.5, 9]),
+        yaxis=dict(showgrid=False, showticklabels=False, zeroline=False, range=[-0.5, 5.5]),
+    )
+    return fig
+
+# ============================================================================
+# PAGE: HORIZON CONTEXT — SELECT STAR INTEGRATION
+# ============================================================================
+
+def render_horizon_context_page():
+    """Render the Horizon Context / Select Star integration demo."""
+    st.markdown("""
+    <div class="main-header">
+        <h1>🌟 Horizon Context <span style="font-weight:400;font-size:0.9em;">powered by Select Star</span></h1>
+        <p>Cross-platform metadata catalog · External lineage · Usage intelligence · AI governance enrichment</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background:#EFF9FF;border-radius:12px;padding:1rem 1.5rem;border-left:4px solid #29B5E8;margin-bottom:1rem;">
+    <strong>What is Horizon Context?</strong> Snowflake acquired Select Star (Dec 2025) to extend Horizon beyond
+    Snowflake-native assets. The integrated product — Horizon Context — connects to external databases, BI tools,
+    and data pipelines, harvests their metadata, and surfaces a unified catalog, cross-platform lineage,
+    usage intelligence, and AI-powered governance enrichment — all inside Snowflake.
+    PrPr launched at Summit 2026 with connectors for PostgreSQL, SQL Server, Tableau, Power BI, and dbt.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Top metrics
+    connectors_df = get_connector_status()
+    active = len(connectors_df[connectors_df['STATUS'] == 'ACTIVE']) if not connectors_df.empty else 5
+    total_obj = int(connectors_df['OBJECTS_TOTAL'].sum()) if not connectors_df.empty else 2958
+    catalog_df = get_unified_catalog()
+    gaps_df = get_governance_gaps()
+    gap_count = len(gaps_df) if not gaps_df.empty else 0
+
+    m1, m2, m3, m4, m5 = st.columns(5)
+    for col, val, label, hint in [
+        (m1, active, 'Active Connectors', '5 PrPr · 2 PuPr planned'),
+        (m2, total_obj, 'Objects Cataloged', 'Across all connected systems'),
+        (m3, len(catalog_df), 'Catalog Entries', 'Searchable in Universal Search'),
+        (m4, gap_count, 'Governance Gaps', 'Missing owner/desc/tags'),
+        (m5, 27, 'Lineage Paths', 'Cross-platform edge count'),
+    ]:
+        col.markdown(f"""
+        <div class="metric-card">
+            <div style="font-size:1.6rem;font-weight:700;color:#29B5E8;">{val:,}</div>
+            <strong>{label}</strong><br>
+            <small style="color:#64748B;">{hint}</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    tab_hub, tab_catalog, tab_lineage, tab_usage, tab_ai = st.tabs([
+        "🔌 Connector Hub",
+        "🔍 Universal Catalog",
+        "🗺️ Cross-Platform Lineage",
+        "📊 Usage Intelligence",
+        "✨ AI Governance",
+    ])
+
+    # ── TAB 1: Connector Hub ──────────────────────────────────────────────────
+    with tab_hub:
+        st.markdown("### Connected External Systems")
+        st.caption("Horizon Context metadata connectors — credentials held by Snowflake GS, not shown here")
+
+        if connectors_df.empty:
+            st.info("Run `sql/17_select_star_horizon_context.sql` to set up the Horizon Context schema.")
+        else:
+            for _, chunk in connectors_df.groupby('IS_PRPR_AVAILABLE', sort=False):
+                for i in range(0, len(chunk), 4):
+                    row_cols = st.columns(4)
+                    for j, (_, row) in enumerate(chunk.iloc[i:i+4].iterrows()):
+                        with row_cols[j]:
+                            status = row.get('STATUS', 'UNKNOWN')
+                            status_color = {'ACTIVE':'#18794E','CRAWLING':'#0EA5E9',
+                                            'PAUSED':'#AD5700','ERROR':'#CD2B31'}.get(status, '#64748B')
+                            status_bg   = {'ACTIVE':'#F0FDF4','CRAWLING':'#F0F9FF',
+                                            'PAUSED':'#FFFBEB','ERROR':'#FFF1F2'}.get(status, '#F8FAFC')
+                            icon = row.get('CONNECTOR_ICON', '🔌') or '🔌'
+                            color = row.get('CONNECTOR_COLOR', '#29B5E8') or '#29B5E8'
+                            obj_total = int(row.get('OBJECTS_TOTAL') or 0)
+                            last_crawl = row.get('LAST_CRAWL_AT')
+                            if pd.notna(last_crawl):
+                                delta = pd.Timestamp.now() - pd.Timestamp(last_crawl)
+                                mins = int(delta.total_seconds() / 60)
+                                crawl_str = (f'{mins}m ago' if mins < 60
+                                             else f'{mins//60}h ago' if mins < 1440
+                                             else f'{mins//1440}d ago')
+                            else:
+                                crawl_str = 'Not yet crawled'
+
+                            st.markdown(f"""
+                            <div style="background:white;border-radius:12px;padding:1rem;
+                                        border-left:4px solid {color};border:1px solid #E2E8F0;
+                                        margin-bottom:0.5rem;">
+                                <div style="font-size:1.6rem;">{icon}</div>
+                                <strong>{row['SOURCE_SYSTEM']}</strong><br>
+                                <small style="color:#64748B;">{row.get('CONNECTION_NAME','')}</small><br>
+                                <span style="background:{status_bg};color:{status_color};
+                                             padding:2px 8px;border-radius:12px;font-size:0.78rem;
+                                             font-weight:600;">{status}</span><br>
+                                <div style="margin-top:0.5rem;font-size:0.85rem;">
+                                    <b>{obj_total:,}</b> objects &nbsp;·&nbsp;
+                                    <span style="color:#64748B;">{crawl_str}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            if status == 'ACTIVE':
+                                if st.button(f"↻ Crawl", key=f"crawl_{row['CONNECTOR_ID']}",
+                                             use_container_width=True):
+                                    with st.spinner(f"Crawling {row['SOURCE_SYSTEM']}…"):
+                                        msg = hc_simulate_crawl(row['CONNECTOR_ID'])
+                                    st.success(msg)
+                                    st.rerun()
+                            elif row.get('ROADMAP_NOTE'):
+                                st.info(row['ROADMAP_NOTE'], icon='🗓️')
+
+        st.divider()
+        st.markdown("#### Connector Coverage by Type")
+        if not connectors_df.empty:
+            active_df = connectors_df[connectors_df['STATUS'] == 'ACTIVE']
+            c1, c2, c3 = st.columns(3)
+            for col, stype, label, desc in [
+                (c1, 'DATABASE', '🗄️ Databases', 'PostgreSQL, SQL Server (GA) · BigQuery, MySQL (PuPr)'),
+                (c2, 'BI_TOOL', '📊 BI Tools', 'Tableau, Power BI (GA) · Looker (PuPr) · Sigma (GA)'),
+                (c3, 'PIPELINE', '🔧 Pipelines', 'dbt Cloud (GA) · Fivetran, Dagster (PuPr)'),
+            ]:
+                count = len(active_df[active_df['SOURCE_TYPE'] == stype])
+                col.markdown(f"""
+                <div class="metric-card">
+                    <div style="font-size:1.3rem;">{label}</div>
+                    <div style="font-size:1.8rem;font-weight:700;color:#29B5E8;">{count} active</div>
+                    <small style="color:#64748B;">{desc}</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── TAB 2: Universal Catalog ──────────────────────────────────────────────
+    with tab_catalog:
+        st.markdown("### Universal Catalog — Snowflake + External Metadata")
+
+        col_search, col_type, col_src, col_sens = st.columns([3,1,1,1])
+        with col_search:
+            search_q = st.text_input("🔍 Search catalog", placeholder="e.g. customers, revenue, payroll…",
+                                     label_visibility='collapsed')
+        with col_type:
+            type_filter = st.selectbox('Type', ['All','TABLE','VIEW','COLUMN','DASHBOARD','REPORT','MODEL'],
+                                       label_visibility='collapsed')
+        with col_src:
+            sources = ['All'] + sorted({
+                'PostgreSQL','Microsoft SQL Server','Tableau','Power BI','dbt Cloud','Snowflake'
+            })
+            src_filter = st.selectbox('Source', sources, label_visibility='collapsed')
+        with col_sens:
+            sens_filter = st.selectbox('Sensitivity', ['All','PUBLIC','INTERNAL','CONFIDENTIAL','RESTRICTED'],
+                                       label_visibility='collapsed')
+
+        catalog_results = get_unified_catalog(
+            search_query=search_q,
+            obj_type=type_filter if type_filter != 'All' else None,
+            source=src_filter if src_filter != 'All' else None,
+            sensitivity=sens_filter if sens_filter != 'All' else None,
+        )
+
+        if catalog_results.empty:
+            st.info("No objects match your search, or the Horizon Context schema has not been deployed yet.")
+        else:
+            st.caption(f"{len(catalog_results)} objects found across all connected systems")
+
+            def _sensitivity_badge(s):
+                colors = {'PUBLIC':'#18794E','INTERNAL':'#0369A1',
+                          'CONFIDENTIAL':'#9333EA','RESTRICTED':'#DC2626'}
+                return f"<span style='background:{colors.get(s,'#64748B')}22;color:{colors.get(s,'#64748B')};padding:2px 7px;border-radius:10px;font-size:0.78rem;font-weight:600;'>{s or 'UNCLASSIFIED'}</span>"
+
+            def _pop_bar(score):
+                if pd.isna(score):
+                    return '—'
+                w = int(score)
+                color = '#29B5E8' if score >= 80 else '#64748B' if score >= 40 else '#CBD5E1'
+                return (f"<div style='display:flex;align-items:center;gap:4px;'>"
+                        f"<div style='width:{w}px;max-width:80px;height:6px;border-radius:3px;"
+                        f"background:{color};'></div><small>{score:.0f}</small></div>")
+
+            for idx, row in catalog_results.head(50).iterrows():
+                icon = row.get('CONNECTOR_ICON', '📦') or '📦'
+                color = row.get('CONNECTOR_COLOR', '#64748B') or '#64748B'
+                name = row.get('QUALIFIED_NAME', '')
+                short_name = name.split('.')[-1] if '.' in name else name
+                desc = row.get('DESCRIPTION') or ''
+                desc_snippet = (desc[:90] + '…') if len(desc) > 90 else desc
+                sensitivity = row.get('SENSITIVITY_CLASS')
+                pii = row.get('IS_PII', False)
+                gap = row.get('HAS_GOVERNANCE_GAP', False)
+
+                st.markdown(f"""
+                <div style="background:white;border-radius:10px;padding:0.75rem 1rem;
+                            border:1px solid {'#FCA5A5' if gap else '#E2E8F0'};
+                            border-left:4px solid {color};margin-bottom:0.4rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div>
+                            <span style="font-size:1rem;">{icon}</span>
+                            <strong>{short_name}</strong>
+                            <span style="color:#94A3B8;font-size:0.8rem;margin-left:6px;">{row.get('OBJECT_TYPE','')}</span>
+                            {"<span style='color:#DC2626;font-size:0.78rem;margin-left:8px;'>⚠ PII</span>" if pii else ''}
+                            {"<span style='color:#F59E0B;font-size:0.78rem;margin-left:8px;'>⚠ gap</span>" if gap else ''}
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            {_sensitivity_badge(sensitivity)}
+                            <span style="color:#64748B;font-size:0.8rem;">{row.get('SOURCE_SYSTEM','')}</span>
+                        </div>
+                    </div>
+                    <div style="color:#475569;font-size:0.83rem;margin-top:0.3rem;">
+                        {desc_snippet if desc_snippet else '<em style="color:#94A3B8;">No description — see AI Governance tab to enrich</em>'}
+                    </div>
+                    <div style="display:flex;gap:1.5rem;margin-top:0.4rem;font-size:0.78rem;color:#64748B;">
+                        <span>Popularity {_pop_bar(row.get('POPULARITY_SCORE'))}</span>
+                        <span>👤 {int(row.get('USER_COUNT_30D') or 0)} users/mo</span>
+                        <span>⬇ {int(row.get('DOWNSTREAM_BI_COUNT') or 0)} BI consumers</span>
+                        {"<span>👑 " + str(row.get('OWNER_TEAM','Unassigned')) + "</span>" if row.get('OWNER_TEAM') else '<span style="color:#DC2626;">No owner</span>'}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── TAB 3: Cross-Platform Lineage ─────────────────────────────────────────
+    with tab_lineage:
+        st.markdown("### Cross-Platform Data Lineage")
+        st.caption(
+            "Full lineage spanning external sources → dbt pipeline → Snowflake RAW / CURATED / SEMANTIC → BI tools. "
+            "Horizon alone tracks lineage only inside Snowflake — Horizon Context extends it across the entire stack."
+        )
+
+        lineage_df = get_lineage_full()
+
+        col_a, col_b = st.columns([2, 1])
+        with col_a:
+            all_node_labels = {
+                'pg-customers': 'PostgreSQL: customers',
+                'pg-transactions': 'PostgreSQL: transactions',
+                'sql-journals': 'SQL Server: journal_entries',
+                'sql-headcount': 'SQL Server: headcount',
+                'pg-employees': 'PostgreSQL: employees',
+                'sf-curated-fact-rev': 'Snowflake: FACT_REVENUE',
+                'sf-sem-revenue': 'Snowflake: REVENUE_SUMMARY (Semantic)',
+                'tab-rev-dash': 'Tableau: Executive Revenue Dashboard',
+                'tab-cust360': 'Tableau: Customer 360 View',
+                'pbi-finance': 'Power BI: Finance Monthly Reporting',
+                'sf-curated-dim-cust': 'Snowflake: DIM_CUSTOMER',
+                'sf-curated-dim-emp': 'Snowflake: DIM_EMPLOYEE',
+                'sf-sem-workforce': 'Snowflake: WORKFORCE_SUMMARY (Semantic)',
+                'tab-hr': 'Tableau: HR Analytics',
+            }
+            selected_focal_label = st.selectbox(
+                'Highlight lineage path for object',
+                ['Show all paths'] + list(all_node_labels.values()),
+                index=0,
+            )
+            focal_id = None
+            if selected_focal_label != 'Show all paths':
+                for nid, label in all_node_labels.items():
+                    if label == selected_focal_label:
+                        focal_id = nid
+                        break
+
+        with col_b:
+            if focal_id:
+                st.markdown(f"""
+                <div style="background:#F0F9FF;border-radius:8px;padding:0.75rem;border-left:3px solid #29B5E8;">
+                <strong>Impact of changing this asset:</strong><br>
+                <small>Hover over nodes to see downstream consumers.<br>
+                Blue = selected object · Faded = unrelated paths</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+        fig = _build_lineage_figure(lineage_df, focal_id)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Path narrative
+        if not lineage_df.empty:
+            st.markdown("#### Lineage Paths")
+            path_labels = {
+                'path-cust-360': ('Customer 360', '🐘 PostgreSQL.customers → 🔧 dbt stg_customers → ❄️ RAW.SALESFORCE.ACCOUNT → ❄️ CURATED.DIM_CUSTOMER → 📊 Tableau Customer 360 · 📈 Power BI Customer Report'),
+                'path-revenue':  ('Revenue',      '🐘 PostgreSQL.transactions → 🔧 dbt stg_transactions → ❄️ RAW.SAP.VBAK → ❄️ CURATED.FACT_REVENUE → ❄️ SEMANTIC.REVENUE_SUMMARY → 📊 Tableau Revenue Dashboard'),
+                'path-finance':  ('Finance GL',   '🪟 SQL Server.journal_entries → ❄️ RAW.ORACLE.GL_JE_HEADERS → ❄️ CURATED.FACT_JOURNAL_ENTRIES → 📈 Power BI Finance Monthly · 📊 Tableau Finance Close'),
+                'path-workforce':('Workforce',    '🪟 SQL Server.headcount + 🐘 PostgreSQL.employees → ❄️ RAW.WORKDAY.WORKERS → ❄️ CURATED.DIM_EMPLOYEE → ❄️ SEMANTIC.WORKFORCE_SUMMARY → 📊 Tableau HR Analytics'),
+            }
+            for path_id, (path_name, path_str) in path_labels.items():
+                path_rows = lineage_df[lineage_df['LINEAGE_PATH_ID'] == path_id] if not lineage_df.empty else pd.DataFrame()
+                hop_count = len(path_rows)
+                with st.expander(f"**{path_name}** — {hop_count or '?'} hops"):
+                    st.markdown(path_str)
+                    if not path_rows.empty:
+                        for _, edge in path_rows.sort_values('HOP_NUMBER').iterrows():
+                            conf = float(edge.get('CONFIDENCE_SCORE') or 1.0)
+                            st.markdown(
+                                f"&nbsp;&nbsp;Hop {int(edge['HOP_NUMBER'])}: "
+                                f"`{edge.get('SOURCE_TABLE','?')}` → `{edge.get('TARGET_TABLE','?')}` "
+                                f"[{edge.get('LINEAGE_TYPE','')}] "
+                                f"confidence {conf:.0%}"
+                            )
+
+    # ── TAB 4: Usage Intelligence ─────────────────────────────────────────────
+    with tab_usage:
+        st.markdown("### Usage Intelligence")
+        st.caption(
+            "Popularity scoring combines Snowflake QUERY_HISTORY, BI tool view counts, and distinct user access patterns. "
+            "Scores drive governance prioritization — high-score assets warrant faster policy coverage."
+        )
+
+        usage_df = get_usage_intelligence()
+        trends_df = get_usage_trends()
+
+        if usage_df.empty:
+            st.info("Deploy the Horizon Context schema to see usage intelligence data.")
+        else:
+            c1, c2, c3, c4 = st.columns(4)
+            platinum = len(usage_df[usage_df['POPULARITY_TIER'] == 'PLATINUM']) if not usage_df.empty else 0
+            gold     = len(usage_df[usage_df['POPULARITY_TIER'] == 'GOLD']) if not usage_df.empty else 0
+            orphans  = len(usage_df[usage_df['IS_ORPHANED'] == True]) if not usage_df.empty else 0
+            total_bi = int(usage_df['TOTAL_BI_VIEWS_14D'].sum()) if not usage_df.empty else 0
+            for col, val, label, sub in [
+                (c1, platinum, 'Platinum Assets', 'Popularity score ≥ 80'),
+                (c2, gold,     'Gold Assets',     'Popularity score 60–79'),
+                (c3, orphans,  'Orphaned Assets', 'Zero downstream consumers'),
+                (c4, total_bi, 'BI Views (14d)',  'Across Tableau + Power BI'),
+            ]:
+                col.markdown(f"""
+                <div class="metric-card">
+                    <div style="font-size:1.6rem;font-weight:700;color:#29B5E8;">{val:,}</div>
+                    <strong>{label}</strong><br><small style="color:#64748B;">{sub}</small>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.divider()
+            left_col, right_col = st.columns([3, 2])
+
+            with left_col:
+                st.markdown("#### Top 15 Assets by Popularity")
+                top15 = usage_df.head(15)
+                for _, row in top15.iterrows():
+                    icon = row.get('CONNECTOR_ICON', '📦') or '📦'
+                    score = float(row.get('POPULARITY_SCORE') or 0)
+                    color = row.get('CONNECTOR_COLOR', '#64748B') or '#64748B'
+                    tier  = row.get('POPULARITY_TIER', '')
+                    tier_badge = {'PLATINUM':'🥇','GOLD':'🥈','SILVER':'🥉','BRONZE':'🏅'}.get(tier,'')
+                    table = row.get('QUALIFIED_NAME', '')
+                    short = table.split('.')[-1] if '.' in table else table
+                    sys_name = row.get('SOURCE_SYSTEM', '')
+                    qcount = int(row.get('QUERY_COUNT_30D') or 0)
+                    ucount = int(row.get('USER_COUNT_30D') or 0)
+                    bi_count = int(row.get('DOWNSTREAM_BI_COUNT') or 0)
+                    bar_w = int(score * 1.5)
+
+                    st.markdown(f"""
+                    <div style="display:flex;align-items:center;gap:10px;
+                                padding:0.5rem 0.75rem;border-radius:8px;margin-bottom:3px;
+                                background:white;border:1px solid #F1F5F9;">
+                        <span>{icon}</span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:600;font-size:0.88rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{short} {tier_badge}</div>
+                            <div style="background:#E2E8F0;border-radius:3px;height:5px;margin-top:3px;">
+                                <div style="width:{bar_w}px;max-width:100%;height:5px;border-radius:3px;background:{color};"></div>
+                            </div>
+                        </div>
+                        <div style="text-align:right;font-size:0.78rem;color:#64748B;white-space:nowrap;">
+                            <div><b>{score:.0f}</b> score</div>
+                            <div>{qcount:,} qry · {ucount} users · {bi_count} BI</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            with right_col:
+                st.markdown("#### Orphaned Assets")
+                st.caption("Zero downstream consumers in 90 days — candidates for deprecation")
+                orphan_df = usage_df[usage_df['IS_ORPHANED'] == True]
+                if orphan_df.empty:
+                    st.success("No orphaned assets detected.")
+                else:
+                    for _, row in orphan_df.iterrows():
+                        icon = row.get('CONNECTOR_ICON', '📦') or '📦'
+                        table = row.get('QUALIFIED_NAME', '')
+                        short = table.split('.')[-1] if '.' in table else table
+                        qcount = int(row.get('QUERY_COUNT_30D') or 0)
+                        owner = row.get('OWNER_EMAIL') or '⚠ No owner'
+                        st.markdown(f"""
+                        <div style="background:#FFF7ED;border-radius:8px;padding:0.5rem 0.75rem;
+                                    border-left:3px solid #F59E0B;margin-bottom:0.4rem;font-size:0.85rem;">
+                            {icon} <strong>{short}</strong><br>
+                            {qcount} queries/mo · {owner}
+                        </div>
+                        """, unsafe_allow_html=True)
+
+            # Trend chart
+            if not trends_df.empty:
+                st.divider()
+                st.markdown("#### 14-Day Query Volume Trend (Top Assets)")
+                try:
+                    trends_df['STAT_DATE'] = pd.to_datetime(trends_df['STAT_DATE'])
+                    pivot = trends_df.pivot_table(
+                        index='STAT_DATE', columns='TABLE_NAME',
+                        values='QUERY_COUNT', aggfunc='sum'
+                    ).fillna(0)
+                    trend_fig = go.Figure()
+                    colors_cycle = ['#29B5E8','#11567F','#FF694A','#E97627','#18794E','#9333EA']
+                    for i, col in enumerate(pivot.columns[:6]):
+                        trend_fig.add_trace(go.Scatter(
+                            x=pivot.index, y=pivot[col],
+                            mode='lines+markers', name=col,
+                            line=dict(color=colors_cycle[i % len(colors_cycle)], width=2),
+                            marker=dict(size=5),
+                        ))
+                    trend_fig.update_layout(
+                        height=280, margin=dict(l=10, r=10, t=30, b=10),
+                        legend=dict(orientation='h', yanchor='top', y=-0.1),
+                        plot_bgcolor='white', paper_bgcolor='white',
+                        xaxis=dict(showgrid=True, gridcolor='#F1F5F9'),
+                        yaxis=dict(showgrid=True, gridcolor='#F1F5F9', title='Queries / day'),
+                    )
+                    st.plotly_chart(trend_fig, use_container_width=True)
+                except Exception:
+                    pass
+
+    # ── TAB 5: AI Governance ──────────────────────────────────────────────────
+    with tab_ai:
+        st.markdown("### AI Governance Enrichment")
+        st.caption(
+            "Select Star's metadata analysis + Cortex AI surfaces governance gaps and auto-generates "
+            "descriptions, tag suggestions, owner assignments, and deprecation candidates."
+        )
+
+        recs_df = get_governance_recommendations()
+        gaps_df = get_governance_gaps()
+
+        # Gap summary
+        if not gaps_df.empty:
+            missing_desc  = int(gaps_df['MISSING_DESCRIPTION'].sum())
+            missing_owner = int(gaps_df['MISSING_OWNER'].sum())
+            missing_sens  = int(gaps_df['MISSING_SENSITIVITY'].sum())
+            pii_gap       = int(gaps_df['UNDECLARED_PII'].sum())
+            g1, g2, g3, g4 = st.columns(4)
+            for gcol, gval, glabel, gcolor in [
+                (g1, missing_desc,  'Missing Descriptions', '#E97627'),
+                (g2, missing_owner, 'Missing Owners',       '#DC2626'),
+                (g3, missing_sens,  'Missing Sensitivity',  '#9333EA'),
+                (g4, pii_gap,       'Undeclared PII',       '#DC2626'),
+            ]:
+                gcol.markdown(f"""
+                <div class="metric-card" style="border-left-color:{gcolor};">
+                    <div style="font-size:1.6rem;font-weight:700;color:{gcolor};">{gval}</div>
+                    <strong>{glabel}</strong>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.divider()
+
+        panel_recs, panel_cortex = st.columns([3, 2])
+
+        with panel_recs:
+            st.markdown("#### Open Governance Recommendations")
+            if recs_df.empty:
+                st.success("No open governance recommendations. Well governed!")
+            else:
+                PRIORITY_COLORS = {
+                    'CRITICAL': ('#DC2626','#FFF1F2'),
+                    'HIGH':     ('#EA580C','#FFF7ED'),
+                    'MEDIUM':   ('#CA8A04','#FEFCE8'),
+                    'LOW':      ('#16A34A','#F0FDF4'),
+                }
+                REC_ICONS = {
+                    'APPLY_MASK': '🔒', 'ADD_TAG': '🏷️', 'ASSIGN_OWNER': '👤',
+                    'ADD_DESCRIPTION': '📝', 'DEPRECATE': '🗑️',
+                    'REVIEW_PII': '⚠️', 'CERTIFY': '✅',
+                }
+                for _, rec in recs_df.iterrows():
+                    priority = rec.get('PRIORITY', 'MEDIUM')
+                    p_color, p_bg = PRIORITY_COLORS.get(priority, ('#64748B','#F8FAFC'))
+                    rec_icon = REC_ICONS.get(rec.get('RECOMMENDATION_TYPE',''), '💡')
+                    rec_id = rec.get('REC_ID', '')
+                    obj_icon = rec.get('CONNECTOR_ICON', '📦') or '📦'
+                    obj_name = str(rec.get('QUALIFIED_NAME', '')).split('.')[-1]
+                    reason_text = str(rec.get('REASON', ''))[:160] + '…' if len(str(rec.get('REASON',''))) > 160 else str(rec.get('REASON',''))
+                    suggested = str(rec.get('SUGGESTED_VALUE', ''))[:120] if rec.get('SUGGESTED_VALUE') else None
+                    conf = float(rec.get('AI_CONFIDENCE') or 0)
+
+                    with st.expander(
+                        f"{rec_icon} **{rec.get('RECOMMENDATION_TYPE','')}** on {obj_icon} `{obj_name}` "
+                        f"— [{priority}]",
+                        expanded=(priority == 'CRITICAL'),
+                    ):
+                        st.markdown(f"**Reason:** {reason_text}")
+                        if suggested:
+                            st.markdown(f"**Suggested action:** _{suggested}_")
+                        st.progress(conf, text=f"AI confidence: {conf:.0%}")
+                        col_apply, col_dismiss = st.columns(2)
+                        with col_apply:
+                            if st.button("✅ Accept", key=f"accept_{rec_id}", type="primary", use_container_width=True):
+                                msg = hc_apply_recommendation(rec_id, get_current_role())
+                                st.success(msg)
+                                st.rerun()
+                        with col_dismiss:
+                            if st.button("✗ Dismiss", key=f"dismiss_{rec_id}", use_container_width=True):
+                                hc_apply_recommendation(rec_id, 'DISMISSED')
+                                st.rerun()
+
+        with panel_cortex:
+            st.markdown("#### Cortex AI Metadata Enrichment")
+            st.caption("Generate business descriptions for ungoverned external catalog objects")
+
+            if not gaps_df.empty:
+                needs_desc = gaps_df[gaps_df['MISSING_DESCRIPTION'] == True]
+                if not needs_desc.empty:
+                    obj_options = needs_desc.apply(
+                        lambda r: f"{r.get('CONNECTOR_ICON','📦')} {r['QUALIFIED_NAME'].split('.')[-1]} ({r.get('SOURCE_SYSTEM','')})",
+                        axis=1
+                    ).tolist()
+                    selected_label = st.selectbox(
+                        "Select ungoverned object to enrich",
+                        obj_options,
+                        label_visibility='visible',
+                    )
+                    selected_idx = obj_options.index(selected_label)
+                    sel_row = needs_desc.iloc[selected_idx]
+
+                    st.markdown(f"""
+                    **Object:** `{sel_row['QUALIFIED_NAME']}`  
+                    **Type:** {sel_row.get('OBJECT_TYPE','')} · **Risk Score:** {int(sel_row.get('GOVERNANCE_RISK_SCORE',0))}  
+                    **Current description:** _None_
+                    """)
+
+                    if st.button("✨ Generate Description with Cortex", type="primary", use_container_width=True):
+                        with st.spinner("Calling Cortex mistral-large2…"):
+                            generated = hc_enrich_with_cortex(
+                                object_id=sel_row['OBJECT_ID'],
+                                table_name=sel_row['QUALIFIED_NAME'].split('.')[-1],
+                                col_name=sel_row.get('COLUMN_NAME'),
+                                source_system=sel_row.get('SOURCE_SYSTEM',''),
+                                obj_type=sel_row.get('OBJECT_TYPE',''),
+                            )
+                        if generated and not generated.startswith('Cortex error'):
+                            st.success("Description applied to catalog!")
+                            st.markdown(f"""
+                            <div style="background:#F0FDF4;border-radius:8px;padding:0.75rem;
+                                        border-left:3px solid #18794E;">
+                            <strong>AI-generated description:</strong><br>{generated}
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.error(generated or 'No description returned.')
+
+            st.divider()
+            st.markdown("#### How AI Enrichment Works")
+            st.markdown("""
+            1. Select Star crawls external objects and scores governance completeness
+            2. Objects with missing descriptions, owners, or sensitivity tags are flagged
+            3. Cortex `mistral-large2` generates context-aware descriptions from:
+               - Column/table names and data types
+               - Cross-system lineage context (what feeds it, who consumes it)
+               - Existing dbt YAML docs and source system documentation
+            4. Generated descriptions are written back to the Horizon Context catalog
+            5. Snowflake object comments and Business Glossary entries are updated via `APPLY TAG`
+
+            > **PrPr scope**: AI enrichment for external objects only.  
+            > **PuPr scope**: Writeback to native Snowflake object comments and Business Glossary.
+            """)
+
+# ============================================================================
 # MAIN
 # ============================================================================
 
@@ -1882,6 +2825,8 @@ def main():
         render_cortex_page()
     elif page == "🔮 Governance":
         render_governance_page()
+    elif page == "🌟 Horizon Context":
+        render_horizon_context_page()
     elif page == "📋 Contracts":
         render_contracts_page()
     elif page == "ℹ️ About":
