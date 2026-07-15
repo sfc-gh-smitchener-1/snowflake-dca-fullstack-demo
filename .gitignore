@@ -59,3 +59,17 @@ logs/
 # Personal/internal docs (not for repo)
 docs/ENTERPRISE_AI_ARCHITECTURE_PLAYBOOK.md
 docs/chat_notes_*.md
+
+# Personal working notes (never commit)
+notes for steve/
+
+# Customer / internal reports (never commit)
+reports/
+
+# Customer-confidential engagement material (never commit)
+# NOTE: customer-demos is a submodule; the effective ignore lives in
+# customer-demos/.gitignore. Listed here for documentation.
+customer-demos/genentech/
+
+# Blog drafts (internal, not for repo)
+blog/
